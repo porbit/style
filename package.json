@@ -1,0 +1,100 @@
+{
+  "name": "@porbit/style",
+  "version": "0.2.1",
+  "description": "PresenceStyle: utility CSS engine cho lập trình giao diện — parse class runtime, sinh CSS theo layer/media, và trích xuất CSS tĩnh ở build-time.",
+  "type": "commonjs",
+  "license": "MIT",
+  "author": "Presence",
+  "keywords": [
+    "presence",
+    "presence-style",
+    "porbit",
+    "css",
+    "css-in-js",
+    "utility",
+    "atomic-css",
+    "utility-first",
+    "static-extraction",
+    "ssr",
+    "typescript",
+    "x-css"
+  ],
+  "homepage": "https://github.com/porbit/style#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/porbit/style.git"
+  },
+  "bugs": {
+    "url": "https://github.com/porbit/style/issues"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/index-auto.mjs",
+  "jsdelivr": "./dist/index-auto.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.mjs"
+    },
+    "./auto": {
+      "types": "./dist/index-auto.d.ts",
+      "import": "./dist/index-auto.mjs",
+      "require": "./dist/index-auto.js",
+      "default": "./dist/index-auto.mjs"
+    },
+    "./dictionary.json": "./spec/dictionary.json",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "presence-style": "./dist/cli-bin.js"
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.mjs",
+    "dist/**/*.d.ts",
+    "dist/**/*.d.mts",
+    "spec/dictionary.json",
+    "spec/SPEC.md",
+    "README.md",
+    "DICTIONARY.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "./dist/index-auto.js",
+    "./dist/index-auto.mjs"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "npm run build && playwright test -c e2e/playwright.config.ts",
+    "gen:spec": "node scripts/gen-spec.cjs",
+    "gen:rust": "node scripts/gen-rust-dict.cjs",
+    "gen": "npm run gen:spec && npm run gen:rust",
+    "prepublishOnly": "npm run verify",
+    "typecheck": "tsc --noEmit",
+    "test:run": "vitest run",
+    "extract": "node ./dist/cli-bin.js extract",
+    "verify": "npm run typecheck && npm run test:run && npm run build"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^4.0.18",
+    "apca-w3": "^0.1.9",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": false
+  }
+}

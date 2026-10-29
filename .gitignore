@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.idea
+.npm-cache/
+.playwright-cli/
+*.log
+*.tgz
+coverage/
+dist/
+dist-runtime/
+dist-sdk/
+node_modules/
+output/
+target/
+target-*/
+presence-style-rs/target/
+presence-style-rs/examples/*/target/

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PresenceStyle cross-browser fixture</title>
+    <script type="module">
+        import xcss from '/dist/index.mjs'
+        // hashClassName:false để class giữ nguyên trong DOM cho observe + dễ assert.
+        const engine = xcss.css({
+            hoverMedia: true,
+            autoprefix: true,
+            hashClassName: false,
+        })
+        const { observe } = engine.buildCss(document)
+        observe()
+        // Báo cho test biết engine đã apply CSS xong.
+        window.__xcssReady = true
+    </script>
+</head>
+<body>
+    <div id="box" class="dF aiC p10px bgc#0a64e8 cWhite posSt us[none]">box</div>
+    <div id="hoverbox" class="bgc#ff0000@:hover">hover target</div>
+    <div id="resp" class="dN md:dF">responsive</div>
+</body>
+</html>

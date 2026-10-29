@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="vi" class="w100% h100%">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Demo Login - Dictionary Default</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    input,
+    button,
+    select {
+      font: inherit;
+    }
+  </style>
+</head>
+
+<body class="m0 w100% h100% bgc#ececec dF aiCenter jcCenter ffSegoe;UI,Tahoma,Arial,sans-serif">
+  <div class="posFixed t14px l14px p6px;10px bdra999px bd1px;solid;#b7c8ff bgc#ecf2ff c#3657c3 fns12px fnw600 lh1 zi9">
+    dictionaryImport = true (mặc định)
+  </div>
+
+  <div class="dF fxdColumn aiCenter w100%">
+    <section class="w410px bgc#f8f8f8 bd1px;solid;#8f8f8f bdra20px p28px;24px;24px bxsh0;1px;0;rgba(0,0,0,0.02)">
+      <div class="dF jcCenter mb20px">
+        <div class="w106px h40px dF aiCenter jcCenter bgc#181d25 c#ffffff fnw700 fns28px bdra2px lts0.2px ttrLowercase">
+          # slack
+        </div>
+      </div>
+
+      <h1 class="m0 mb22px taCenter c#444444 fnw500 fns50px lh1.05">Đăng nhập</h1>
+
+      <div class="dF gap10px mb12px">
+        <button type="button"
+          class="w92px h40px dF aiCenter jcSpace-between pl14px pr12px bd1px;solid;#adadad bdra6px bgc#f5f5f5 c#545454 fns16px curPointer">
+          <span>+84</span>
+          <span>▼</span>
+        </button>
+
+        <input type="text" class="fx1 h40px pl14px pr12px bd1px;solid;#adadad bdra6px bgc#f5f5f5 c#505050 fns16px"
+          placeholder="Nhập email hoặc số điện thoại" />
+      </div>
+
+      <div class="posRelative mb16px">
+        <input type="password" class="w100% h40px pl14px pr44px bd1px;solid;#adadad bdra6px bgc#f5f5f5 c#505050 fns16px"
+          placeholder="Nhập mật khẩu" />
+
+        <button type="button" aria-label="Hiện mật khẩu"
+          class="posAbsolute t50% r12px traTranslateY(-50%) w24px h24px dF aiCenter jcCenter p0 bdNone bgcTransparent curPointer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M2 12C3.7 8.8 7.4 6.5 12 6.5C16.6 6.5 20.3 8.8 22 12C20.3 15.2 16.6 17.5 12 17.5C7.4 17.5 3.7 15.2 2 12Z"
+              stroke="#5b5b5b" stroke-width="1.8" />
+            <circle cx="12" cy="12" r="3.1" stroke="#5b5b5b" stroke-width="1.8" />
+          </svg>
+        </button>
+      </div>
+
+      <label class="dF aiCenter gap8px c#4a4a4a fns16px mb22px">
+        <input type="checkbox" checked class="w16px h16px" />
+        <span>Ghi nhớ tài khoản</span>
+      </label>
+
+      <button type="button" class="w100% h40px bdNone bdra999px bgc#0a64e8 c#ffffff fns18px fnw500 mb22px curPointer">
+        Đăng nhập
+      </button>
+
+      <a href="#" class="dBlock taCenter c#0a5f9f fns16px tdNone">Đăng nhập bằng mã QR</a>
+    </section>
+
+    <footer class="w410px dF aiCenter jcSpace-between mt8px">
+      <button type="button"
+        class="w120px h32px dF aiCenter jcSpace-between pl10px pr10px bd1px;solid;#b1b1b1 bdra6px bgc#f3f3f3 c#505050 fns14px curPointer">
+        <span>Tiếng Việt</span>
+        <span>▼</span>
+      </button>
+
+      <div class="dF gap14px c#4b4b4b fns16px">
+        <a href="#" class="c#4b4b4b tdNone">Hỗ trợ</a>
+        <a href="#" class="c#4b4b4b tdNone">Điều khoản dịch vụ</a>
+      </div>
+    </footer>
+  </div>
+
+  <script type="module">
+    import xcss from './dist/index.mjs'
+
+    try {
+      localStorage.removeItem('xcss_cache_v1')
+    } catch (error) {
+      console.warn('Cannot clear xcss cache:', error)
+    }
+
+    xcss.cssObserve(document, {
+      dictionaryImport: true
+    })
+  </script>
+</body>
+
+</html>
