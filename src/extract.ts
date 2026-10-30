@@ -123,6 +123,16 @@ export const extractFromClasses = async (
     const { safelist = [], ...config } = options || {}
     const candidates = [...new Set([...classes, ...safelist].filter((c) => typeof c === 'string' && c.trim()))]
 
+    // Khi `hashClassName: false`, đầu ra của clsx luôn trùng đầu vào nên không thể
+    // dùng để biết class nào sinh được CSS. Vì vậy phép đếm `matched` luôn chạy trên
+    // một engine bật hash; engine xuất CSS vẫn dùng đúng cấu hình của người dùng.
+    const keepOriginalNames = config.hashClassName === false
+    const probeEngine = keepOriginalNames
+        ? xcss({ ...(config as XCSSConfig), hashClassName: true })
+        : null
+    const probe = probeEngine ? probeEngine.buildCss(undefined) : null
+    if (probeEngine) await probeEngine.ready
+
     const engine = xcss(config as XCSSConfig)
     const built = engine.buildCss(undefined)
     await engine.ready
@@ -132,11 +142,13 @@ export const extractFromClasses = async (
 
     candidates.forEach((candidate) => {
         const output = built.clsx(candidate)
-        if (output !== candidate) {
-            classMap[candidate] = output
+        const probeOutput = probe ? probe.clsx(candidate) : output
+        if (probeOutput !== candidate) {
             matched++
+            if (!keepOriginalNames) classMap[candidate] = output
         }
     })
+    probe?.destroy()
 
     // clsx phát sự kiện đồng bộ ở môi trường không có DOM, nhưng vẫn nhường một vòng
     // microtask để mọi handler kịp ghi vào text store trước khi đọc CSS.

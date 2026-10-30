@@ -40,7 +40,7 @@ Kết quả build nằm trong `dist/`:
 | `npm run test:coverage` | Chạy test kèm báo cáo độ phủ. |
 | `npm run test:e2e` | Build rồi chạy Playwright cross-browser trong `e2e/`. |
 | `npm run gen:spec` | Sinh lại `spec/dictionary.json` và `spec/conformance.core.json`. |
-| `npm run gen:rust` | Sinh `dictionary_generated.rs` cho engine Rust. |
+| `npm run gen:rust` | Sinh `dictionary_generated.rs` cho engine Rust; bỏ qua nếu chưa đặt `PRESENCE_STYLE_RUST_DICT_OUT` hoặc đối số đường dẫn. |
 | `npm run gen` | Chạy cả `gen:spec` và `gen:rust`. |
 | `npm run verify` | Cổng kiểm chứng: `typecheck` + `test:run` + `build`. |
 | `npm run extract` | Gọi CLI trích xuất từ bản build trong `dist/`. |
@@ -123,7 +123,7 @@ Tài khoản phải có quyền publish trên scope `@porbit`.
 ### Bước 4: Tăng version
 
 ```bash
-npm version patch   # hoặc minor / major theo mức độ thay đổi
+npm version patch   # hoặc minor / major theo mức độ thay đổi; lệnh này cũng tạo commit và tag git
 ```
 
 Quy ước: thay đổi hành vi engine hoặc thêm API công khai dùng `minor`; sửa lỗi tương thích ngược dùng `patch`.
@@ -154,17 +154,17 @@ https://cdn.jsdelivr.net/npm/@porbit/style@latest/dist/index.mjs
 
 npm không cho phép ghi đè một version đã publish. Xử lý theo thứ tự ưu tiên:
 
-1. **Ưu tiên nhất**: phát hành ngay version vá mới (ví dụ `0.2.1`) đã sửa lỗi. Đây là cách an toàn nhất và không phá vỡ người dùng đang cài bản lỗi.
+1. **Ưu tiên nhất**: phát hành ngay version vá mới (ví dụ `0.3.1`) đã sửa lỗi. Đây là cách an toàn nhất và không phá vỡ người dùng đang cài bản lỗi.
 2. Nếu bản lỗi nghiêm trọng, hạ nhãn `latest` về version ổn định trước đó:
 
    ```bash
-   npm dist-tag add @porbit/style@0.1.1 latest
+   npm dist-tag add @porbit/style@0.2.1 latest
    ```
 
 3. Chỉ dùng `npm deprecate` để cảnh báo, không xoá:
 
    ```bash
-   npm deprecate @porbit/style@0.2.0 "Bản lỗi, hãy dùng 0.2.1 trở lên."
+   npm deprecate @porbit/style@0.3.0 "Bản lỗi, hãy dùng 0.3.1 trở lên."
    ```
 
 > Cảnh báo: `npm unpublish` phá vỡ mọi project đang phụ thuộc version đó và chỉ khả dụng trong 72 giờ đầu. Không dùng trừ khi bản phát hành làm lộ thông tin nhạy cảm.
@@ -182,7 +182,7 @@ npm không cho phép ghi đè một version đã publish. Xử lý theo thứ t�
 | CLI báo `Không tìm thấy file nguồn nào khớp` | Sai đường dẫn hoặc phần mở rộng ngoài danh sách mặc định | Kiểm tra đường dẫn; thêm `--ext` |
 | Class ghép chuỗi động không có CSS | Quét tĩnh không thấy token | Khai báo trong `safelist` |
 | `npm publish` báo `E401` | Chưa đăng nhập npm | Chạy `npm login`, sau đó `npm whoami` để xác nhận |
-| Conformance test thất bại sau khi sửa engine | Hợp đồng đa engine chưa cập nhật | Nếu thay đổi là có chủ đích, chạy `npm run gen` rồi đồng bộ engine Rust |
+| Conformance test thất bại sau khi sửa engine | Hợp đồng đa engine chưa cập nhật | Nếu thay đổi là có chủ đích, chạy `npm run gen` (kèm biến `PRESENCE_STYLE_RUST_*` nếu cần đồng bộ engine Rust) |
 
 ## 7. Kiểm Tra Sức Khoẻ Nhanh
 

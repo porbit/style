@@ -24,8 +24,8 @@ src/{core,parser}.ts ──(gen-spec, chạy engine thật)──▶ spec/confor
 ## Lệnh
 
 ```bash
-npm run gen:spec    # dictionary.json + conformance.core.json (+ copy sang Rust)
-npm run gen:rust    # dictionary_generated.rs từ dictionary.json
+npm run gen:spec    # dictionary.json + conformance.core.json (copy sang Rust nếu đặt PRESENCE_STYLE_RUST_TESTS_DIR)
+npm run gen:rust    # dictionary_generated.rs; cần đối số đường dẫn hoặc PRESENCE_STYLE_RUST_DICT_OUT
 npm run gen         # cả hai
 ```
 

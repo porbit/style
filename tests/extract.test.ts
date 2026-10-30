@@ -61,4 +61,12 @@ describe('static extraction', () => {
         const result = await extractFromClasses(['m10px'], { hashClassName: false })
         expect(result.css).toContain('margin:10px')
     })
+
+    it('nên đếm matched đúng khi tắt hashClassName', async () => {
+        const result = await extractFromClasses(['dF', 'cRed', 'khongHopLe'], { hashClassName: false })
+        expect(result.matched).toBe(2)
+        expect(result.classMap).toEqual({})
+        expect(result.css).toContain('.dF{display:flex}')
+        expect(result.css).toContain('.cRed{color:Red}')
+    })
 })

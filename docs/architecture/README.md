@@ -106,6 +106,30 @@ Hợp đồng conformance so khớp theo tuple ngữ nghĩa `{accepted, media, l
 
 Khi thay đổi hành vi engine một cách có chủ đích, phải chạy `npm run gen` để cập nhật lại hợp đồng.
 
+Hai script sinh mã chỉ ghi ra ngoài repository khi được chỉ định đường dẫn đích; mặc định chúng chỉ cập nhật `spec/`:
+
+| Biến môi trường / đối số | Tác dụng |
+| :--- | :--- |
+| `PRESENCE_STYLE_RUST_TESTS_DIR` | Thư mục nhận bản sao `conformance.core.json` cho test Rust. |
+| `PRESENCE_STYLE_RUST_DICT_OUT` hoặc đối số thứ nhất của `gen-rust-dict.cjs` | Đường dẫn file `dictionary_generated.rs`. |
+
+```bash
+PRESENCE_STYLE_RUST_TESTS_DIR=../rust/x-core/tests \
+PRESENCE_STYLE_RUST_DICT_OUT=../rust/x-core/src/dictionary_generated.rs npm run gen
+```
+
+## 7.1 Thứ Tự Ưu Tiên Cascade
+
+Engine bọc mỗi rule trong `@layer l<N>` rồi mới bọc `@media`. Vì `@layer` được xét trước thứ tự xuất hiện và trước media, class có layer cao luôn thắng class layer thấp, kể cả khi class layer thấp nằm trong media đang khớp:
+
+```text
+5cBlue     -> @layer l5{.5cBlue{color:Blue}}
+md:cRed    -> @media (min-width:768px){@layer l0{.md:cRed{color:Red}}}   // thua 5cBlue ở mọi độ rộng
+md:5cRed   -> @media (min-width:768px){@layer l5{...}}                    // ghi đè đúng theo breakpoint
+```
+
+Layer lớn hơn `23` không nằm trong khai báo `@layer l0..l23`, nên thứ tự giữa chúng theo lần xuất hiện đầu tiên.
+
 ## 8. Ràng Buộc Thiết Kế
 
 1. **Không phụ thuộc runtime ngoài**: package không có `dependencies`, chỉ có `devDependencies`.

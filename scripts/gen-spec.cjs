@@ -155,18 +155,16 @@ const cases = [...corpus].sort().map(runNode)
 const conformanceJson = JSON.stringify(cases, null, 2) + '\n'
 fs.writeFileSync(path.join(SPEC_DIR, 'conformance.core.json'), conformanceJson)
 
-// Bản copy self-contained cho Rust integration test (nếu repo Rust tồn tại cạnh bên).
-const rustTestsDir = path.join(
-    __dirname, '..', '..', '..', 'PresenceRs', 'presence_style', 'x-core', 'tests',
-)
-try {
-    if (fs.existsSync(path.dirname(path.dirname(rustTestsDir)))) {
+// Bản copy cho Rust integration test: chỉ chạy khi chỉ định thư mục đích qua biến môi trường.
+const rustTestsDir = process.env.PRESENCE_STYLE_RUST_TESTS_DIR
+if (rustTestsDir) {
+    try {
         fs.mkdirSync(rustTestsDir, { recursive: true })
         fs.writeFileSync(path.join(rustTestsDir, 'conformance.core.json'), conformanceJson)
         console.log(`[gen-spec] copied conformance -> ${rustTestsDir}`)
+    } catch (e) {
+        console.warn('[gen-spec] skip Rust copy:', e.message)
     }
-} catch (e) {
-    console.warn('[gen-spec] skip Rust copy:', e.message)
 }
 
 const accepted = cases.filter((c) => c.accepted).length

@@ -12,8 +12,11 @@ const dict = JSON.parse(
     fs.readFileSync(path.join(__dirname, '..', 'spec', 'dictionary.json'), 'utf8'),
 )
 
-const OUT = process.argv[2] ||
-    path.join(__dirname, '..', '..', '..', 'PresenceRs', 'presence_style', 'x-core', 'src', 'dictionary_generated.rs')
+const OUT = process.argv[2] || process.env.PRESENCE_STYLE_RUST_DICT_OUT
+if (!OUT) {
+    console.log('[gen-rust-dict] bỏ qua: chưa chỉ định đường dẫn đầu ra (đối số thứ nhất hoặc biến PRESENCE_STYLE_RUST_DICT_OUT).')
+    process.exit(0)
+}
 
 // Escape một string thành Rust string literal (giữ trong "...").
 const rs = (s) => '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'

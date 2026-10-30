@@ -51,6 +51,8 @@ xcss.cssObserve(document);
 </button>
 ```
 
+Muốn dựng giao diện từ đầu (thẻ đăng nhập, lưới responsive, bảng tra alias, lỗi thường gặp), xem [Hướng dẫn thiết kế nhanh](./docs/guides/thiet-ke-nhanh.md).
+
 ## Contract Cú Pháp
 
 Mỗi utility class theo form:
@@ -114,7 +116,7 @@ Dùng class: `tablet:dB`.
 1. Nếu không khai báo layer, engine dùng `0`.
 2. Engine tạo sẵn 24 layer: `l0 -> l23`.
 3. Nên dùng dải `0-23` để giữ thứ tự ổn định.
-4. Số layer lớn hơn có ưu tiên cascade cao hơn trong cùng media.
+4. Số layer lớn hơn luôn thắng số nhỏ hơn, kể cả khi class layer nhỏ nằm trong media đang khớp (ví dụ `5cBlue` thắng `md:cRed` ở màn hình `md`; muốn ghi đè theo breakpoint hãy dùng `md:5cRed`).
 
 ## Quy Tắc Điểm Ngắt Đầy Đủ
 
@@ -825,7 +827,8 @@ Giới hạn cần biết:
 
 1. Class ghép chuỗi động (ví dụ `'m' + size + 'px'`) không thể quét tĩnh; phải khai báo trong `safelist`.
 2. Extraction chạy ở chế độ SSR nên không áp dụng bước kiểm tra `CSS.supports`; giá trị sai vẫn có thể lọt qua.
-3. Kết quả `classMap` chỉ chứa class thực sự sinh được CSS hợp lệ.
+3. Kết quả `classMap` chỉ chứa class thực sự sinh được CSS hợp lệ. Khi `hashClassName: false`, `classMap` rỗng (tên class giữ nguyên) nhưng `matched` vẫn đếm đúng số class sinh được CSS.
+4. Bộ quét không nhận class có dấu phẩy hoặc dấu nháy kép (ví dụ `ff[Inter,system-ui,sans-serif]`) vì đó là cú pháp mã nguồn; khai báo class này trong `safelist`.
 
 ### Static extraction thủ công bằng engine
 
@@ -922,6 +925,7 @@ Bộ test Playwright (Chromium/Firefox/WebKit + Pixel 5/iPhone 13) nằm trong [
 
 ## Tài Liệu Liên Quan
 
+- Thiết kế nhanh một giao diện: [docs/guides/thiet-ke-nhanh.md](./docs/guides/thiet-ke-nhanh.md)
 - Dictionary đầy đủ: [DICTIONARY.md](./DICTIONARY.md)
 - Đặc tả cú pháp chuẩn (đa engine): [spec/SPEC.md](./spec/SPEC.md)
 - Kiến trúc và luồng runtime: [docs/architecture/README.md](./docs/architecture/README.md)
