@@ -120,8 +120,6 @@ Mẹo kiểm tra nhanh: nếu class không ra CSS, mở `DICTIONARY.md` và tìm
 
 ## 10. Khi Dùng Với Trích Xuất Tĩnh
 
-Class chứa dấu phẩy, ví dụ `ff[Inter,system-ui,sans-serif]`, hoạt động ở runtime nhưng bộ quét tĩnh không nhận vì dấu phẩy thuộc cú pháp mã nguồn. Hãy thêm class đó vào `safelist`:
-
-```json
-{ "safelist": ["ff[Inter,system-ui,sans-serif]"] }
-```
+1. Class chứa dấu phẩy được nhận khi dấu phẩy nằm trong `[...]`, ví dụ `ff[Inter,system-ui,sans-serif]`.
+2. Trích xuất tĩnh không có `CSS.supports` nên không loại được giá trị sai về mặt CSS (ví dụ `w100p`). Hãy kiểm tra class trên trình duyệt thật trước khi phát hành.
+3. Class sinh bằng ghép chuỗi (`'m' + size + 'px'`) không quét được; khai báo trong `safelist`.

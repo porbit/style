@@ -69,4 +69,32 @@ describe('static extraction', () => {
         expect(result.css).toContain('.dF{display:flex}')
         expect(result.css).toContain('.cRed{color:Red}')
     })
+
+    it('nên nhận dấu phẩy nằm trong ngoặc vuông của giá trị', async () => {
+        const source = `<div class="ff[Inter,system-ui,sans-serif] dF"></div>`
+        const candidates = extractCandidates(source)
+        expect(candidates).toContain('ff[Inter,system-ui,sans-serif]')
+        expect(candidates).toContain('dF')
+        const result = await extract(source, { hashClassName: false })
+        expect(result.css).toContain('font-family:Inter,system-ui,sans-serif')
+    })
+
+    it('không để dấu phẩy ngoài ngoặc làm dính các class của clsx', () => {
+        const candidates = extractCandidates(`clsx('dF', active && 'cRed', ['aiC', 'jcC'])`)
+        expect(candidates).toEqual(expect.arrayContaining(['dF', 'cRed', 'aiC', 'jcC']))
+    })
+
+    it('nên từ chối giá trị có thể thoát khỏi khối rule khi trích xuất tĩnh', async () => {
+        const hostile = [
+            'c[red}body{display:none]',
+            'c[red</style><script>alert(1)</script>]',
+            'c[red/*]',
+            'cRed@:hover</style>',
+        ]
+        const result = await extractFromClasses([...hostile, 'dF'], { hashClassName: false })
+        expect(result.matched).toBe(1)
+        expect(result.css).not.toContain('body{')
+        expect(result.css).not.toContain('</style>')
+        expect(result.css).toContain('.dF{display:flex}')
+    })
 })

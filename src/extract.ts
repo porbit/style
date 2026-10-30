@@ -28,7 +28,9 @@ export interface ExtractResult {
 
 // Ký tự hợp lệ trong một class x-css: chữ, số, và các ký tự cú pháp của engine.
 // KHÔNG gồm dấu nháy kép và dấu phẩy để token không nuốt cú pháp của mã nguồn.
-const CLASS_TOKEN_REGEX = /[A-Za-z0-9_][A-Za-z0-9_@:%#.;!()[\]/*+~<>=$&|^?'-]*/g
+// Dấu phẩy chỉ được nhận bên trong một cặp `[...]` không chứa dấu nháy hoặc khoảng trắng,
+// ví dụ `ff[Inter,system-ui]` hay `bxsh[0;4px;6px;rgb(0;0;0),0;2px;4px;rgb(0;0;0)]`.
+const CLASS_TOKEN_REGEX = /[A-Za-z0-9_](?:\[[^\[\]\s"'`]*\]|[A-Za-z0-9_@:%#.;!()[\]/*+~<>=$&|^?'-])*/g
 
 /**
  * Cắt phần đuôi do cú pháp mã nguồn dính vào token.

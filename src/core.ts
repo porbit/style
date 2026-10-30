@@ -847,6 +847,9 @@ const setupCssLayers = (docRoot: Document | ShadowRoot | null, id?: string) => {
 }
 
 // Helper to hash config
+// Mẫu giá trị không được phép khi không có CSS.supports để kiểm tra.
+const UNSAFE_VALUE_PATTERN = /[{}<]|\/\*/
+
 const hashConfig = (config: XCSSConfig): string => {
     const excludes = Array.isArray(config.excludes)
         ? config.excludes : []
@@ -2126,6 +2129,10 @@ export const xcss = (
 
         if (!vx) return null
 
+        // Ở môi trường không có CSS.supports (SSR/CLI), chặn các chuỗi có thể thoát khỏi
+        // khối rule hoặc thẻ <style>: dấu ngoặc nhọn, dấu '<', mở comment.
+        if (typeof CSS === 'undefined' && UNSAFE_VALUE_PATTERN.test(vx)) return null
+
         // Step 4: Construct CSS
         let vxx = vx + (i ? ' !important' : '')
         let cssProp = [propertyName + ':' + vxx]
@@ -2215,7 +2222,7 @@ export const xcss = (
         if (!selector) return true
         const text = selector.trim()
         if (!text) return true
-        if (/[{}]/.test(text)) return false
+        if (/[{}<]|\/\*/.test(text)) return false
         if (text === '#' || text === '(' || text === ')' || text === ',' || text === '>' || text === '+' || text === '~') return false
         if (text.startsWith('(') || text.startsWith(')')) return false
 

@@ -101,13 +101,15 @@ Theo đúng `propToValue` (`src/core.ts`):
 8. **Validation CSS** (chỉ trình duyệt, `typeof CSS !== 'undefined'`): mọi declaration phải
    `CSS.supports(...)`; nếu không → từ chối. Ở SSR/Node KHÔNG áp dụng bước này
    (⇒ conformance được sinh ở chế độ SSR để engine không-DOM như Rust có thể khớp).
+   Thay vào đó, ở SSR/Node giá trị sau khi chuẩn hóa bị từ chối nếu chứa `{`, `}`, `<`
+   hoặc chuỗi mở comment `/*`, để không thể thoát khỏi khối rule hoặc thẻ `<style>`.
 
 ## 6. Selector
 
 - `selectorStr = replaceSemicolons(parsed.selector)` (cùng quy tắc mục 5.5).
 - Trình duyệt: hợp lệ khi `CSS.supports("selector(.<cls><selectorStr>)")`.
 - SSR/Node: hợp lệ theo `isLikelyValidSelectorFallback` — loại nếu chứa `{`/`}`,
-  ngoặc tròn không cân bằng, hoặc là ký tự đơn `# ( ) , > + ~`.
+  ngoặc tròn không cân bằng, chứa `<` hoặc `/*`, hoặc là ký tự đơn `# ( ) , > + ~`.
 
 ## 7. Layer & cascade
 

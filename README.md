@@ -561,10 +561,10 @@ Ví dụ output thực tế của `clsx`:
 | Config | Gọi `clsx(...)` | Output | Ghi chú |
 | :--- | :--- | :--- | :--- |
 | `excludePrefixes: ['bs-'], excludes: ['abc*']` | `clsx('bs-a', 'abcde')` | `bs-a abcde` | Cả hai bị bỏ qua, giữ nguyên class gốc. |
-| `excludePrefixes: ['bs-'], excludes: ['abc*']` | `clsx('bs-a', 'abcde', 'm10px')` | `bs-a abcde D0` | Chỉ `m10px` parse thành class hash. |
-| `excludes: ['bs-', 'abc*']` | `clsx('bs-a', 'abcde', 'm10px')` | `bs-a abcde D0` | `bs-` là exact match nên không bắt `bs-a`; `bs-a` vẫn giữ nguyên vì token không sinh CSS hợp lệ. |
-| `excludes: ['abc*def']` | `clsx('abcXYZdef', 'm10px')` | `abcXYZdef D0` | Wildcard giữa chuỗi hoạt động bình thường. |
-| `excludes: ['*-abc']` | `clsx('foo-abc', 'm10px')` | `foo-abc D0` | Wildcard cuối chuỗi hoạt động bình thường. |
+| `excludePrefixes: ['bs-'], excludes: ['abc*']` | `clsx('bs-a', 'abcde', 'm10px')` | `bs-a abcde DV8` | Chỉ `m10px` parse thành class hash. |
+| `excludes: ['bs-', 'abc*']` | `clsx('bs-a', 'abcde', 'm10px')` | `bs-a abcde DV8` | `bs-` là exact match nên không bắt `bs-a`; `bs-a` vẫn giữ nguyên vì token không sinh CSS hợp lệ. |
+| `excludes: ['abc*def']` | `clsx('abcXYZdef', 'm10px')` | `abcXYZdef DV8` | Wildcard giữa chuỗi hoạt động bình thường. |
+| `excludes: ['*-abc']` | `clsx('foo-abc', 'm10px')` | `foo-abc DV8` | Wildcard cuối chuỗi hoạt động bình thường. |
 
 Lưu ý format output:
 1. `clsx` trả chuỗi class phân tách bằng khoảng trắng, không dùng dấu phẩy.
@@ -593,7 +593,7 @@ Lưu ý:
 3. `version` (mặc định `v1`): tham gia vào cache key để chủ động invalidate.
 4. `compression` (mặc định `true`): nén cache trước khi lưu `localStorage`.
 5. `debounceMs` (mặc định `1000`): debounce chu kỳ nén + lưu cache.
-6. `sizeLast` (mặc định `1000`): seed mặc định cho bộ sinh key `D...`.
+6. `sizeLast` (mặc định `1000`): seed cho bộ sinh key `D...`; với giá trị mặc định key đầu tiên là `DV8`, đặt `sizeLast: 0` thì bắt đầu từ `D0`.
 
 Khuyến nghị:
 1. Không bật `cache` mặc định cho mọi app.
@@ -826,9 +826,9 @@ const candidates = extractCandidates('<div class="dF p10px"></div>');
 Giới hạn cần biết:
 
 1. Class ghép chuỗi động (ví dụ `'m' + size + 'px'`) không thể quét tĩnh; phải khai báo trong `safelist`.
-2. Extraction chạy ở chế độ SSR nên không áp dụng bước kiểm tra `CSS.supports`; giá trị sai vẫn có thể lọt qua.
+2. Extraction chạy ở chế độ SSR nên không áp dụng bước kiểm tra `CSS.supports`; giá trị sai về mặt CSS (ví dụ `w100p`, `fnsI`, `fwB`) vẫn có thể lọt qua và sinh khai báo mà trình duyệt sẽ bỏ qua. Riêng giá trị chứa `{`, `}`, `<` hoặc `/*` luôn bị từ chối để CSS xuất ra không thể thoát khỏi khối rule hoặc thẻ `<style>`.
 3. Kết quả `classMap` chỉ chứa class thực sự sinh được CSS hợp lệ. Khi `hashClassName: false`, `classMap` rỗng (tên class giữ nguyên) nhưng `matched` vẫn đếm đúng số class sinh được CSS.
-4. Bộ quét không nhận class có dấu phẩy hoặc dấu nháy kép (ví dụ `ff[Inter,system-ui,sans-serif]`) vì đó là cú pháp mã nguồn; khai báo class này trong `safelist`.
+4. Dấu phẩy chỉ được nhận khi nằm trong cặp `[...]` không chứa khoảng trắng hay dấu nháy, ví dụ `ff[Inter,system-ui,sans-serif]`. Dấu phẩy hoặc nháy kép ngoài ngoặc vẫn được coi là cú pháp mã nguồn; class kiểu đó cần khai báo trong `safelist`.
 
 ### Static extraction thủ công bằng engine
 

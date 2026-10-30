@@ -164,4 +164,13 @@ describe('tailwind -> xcss converter', () => {
         expect(result.outputs).toEqual(['group-hover:bg-slate-50'])
         expect(result.warnings.some((warning) => warning.message.includes('not mapped safely'))).toBe(true)
     })
+
+    it('nên sinh token bóng đổ không chứa khoảng trắng để dùng được trong thuộc tính class', () => {
+        const result = convertTailwindClasses('shadow-md shadow-sm')
+        result.output.split(' ').forEach((token) => {
+            expect(token.startsWith('bxsh[')).toBe(true)
+            expect(token.endsWith(']')).toBe(true)
+        })
+        expect(result.output.split(' ')).toHaveLength(2)
+    })
 })

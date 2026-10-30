@@ -15,3 +15,5 @@ target/
 target-*/
 presence-style-rs/target/
 presence-style-rs/examples/*/target/
+test-results/
+playwright-report/
