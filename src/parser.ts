@@ -187,6 +187,21 @@ export function parseClassName(className: string): ParsedClass | null {
         }
     }
 
+    // Custom property: `--ten-bien[gia-tri]`. Tên có thể chứa số và dấu gạch ngang nên
+    // property kết thúc tại `[` đầu tiên, thay vì dừng ở ký tự không phải a-z.
+    if (className.charCodeAt(start) === 45 && className.charCodeAt(start + 1) === 45) {
+        const open = className.indexOf('[', start)
+        if (open > start + 2 && open < end && /^--[a-zA-Z0-9_-]+$/.test(className.substring(start, open))) {
+            return {
+                mq,
+                layer,
+                prop: className.substring(start, open),
+                val: className.substring(open, end),
+                selector
+            }
+        }
+    }
+
     // Scan for Property end
     // Property ends checking isLowerAlphaOrDash.
     // BUT we need to stop when we hit UpperCase, Digit, or specific symbols (!, ., [, ', {)
@@ -206,6 +221,13 @@ export function parseClassName(className: string): ParsedClass | null {
                 }
                 // If next valid char is digit (0-9: 48-57), break as it is value start
                 if (nextCode >= 48 && nextCode <= 57) {
+                    break
+                }
+                // `-.5rem` / `.5rem`: dấu chấm theo sau là chữ số cũng mở đầu một value
+                if (
+                    code === 45 && nextCode === 46 && propEnd + 2 < end &&
+                    className.charCodeAt(propEnd + 2) >= 48 && className.charCodeAt(propEnd + 2) <= 57
+                ) {
                     break
                 }
             }

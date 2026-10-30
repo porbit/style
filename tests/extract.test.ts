@@ -97,4 +97,11 @@ describe('static extraction', () => {
         expect(result.css).not.toContain('</style>')
         expect(result.css).toContain('.dF{display:flex}')
     })
+
+    it('tách ứng viên có khoảng trắng thành từng class khi đếm matched', async () => {
+        const result = await extractFromClasses(['dF cRed', 'c[red\nbackground:lime]'], { hashClassName: false })
+        expect(result.candidates).toEqual(['dF', 'cRed', 'c[red', 'background:lime]'])
+        expect(result.matched).toBe(2)
+        expect(result.css).not.toContain('lime')
+    })
 })

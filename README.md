@@ -1,6 +1,6 @@
 # PresenceStyle (`@porbit/style`)
 
-`@porbit/style` là utility CSS engine siêu nhẹ, parse class theo cú pháp ngắn và sinh CSS runtime theo layer + media.
+`@porbit/style` là utility CSS engine siêu nhẹ, parse class theo cú pháp ngắn và sinh CSS runtime theo layer + media. Đây là **công thức tổng quát**, không phải bộ class đóng: bảng alias chỉ là lối tắt, còn mọi property và giá trị CSS đều viết được (xem [Từ vựng mở](./docs/guides/tu-vung-mo.md)). Người dùng Tailwind có thể chuyển sang bằng [helper migration](#tailwind-migration-helper).
 
 ## Cài Đặt Nhanh
 
@@ -51,7 +51,7 @@ xcss.cssObserve(document);
 </button>
 ```
 
-Muốn dựng giao diện từ đầu (thẻ đăng nhập, lưới responsive, bảng tra alias, lỗi thường gặp), xem [Hướng dẫn thiết kế nhanh](./docs/guides/thiet-ke-nhanh.md).
+Muốn dựng giao diện từ đầu (thẻ đăng nhập, lưới responsive, bảng tra alias, lỗi thường gặp), xem [Hướng dẫn thiết kế nhanh](./docs/guides/thiet-ke-nhanh.md). Muốn biết cách viết **bất kỳ CSS nào** (property chưa có alias, custom property, hàm CSS, điều kiện, media), xem [Từ vựng mở](./docs/guides/tu-vung-mo.md).
 
 ## Contract Cú Pháp
 
@@ -69,7 +69,7 @@ Thứ tự parse bắt buộc:
 Ý nghĩa từng phần:
 1. `Media` (tùy chọn): key media như `sm`, `md`, `lg`, hoặc key custom.
 2. `Layer` (tùy chọn): số ưu tiên cascade.
-3. `Property` (bắt buộc): alias thuộc dictionary hoặc CSS property hợp lệ.
+3. `Property` (bắt buộc): alias thuộc dictionary, hoặc **tên CSS đầy đủ của bất kỳ property chuẩn nào** (`view-transition-name[hero]`), custom property `--ten[gia-tri]`, hoặc property có tiền tố nhà cung cấp (`-webkit-line-clamp[3]`). Xem [Từ vựng mở](./docs/guides/tu-vung-mo.md).
 4. `Value` (bắt buộc với utility chuẩn): giá trị CSS, alias value hoặc arbitrary value.
 5. `@Selector` (tùy chọn): ví dụ `@:hover`, `@::before`.
 
@@ -144,7 +144,7 @@ Thứ tự xử lý bắt buộc:
 
 1. Value bắt đầu bằng `!` -> thêm hậu tố `!important`.
 2. Value bắt đầu bằng `--` -> đổi thành `var(--...)`.
-3. Value dạng `[...]` -> bỏ `[` `]`, rồi thay `;` thành khoảng trắng.
+3. Value dạng `[...]` -> bỏ `[` `]`, rồi thay `_` và `;` thành khoảng trắng (`\_` giữ dấu gạch dưới; nội dung `url(...)` giữ nguyên).
 4. Ký tự `#` trong value giữ nguyên (hex color).
 
 Quy trình chuẩn hóa:
@@ -170,7 +170,8 @@ if value is bracketed [..] => strip brackets + replace ';' with ' '
 | `tablet:dB` (chưa khai báo) | `tablet:dB` + `breakpoints` config | Media custom phải được khai báo trước trong config. |
 | `m--10px` | `m-10px` | Số âm dùng `-`; `--` dành cho CSS variable (`bgc--brand`). |
 | `bgcbrand` | `bgcBrand` hoặc `bgc--brand` | Cần điểm ngắt rõ ràng để parser tách đúng value. |
-| `wcalc(100%-10px)` | `w[calc(100%;-;10px)]` | Value phức tạp nên bọc `[]`, dùng `;` để biểu diễn khoảng trắng. |
+| `wcalc(100%-10px)` | `w[calc(100%_-_10px)]` | Value phức tạp nên bọc `[]`; dùng `_` (hoặc `;`) để biểu diễn khoảng trắng. `calc()` bắt buộc có khoảng trắng quanh `+` và `-`. |
+| `m-.5rem` (bản cũ ≤ 0.3) | `m-.5rem` hoặc `m-0.5rem` | Từ 0.4 cả hai đều hợp lệ. |
 | `!cRed` | `c!Red` | `!` phải đứng trong phần value (sau property), không đứng đầu class. |
 
 ## Ví Dụ Chính Xác Theo Dictionary
@@ -306,11 +307,11 @@ console.log(classifyTailwindToken('md:fxd[row]'));
 // 'xcss'
 
 const readiness = assessTailwindMigrationReadiness(
-  'transition flex group-hover:bg-slate-50 md:fxd[row]'
+  'transition flex supports-[display:grid]:flex md:fxd[row]'
 );
 
 console.log(readiness.releaseDecision);
-// 'blocked'
+// 'blocked'  (supports-[...] chưa có phép đổi an toàn)
 
 console.log(readiness.autoApplyOutput);
 // dF md:fxd[row]
@@ -318,7 +319,7 @@ console.log(readiness.autoApplyOutput);
 
 Contract hiện tại:
 1. Helper ưu tiên các utility Tailwind phổ biến cho layout, spacing, color, typography, border, shadow, width/height.
-2. Responsive/state variants phổ biến như `sm:`, `md:`, `hover:`, `focus:` được chuyển sang format `x-css`.
+2. Responsive/state variants như `sm:`, `md:`, `hover:`, `focus:`, `group-*`, `peer-*`, `aria-*`, `data-[...]`, `[&…]`, `dark:`, `print:` được chuyển sang format `x-css`; biến thể không nhận biết được (ví dụ `supports-[...]`) giữ nguyên token và báo cảnh báo `blocking`.
 3. Token đầu vào được phân loại thành `tailwind`, `xcss`, `ambiguous`, hoặc `unknown`.
 4. Đây là migration helper, không phải promise “convert 100% Tailwind không cần review”.
 5. Khi publish hoặc migrate codebase thật, nên ưu tiên `mode: 'safe'` thay vì `legacy`.
@@ -335,7 +336,8 @@ console.log(converted.outputs);
 const safe = convertTailwindClasses('md:fxd[row] p-2.5', { mode: 'safe' });
 console.log(safe.passthrough); // ['md:fxd[row]']
 console.log(safe.converted);   // ['p10px']
-console.log(safe.ambiguous);   // ['p-2.5']
+console.log(safe.ambiguous);   // ['p-2.5']  (đã đổi thành p10px, cần rà soát)
+console.log(safe.unsupported); // []
 ```
 
 ### Mode
@@ -353,6 +355,7 @@ type TailwindConversionMode = 'legacy' | 'safe' | 'strict'
 2. `safe`:
    chỉ passthrough token đã được xác nhận là `x-css`.
    Token `ambiguous` hoặc `unknown` sẽ không được giữ nguyên mù.
+   Lưu ý: `ambiguous` nghĩa là "cần người rà soát", không có nghĩa là không đổi. `p-2.5` vừa nằm trong `ambiguous` vừa được đổi thành `p10px`, vì chuỗi `p-2.5` đọc được theo cả hai cú pháp. Hãy kiểm tra cả `converted` lẫn `ambiguous` trước khi áp dụng.
 3. `strict`:
    dùng cùng `preserveUnknown: false` để ép toàn bộ token không chắc chắn đi vào `unsupported`.
    Đây là mode phù hợp cho codemod, CI, hoặc review trước khi deploy.
@@ -362,7 +365,8 @@ Ví dụ khuyến nghị:
 ```ts
 const result = convertTailwindClasses(source, {
   mode: 'safe',
-  preserveUnknown: false
+  preserveUnknown: false,
+  darkMode: 'class' // 'media' (mặc định) hoặc 'class'
 });
 ```
 
@@ -377,7 +381,7 @@ const result = convertTailwindClasses(source, {
   status: 'converted' | 'passthrough' | 'unsupported'
   classification: 'tailwind' | 'xcss' | 'ambiguous' | 'unknown'
   exact: boolean
-  warnings: Array<{ token: string; message: string }>
+  warnings: Array<{ token: string; message: string; blocking?: boolean }>
 }
 ```
 
@@ -456,22 +460,27 @@ Không nên dựa vào việc runtime parser “vẫn hiểu được” để s
 
 ### Coverage Hiện Tại
 
-Nhóm utility đã hỗ trợ tốt:
-1. display / position / flex cơ bản
-2. spacing / size / fraction / width scale / `mx-auto` / `inset-x-*` / `inset-y-*`
-3. color cơ bản (`bg-*`, `text-*`, `border-*`)
-4. rounded / border / shadow / `appearance-none`
-5. font-size / font-weight / line-height / letter-spacing / `basis-*` / `order-*`
-6. object-fit / object-position cơ bản
-7. align / place / justify / content helpers phổ biến
-8. một phần responsive + selector variants (`sm`, `md`, `hover`, `focus`, `before`, `after`, `placeholder`, `selection`)
+Nhóm utility đã đổi được. Mức hỗ trợ từng nhóm (`exact` / `partial` / `manual`) nằm trong `getTailwindCoverageMatrix()`; chỉ nhóm `exact` an toàn để áp dụng tự động, nhóm `partial` (`transition`, `translate-*`, `scale`, `rotate`, `blur`, `brightness`) cần rà soát:
+1. display / position / flex / grid cơ bản, `grid-cols-*`, `grid-rows-*`, `col-span-*`, `col-start-*`
+2. spacing / size / fraction / width scale / `mx-auto` / `inset-*` / `top-1/2`
+3. color (`bg-*`, `text-*`, `border-*`) kể cả có độ mờ `bg-black/50`
+4. rounded / border từng cạnh (`border-t-2`, `border-x`) / shadow / `appearance-none`
+5. font-size / font-weight (đầu ra `fnw*`) / line-height / letter-spacing / `basis-*` / `order-*` / `line-clamp-*`
+6. object-fit / object-position / aspect-ratio
+7. motion: `duration-*`, `delay-*`, `ease-*`
+8. transform và filter: `scale-*`, `rotate-*`, `translate-x/y-*`, `blur-*`, `backdrop-blur-*`, `brightness-*`
+9. biến thể: `sm`/`md`/…, `hover`, `focus`, `before`, `after`, `placeholder`, `group-*`, `peer-*`, `aria-*`, `data-[...]`, `[&…]`, `dark`, `print`
+10. giá trị tuỳ ý: `w-[calc(100%_-_2rem)]`, `text-[14px]`, `z-[60]`, `bg-[url(...)]`, `[mask-type:luminance]`
+11. `space-x-*`, `space-y-*`, `divide-x`, `divide-y`, `sr-only`, `pointer-events-none`, `break-words`
 
-Nhóm nên coi là cần review thủ công hoặc fallback riêng:
-1. `group-hover:*`, `group-focus:*`, `peer-*`
-2. `dark:*`
-3. `divide-*`
-4. `duration-*`, `ease-*`, `delay-*`
-5. transform chain phức hợp như `translate-*`, `scale-*`, `rotate-*`
+`dark:` mặc định đổi thành media key `dark` và cần khai báo `breakpoints: [{ dark: '(prefers-color-scheme: dark)' }]`; truyền `darkMode: 'class'` để dùng tổ tiên `.dark`. `print:` cần `breakpoints: [{ print: 'print' }]`.
+
+`translate-x-*` và `translate-y-*` dùng property CSS `translate` nên nếu đặt cùng lúc trên một phần tử sẽ ghi đè nhau; hãy gộp thành `trl[X_Y]`. Bản đổi được đánh dấu `exact: false` kèm cảnh báo.
+
+Nhóm cần viết tay (vẫn biểu đạt được bằng giá trị trong ngoặc vuông, nhưng không có phép đổi 1:1 an toàn):
+1. `bg-gradient-to-*`, `from-*`, `via-*`, `to-*`
+2. `ring-*`, `animate-*`, `prose`, `container`
+3. biến thể `supports-[...]` và biến thể không nhận biết được (token được giữ nguyên, kèm cảnh báo)
 
 ### Quy Trình Dùng An Toàn
 
@@ -760,6 +769,10 @@ Không bắt buộc dùng khi:
 2. Không dùng cache runtime.
 3. CSP không cho inline script (trừ khi đã cấu hình nonce/hash phù hợp).
 
+## Bảo Mật Khi Dùng Với Nội Dung Không Tin Cậy
+
+Engine biến mọi class thành CSS, nên thuộc tính `class` là đầu vào có quyền sinh CSS. Trình duyệt có kiểm tra `CSS.supports` nên không cho rule thoát khỏi khối; trích xuất tĩnh/CLI từ chối giá trị chứa `{`, `}`, `<`, `/*`, dấu `\` cuối, ngoặc hoặc nháy hở. Tuy nhiên một giá trị hợp lệ như `bgi[url(//ten-mien-la/x)]` vẫn làm trình duyệt gửi yêu cầu mạng. Đừng render thuộc tính `class` do người dùng cuối kiểm soát khi chưa lọc; xem `excludes`, `excludePrefixes` và `safelist`.
+
 ## SSR Và Static Extraction
 
 ### SSR (render phía máy chủ)
@@ -926,6 +939,7 @@ Bộ test Playwright (Chromium/Firefox/WebKit + Pixel 5/iPhone 13) nằm trong [
 ## Tài Liệu Liên Quan
 
 - Thiết kế nhanh một giao diện: [docs/guides/thiet-ke-nhanh.md](./docs/guides/thiet-ke-nhanh.md)
+- Từ vựng mở, viết mọi CSS: [docs/guides/tu-vung-mo.md](./docs/guides/tu-vung-mo.md)
 - Dictionary đầy đủ: [DICTIONARY.md](./DICTIONARY.md)
 - Đặc tả cú pháp chuẩn (đa engine): [spec/SPEC.md](./spec/SPEC.md)
 - Kiến trúc và luồng runtime: [docs/architecture/README.md](./docs/architecture/README.md)

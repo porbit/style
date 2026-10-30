@@ -1,6 +1,6 @@
 {
   "name": "@porbit/style",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "PresenceStyle: utility CSS engine cho lập trình giao diện — parse class runtime, sinh CSS theo layer/media, và trích xuất CSS tĩnh ở build-time.",
   "type": "commonjs",
   "license": "MIT",
@@ -59,7 +59,9 @@
     "spec/dictionary.json",
     "spec/SPEC.md",
     "docs/guides/thiet-ke-nhanh.md",
+    "docs/guides/tu-vung-mo.md",
     "README.md",
+    "CHANGELOG.md",
     "DICTIONARY.md",
     "LICENSE"
   ],

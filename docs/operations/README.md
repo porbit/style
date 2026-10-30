@@ -104,7 +104,7 @@ Yêu cầu: typecheck sạch, toàn bộ unit test pass, build thành công. Kh�
 npm pack --dry-run
 ```
 
-Xác nhận gói chỉ chứa `dist/`, `spec/dictionary.json`, `spec/SPEC.md`, `README.md`, `DICTIONARY.md`, `LICENSE`. Không được có `node_modules`, mã nguồn `src/`, hoặc file test.
+Xác nhận gói chỉ chứa `dist/`, `spec/dictionary.json`, `spec/SPEC.md`, `docs/guides/thiet-ke-nhanh.md`, `docs/guides/tu-vung-mo.md`, `README.md`, `DICTIONARY.md`, `LICENSE`. Không được có `node_modules`, mã nguồn `src/`, hoặc file test.
 
 ### Bước 3: Xác thực tài khoản
 
@@ -154,7 +154,7 @@ https://cdn.jsdelivr.net/npm/@porbit/style@latest/dist/index.mjs
 
 npm không cho phép ghi đè một version đã publish. Xử lý theo thứ tự ưu tiên:
 
-1. **Ưu tiên nhất**: phát hành ngay version vá mới (ví dụ `0.3.2`) đã sửa lỗi. Đây là cách an toàn nhất và không phá vỡ người dùng đang cài bản lỗi.
+1. **Ưu tiên nhất**: phát hành ngay version vá mới (ví dụ `0.4.1`) đã sửa lỗi. Đây là cách an toàn nhất và không phá vỡ người dùng đang cài bản lỗi.
 2. Nếu bản lỗi nghiêm trọng, hạ nhãn `latest` về version ổn định trước đó:
 
    ```bash
@@ -164,7 +164,7 @@ npm không cho phép ghi đè một version đã publish. Xử lý theo thứ t�
 3. Chỉ dùng `npm deprecate` để cảnh báo, không xoá:
 
    ```bash
-   npm deprecate @porbit/style@0.3.1 "Bản lỗi, hãy dùng 0.3.2 trở lên."
+   npm deprecate @porbit/style@0.4.0 "Bản lỗi, hãy dùng 0.4.1 trở lên."
    ```
 
 > Cảnh báo: `npm unpublish` phá vỡ mọi project đang phụ thuộc version đó và chỉ khả dụng trong 72 giờ đầu. Không dùng trừ khi bản phát hành làm lộ thông tin nhạy cảm.

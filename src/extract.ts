@@ -123,7 +123,15 @@ export const extractFromClasses = async (
     options?: ExtractOptions,
 ): Promise<ExtractResult> => {
     const { safelist = [], ...config } = options || {}
-    const candidates = [...new Set([...classes, ...safelist].filter((c) => typeof c === 'string' && c.trim()))]
+    // Mỗi phần tử là một class; chuỗi có khoảng trắng được tách ra để `matched` đếm theo từng class.
+    const candidates = [
+        ...new Set(
+            [...classes, ...safelist]
+                .filter((c) => typeof c === 'string')
+                .flatMap((c) => c.split(/\s+/))
+                .filter(Boolean),
+        ),
+    ]
 
     // Khi `hashClassName: false`, đầu ra của clsx luôn trùng đầu vào nên không thể
     // dùng để biết class nào sinh được CSS. Vì vậy phép đếm `matched` luôn chạy trên

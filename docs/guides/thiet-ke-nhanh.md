@@ -1,6 +1,6 @@
 # Hướng Dẫn Thiết Kế Nhanh Một Giao Diện
 
-Tài liệu này dẫn từ con số 0 đến một giao diện hoàn chỉnh bằng `@porbit/style`. Mọi class trong tài liệu đã được chạy thử với engine để xác nhận sinh ra CSS. Tra cứu đầy đủ nằm ở [DICTIONARY.md](../../DICTIONARY.md); đặc tả cú pháp nằm ở [spec/SPEC.md](../../spec/SPEC.md).
+Tài liệu này dẫn từ con số 0 đến một giao diện hoàn chỉnh bằng `@porbit/style`. Mọi class trong tài liệu đã được kiểm tra hai lớp: engine sinh ra CSS, và trình duyệt (Chromium, Firefox, WebKit) chấp nhận từng khai báo bằng `CSS.supports`. Tra cứu đầy đủ nằm ở [DICTIONARY.md](../../DICTIONARY.md); đặc tả cú pháp nằm ở [spec/SPEC.md](../../spec/SPEC.md).
 
 ## 1. Bật Engine
 
@@ -35,7 +35,7 @@ Bốn quy tắc đủ dùng cho 90% trường hợp:
 
 | Bước | Việc làm | Class thường dùng |
 | :--- | :--- | :--- |
-| 1 | Dựng khung bằng flex/grid | `dF` `fxdC` `dG` `gtc[repeat(3;1fr)]` |
+| 1 | Dựng khung bằng flex/grid | `dF` `fxdC` `dG` `gtc[repeat(3,1fr)]` |
 | 2 | Căn chỉnh và khoảng cách | `aiC` `jcC` `jcSp` `gap16px` `p24px` `mb12px` |
 | 3 | Kích thước | `w100%` `w400px` `mw400px` `h40px` `mih100vh` |
 | 4 | Màu, viền, bóng | `bgc#fff` `cBrand` `bd1px;solid;#e2e8f0` `bdra12px` `bxsh[...]` |
@@ -59,7 +59,7 @@ Bốn quy tắc đủ dùng cho 90% trường hợp:
 ## 5. Ví Dụ Responsive: Lưới Thẻ
 
 ```html
-<section class="dG gtc1fr gap16px p16px md:gtc[repeat(2;1fr)] lg:gtc[repeat(3;1fr)]">
+<section class="dG gtc1fr gap16px p16px md:gtc[repeat(2,1fr)] lg:gtc[repeat(3,1fr)]">
   <article class="p20px bgc#ffffff bd1px;solid;#e2e8f0 bdra12px">
     <h2 class="m0 mb8px fns18px fnw600">Tiêu đề</h2>
     <p class="m0 c#475569 lh1.5">Nội dung mô tả.</p>
@@ -100,14 +100,20 @@ Class `md:dF&aiC&jcC` sinh một rule duy nhất gồm `display:flex;align-items
 | Dễ nhầm | Dùng đúng | Lý do |
 | :--- | :--- | :--- |
 | `fz14px`, `fs14px` | `fns14px` | Font-size là `fns`. |
+| `fw700` | `fnw700` | Cả hai chạy; `fnw` là alias chính tắc, `fw` giữ để tương thích. |
 | `minh100vh`, `mnh100vh` | `mih100vh` | Min-height là `mih`. |
 | `zi10` | `z10` | Z-index là `z`. |
 | `ouN`, `outN` | `outlineN` hoặc `oliN` | Outline là `oli` hoặc tên đầy đủ `outline`. |
+| `curPointer`, `zi9` | `crPointer`, `z9` | Cursor là `cr`, z-index là `z`. |
 | `ttU` | `ttrU` | Text-transform là `ttr`. |
 | `op0.8` | `opc0.8` | `op` là object-position. |
 | `bdbr` cho bo góc dưới phải | `bdbrr` | `bdbr` là `box-decoration-break`. |
 | `cC` cho màu | `c#...` hoặc `cBrand` | `cC` nghĩa là `color:center` (không hợp lệ, bị trình duyệt từ chối). |
 | `hover:cRed` | `cRed@:hover` | Selector đặt ở hậu tố `@`. |
+
+Alias chính tắc khi một property có nhiều alias: `bdra` (border-radius), `fnw` (font-weight), `mw` (max-width), `ff` (font-family), `bxsh` (box-shadow). Các alias còn lại (`bda`, `fw`, `mxw`, `fnf`, `bxshd`) vẫn chạy để không phá mã hiện có.
+
+Muốn dùng property chưa có alias, xem [Từ vựng mở](./tu-vung-mo.md).
 
 Mẹo kiểm tra nhanh: nếu class không ra CSS, mở `DICTIONARY.md` và tìm alias theo tên CSS gốc (ví dụ tìm `min-height`).
 

@@ -4,6 +4,46 @@
     "accepted": false
   },
   {
+    "input": "--brandX",
+    "accepted": false
+  },
+  {
+    "input": "--brand[#0a64e8]",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "--brand:#0a64e8"
+  },
+  {
+    "input": "--cRed",
+    "accepted": false
+  },
+  {
+    "input": "--gap[8px]",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "--gap:8px"
+  },
+  {
+    "input": "-webkit-box-orient[vertical]",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "-webkit-box-orient:vertical"
+  },
+  {
+    "input": "-webkit-line-clamp[3]",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "-webkit-line-clamp:3"
+  },
+  {
     "input": "2m10px",
     "accepted": true,
     "media": "",
@@ -5712,6 +5752,14 @@
     "declarations": "background-image:1px solid red"
   },
   {
+    "input": "bgi[url(/a_b.png)]",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "background-image:url(/a_b.png)"
+  },
+  {
     "input": "bgo!10px",
     "accepted": true,
     "media": "",
@@ -7920,6 +7968,22 @@
     "declarations": "column-width:1px solid red"
   },
   {
+    "input": "content-visibility[auto]",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "content-visibility:auto"
+  },
+  {
+    "input": "content[a\\_b]",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "content:a_b"
+  },
+  {
     "input": "cr!10px",
     "accepted": true,
     "media": "",
@@ -9244,6 +9308,14 @@
     "declarations": "font-family:1px solid red"
   },
   {
+    "input": "ff[Segoe_UI,sans-serif]",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "font-family:Segoe UI,sans-serif"
+  },
+  {
     "input": "ffa",
     "accepted": false
   },
@@ -9254,6 +9326,14 @@
   {
     "input": "ffs",
     "accepted": false
+  },
+  {
+    "input": "field-sizing[content]",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "field-sizing:content"
   },
   {
     "input": "fl!10px",
@@ -13588,6 +13668,22 @@
     "declarations": "margin:var(--brand)"
   },
   {
+    "input": "m-.5rem",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "margin:-.5rem"
+  },
+  {
+    "input": "m.5rem",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "margin:.5rem"
+  },
+  {
     "input": "m10px",
     "accepted": true,
     "media": "",
@@ -15328,6 +15424,14 @@
     "declarations": "margin-top:var(--brand)"
   },
   {
+    "input": "mt-.5rem",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "margin-top:-.5rem"
+  },
+  {
     "input": "mt10px",
     "accepted": true,
     "media": "",
@@ -15478,6 +15582,14 @@
     "layer": 0,
     "selector": "",
     "declarations": "margin-left:1px solid;margin-right:1px solid"
+  },
+  {
+    "input": "mx[1px_2px]",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "margin-left:1px 2px;margin-right:1px 2px"
   },
   {
     "input": "mxw!10px",
@@ -16766,6 +16878,14 @@
     "layer": 0,
     "selector": "",
     "declarations": "opacity:var(--brand)"
+  },
+  {
+    "input": "opc-.5",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "opacity:-.5"
   },
   {
     "input": "opc0.5@:hover",
@@ -21464,6 +21584,14 @@
     "declarations": "text-emphasis-style:1px solid red"
   },
   {
+    "input": "text-wrap[balance]",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "text-wrap:balance"
+  },
+  {
     "input": "ti!10px",
     "accepted": true,
     "media": "",
@@ -22728,6 +22856,10 @@
     "accepted": false
   },
   {
+    "input": "tx-.5",
+    "accepted": false
+  },
+  {
     "input": "unib!10px",
     "accepted": true,
     "media": "",
@@ -23036,6 +23168,14 @@
     "accepted": false
   },
   {
+    "input": "view-transition-nameHero",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "view-transition-name:Hero"
+  },
+  {
     "input": "w!10px",
     "accepted": true,
     "media": "",
@@ -23126,6 +23266,14 @@
     "layer": 0,
     "selector": "",
     "declarations": "width:calc(100% - 10px)"
+  },
+  {
+    "input": "w[calc(100%_-_2rem)]",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "width:calc(100% - 2rem)"
   },
   {
     "input": "w]10",

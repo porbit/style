@@ -35,6 +35,20 @@ These abbreviations work with almost all properties (where applicable).
 
 ---
 
+## Alias Chính Tắc
+
+Một số property có hai alias cùng chỉ tới một tên CSS. Dùng alias chính tắc trong mã mới và trong đầu ra của công cụ; alias còn lại vẫn chạy để tương thích.
+
+| Tên CSS | Alias chính tắc | Alias giữ để tương thích |
+| :--- | :--- | :--- |
+| `border-radius` | `bdra` | `bda` |
+| `font-weight` | `fnw` | `fw` |
+| `max-width` | `mw` | `mxw` |
+| `font-family` | `ff` | `fnf` |
+| `box-shadow` | `bxsh` | `bxshd` |
+
+Property CSS chuẩn không có trong bảng dưới vẫn dùng được bằng tên đầy đủ: `view-transition-name[hero]`. Xem [Từ vựng mở](./docs/guides/tu-vung-mo.md).
+
 ## Property Dictionary
 
 | Abbreviation | Property | Values | Example |
@@ -102,7 +116,7 @@ These abbreviations work with almost all properties (where applicable).
 | `bdiw` | **border-image-width** | _(raw values)_ | `bdiw10px`<br/>*(border-image-width: 10px)* |
 | `bdl` | **border-left** | _(raw values)_ | `bdl10px`<br/>*(border-left: 10px)* |
 | `bdlc` | **border-left-color** | _(raw values)_ | `bdlcRed`<br/>*(border-left-color: Red)* |
-| `bdls` | **border-left-style** | _(raw values)_ | `bdls10px`<br/>*(border-left-style: 10px)* |
+| `bdls` | **border-left-style** | _(raw values)_ | `bdlsSolid`<br/>*(border-left-style: solid)* |
 | `bdlw` | **border-left-width** | `t`: thin<br/> `m`: medium<br/> `th`: thick | `bdlwT`<br/>*(border-left-width: thin)* |
 | `bdr` | **border-right** | _(raw values)_ | `bdr10px`<br/>*(border-right: 10px)* |
 | `bdra` | **border-radius** | _(raw values)_ | `bdra10px`<br/>*(border-radius: 10px)* |
@@ -137,13 +151,13 @@ These abbreviations work with almost all properties (where applicable).
 | `blks` | **block-size** | _(raw values)_ | `blks10px`<br/>*(block-size: 10px)* |
 | `brka` | **break-after** | _(raw values)_ | `brkaPage`<br/>*(break-after: page)* |
 | `brkb` | **break-before** | _(raw values)_ | `brkbPage`<br/>*(break-before: page)* |
-| `brki` | **break-inside** | _(raw values)_ | `brkiPage`<br/>*(break-inside: page)* |
+| `brki` | **break-inside** | _(raw values)_ | `brkiAvoid`<br/>*(break-inside: avoid)* |
 | `bxsh` | **box-shadow** | _(raw values)_ | `bxshUn`<br/>*(box-shadow: unset)* |
 | `bxshd` | **box-shadow** | _(raw values)_ | `bxshdUn`<br/>*(box-shadow: unset)* |
 | `bxsz` | **box-sizing** | _(raw values)_ | `bxszUn`<br/>*(box-sizing: unset)* |
 | `c` | **color** | `i`: inherit<br/> `t`: transparent | `cI`<br/>*(color: inherit)* |
 | `caps` | **caption-side** | _(raw values)_ | `capsUn`<br/>*(caption-side: unset)* |
-| `cip` | **color-interpolation** | _(raw values)_ | `cipRed`<br/>*(color-interpolation: Red)* |
+| `cip` | **color-interpolation** | _(raw values)_ | `cipAuto`<br/>*(color-interpolation: auto)* |
 | `ciw` | **contain-intrinsic-width** | _(raw values)_ | `ciw10px`<br/>*(contain-intrinsic-width: 10px)* |
 | `clpp` | **clip-path** | _(raw values)_ | `clppUn`<br/>*(clip-path: unset)* |
 | `clr` | **clear** | _(raw values)_ | `clrUn`<br/>*(clear: unset)* |
@@ -152,12 +166,12 @@ These abbreviations work with almost all properties (where applicable).
 | `cntih` | **contain-intrinsic-height** | _(raw values)_ | `cntih10px`<br/>*(contain-intrinsic-height: 10px)* |
 | `cntiis` | **contain-intrinsic-inline-size** | _(raw values)_ | `cntiis10px`<br/>*(contain-intrinsic-inline-size: 10px)* |
 | `cntis` | **contain-intrinsic-size** | _(raw values)_ | `cntis10px`<br/>*(contain-intrinsic-size: 10px)* |
-| `cntri` | **counter-increment** | _(raw values)_ | `cntri5`<br/>*(counter-increment: 5)* |
-| `cntrr` | **counter-reset** | _(raw values)_ | `cntrr5`<br/>*(counter-reset: 5)* |
-| `cntrs` | **counter-set** | _(raw values)_ | `cntrs5`<br/>*(counter-set: 5)* |
+| `cntri` | **counter-increment** | _(raw values)_ | `cntri[item]`<br/>*(counter-increment: item)* |
+| `cntrr` | **counter-reset** | _(raw values)_ | `cntrr[item]`<br/>*(counter-reset: item)* |
+| `cntrs` | **counter-set** | _(raw values)_ | `cntrs[item_5]`<br/>*(counter-set: item 5)* |
 | `col` | **columns** | _(raw values)_ | `colUn`<br/>*(columns: unset)* |
 | `colc` | **column-count** | _(raw values)_ | `colc5`<br/>*(column-count: 5)* |
-| `colf` | **column-fill** | _(raw values)_ | `colfRed`<br/>*(column-fill: Red)* |
+| `colf` | **column-fill** | _(raw values)_ | `colfAuto`<br/>*(column-fill: auto)* |
 | `colg` | **column-gap** | _(raw values)_ | `colg10px`<br/>*(column-gap: 10px)* |
 | `colr` | **column-rule** | _(raw values)_ | `colrUn`<br/>*(column-rule: unset)* |
 | `colrc` | **column-rule-color** | _(raw values)_ | `colrcRed`<br/>*(column-rule-color: Red)* |
@@ -175,7 +189,7 @@ These abbreviations work with almost all properties (where applicable).
 | `d` | **display** | `b`: block<br/> `ib`: inline-block<br/> `i`: inline<br/> `f`: flex<br/> `if`: inline-flex<br/> `t`: table<br/> `it`: inline-table<br/> `tcp`: table-caption<br/> `tcell`: table-cell<br/> `tcol`: table-column<br/> `tcolg`: table-column-group<br/> `tfg`: table-footer-group<br/> `thg`: table-header-group<br/> `trg`: table-row-group<br/> `tr`: table-row<br/> `fr`: flow-root<br/> `g`: grid<br/> `ig`: inline-grid<br/> `c`: contents<br/> `li`: list-item | `dB`<br/>*(display: block)* |
 | `dir` | **direction** | _(raw values)_ | `dirUn`<br/>*(direction: unset)* |
 | `empc` | **empty-cells** | _(raw values)_ | `empcUn`<br/>*(empty-cells: unset)* |
-| `fca` | **forced-color-adjust** | _(raw values)_ | `fcaRed`<br/>*(forced-color-adjust: Red)* |
+| `fca` | **forced-color-adjust** | _(raw values)_ | `fcaNone`<br/>*(forced-color-adjust: none)* |
 | `ff` | **font-family** | `a`: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'<br/> `s`: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif<br/> `m`: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace | `ffA`<br/>*(font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji')* |
 | `fl` | **float** | `is`: inline-start<br/> `ie`: inline-end<br/> `r`: right<br/> `l`: left | `flR`<br/>*(float: right)* |
 | `flt` | **filter** | _(raw values)_ | `fltUn`<br/>*(filter: unset)* |
@@ -187,7 +201,7 @@ These abbreviations work with almost all properties (where applicable).
 | `fnos` | **font-optical-sizing** | _(raw values)_ | `fnosUn`<br/>*(font-optical-sizing: unset)* |
 | `fnp` | **font-palette** | _(raw values)_ | `fnpUn`<br/>*(font-palette: unset)* |
 | `fns` | **font-size** | _(raw values)_ | `fns10px`<br/>*(font-size: 10px)* |
-| `fnsa` | **font-size-adjust** | _(raw values)_ | `fnsa10px`<br/>*(font-size-adjust: 10px)* |
+| `fnsa` | **font-size-adjust** | _(raw values)_ | `fnsaNone`<br/>*(font-size-adjust: none)* |
 | `fnsp` | **font-synthesis-position** | _(raw values)_ | `fnspUn`<br/>*(font-synthesis-position: unset)* |
 | `fnss` | **font-synthesis-style** | _(raw values)_ | `fnssUn`<br/>*(font-synthesis-style: unset)* |
 | `fnssc` | **font-synthesis-small-caps** | _(raw values)_ | `fnsscUn`<br/>*(font-synthesis-small-caps: unset)* |
@@ -304,12 +318,12 @@ These abbreviations work with almost all properties (where applicable).
 | `oflb` | **overflow-block** | _(raw values)_ | `oflbUn`<br/>*(overflow-block: unset)* |
 | `oflcm` | **overflow-clip-margin** | _(raw values)_ | `oflcm10px`<br/>*(overflow-clip-margin: 10px)* |
 | `ofli` | **overflow-inline** | _(raw values)_ | `ofliUn`<br/>*(overflow-inline: unset)* |
-| `oflw` | **overflow-wrap** | `c`: clip<br/> `s`: scroll | `oflwC`<br/>*(overflow-wrap: clip)* |
+| `oflw` | **overflow-wrap** | `c`: clip<br/> `s`: scroll | `oflwNormal`<br/>*(overflow-wrap: normal)* |
 | `oflx` | **overflow-x** | `c`: clip<br/> `s`: scroll | `oflxC`<br/>*(overflow-x: clip)* |
 | `ofly` | **overflow-y** | `c`: clip<br/> `s`: scroll | `oflyC`<br/>*(overflow-y: clip)* |
-| `ofp` | **offset-path** | _(raw values)_ | `ofp10px`<br/>*(offset-path: 10px)* |
+| `ofp` | **offset-path** | _(raw values)_ | `ofpNone`<br/>*(offset-path: none)* |
 | `ofpo` | **offset-position** | _(raw values)_ | `ofpo10px`<br/>*(offset-position: 10px)* |
-| `ofr` | **offset-rotate** | _(raw values)_ | `ofr10px`<br/>*(offset-rotate: 10px)* |
+| `ofr` | **offset-rotate** | _(raw values)_ | `ofrAuto`<br/>*(offset-rotate: auto)* |
 | `ofs` | **offset** | _(raw values)_ | `ofs10px`<br/>*(offset: 10px)* |
 | `olc` | **outline-color** | `i`: inherit<br/> `c`: currentColor<br/> `t`: transparent | `olcI`<br/>*(outline-color: inherit)* |
 | `oli` | **outline** | _(raw values)_ | `oliUn`<br/>*(outline: unset)* |
@@ -332,10 +346,10 @@ These abbreviations work with almost all properties (where applicable).
 | `pbs` | **padding-block-start** | _(raw values)_ | `pbs10px`<br/>*(padding-block-start: 10px)* |
 | `pe` | **pointer-events** | _(raw values)_ | `peUn`<br/>*(pointer-events: unset)* |
 | `pg` | **page** | _(raw values)_ | `pgUn`<br/>*(page: unset)* |
-| `pgba` | **page-break-after** | _(raw values)_ | `pgbaPage`<br/>*(page-break-after: page)* |
-| `pgbb` | **page-break-before** | _(raw values)_ | `pgbbPage`<br/>*(page-break-before: page)* |
-| `pgbi` | **page-break-inside** | _(raw values)_ | `pgbiPage`<br/>*(page-break-inside: page)* |
-| `pi` | **padding-inline** | `c`: center<br/> `s`: start<br/> `e`: end<br/> `fs`: flex-start<br/> `fe`: flex-end<br/> `l`: left<br/> `r`: right<br/> `n`: normal<br/> `sp`: space-between<br/> `sa`: space-around<br/> `se`: space-evenly<br/> `st`: stretch<br/> `sc`: safe center<br/> `uc`: unsafe center | `piC`<br/>*(padding-inline: center)* |
+| `pgba` | **page-break-after** | _(raw values)_ | `pgbaAvoid`<br/>*(page-break-after: avoid)* |
+| `pgbb` | **page-break-before** | _(raw values)_ | `pgbbAvoid`<br/>*(page-break-before: avoid)* |
+| `pgbi` | **page-break-inside** | _(raw values)_ | `pgbiAvoid`<br/>*(page-break-inside: avoid)* |
+| `pi` | **padding-inline** | `c`: center<br/> `s`: start<br/> `e`: end<br/> `fs`: flex-start<br/> `fe`: flex-end<br/> `l`: left<br/> `r`: right<br/> `n`: normal<br/> `sp`: space-between<br/> `sa`: space-around<br/> `se`: space-evenly<br/> `st`: stretch<br/> `sc`: safe center<br/> `uc`: unsafe center | `pi0`<br/>*(padding-inline: 0)* |
 | `pie` | **padding-inline-end** | _(raw values)_ | `pie10px`<br/>*(padding-inline-end: 10px)* |
 | `pis` | **padding-inline-start** | _(raw values)_ | `pis10px`<br/>*(padding-inline-start: 10px)* |
 | `pl` | **padding-left** | _(raw values)_ | `pl10px`<br/>*(padding-left: 10px)* |
@@ -344,7 +358,7 @@ These abbreviations work with almost all properties (where applicable).
 | `pls` | **place-self** | _(raw values)_ | `plsUn`<br/>*(place-self: unset)* |
 | `pos` | **position** | `s`: static<br/> `f`: fixed<br/> `a`: absolute<br/> `r`: relative<br/> `st`: sticky | `posS`<br/>*(position: static)* |
 | `pr` | **padding-right** | _(raw values)_ | `pr10px`<br/>*(padding-right: 10px)* |
-| `prca` | **print-color-adjust** | _(raw values)_ | `prcaRed`<br/>*(print-color-adjust: Red)* |
+| `prca` | **print-color-adjust** | _(raw values)_ | `prcaExact`<br/>*(print-color-adjust: exact)* |
 | `pso` | **perspective-origin** | _(raw values)_ | `pso10px`<br/>*(perspective-origin: 10px)* |
 | `psp` | **perspective** | _(raw values)_ | `psp10px`<br/>*(perspective: 10px)* |
 | `pt` | **padding-top** | _(raw values)_ | `pt10px`<br/>*(padding-top: 10px)* |
@@ -356,9 +370,9 @@ These abbreviations work with almost all properties (where applicable).
 | `rot` | **rotate** | _(raw values)_ | `rotUn`<br/>*(rotate: unset)* |
 | `rsz` | **resize** | `b`: both<br/> `h`: horizontal<br/> `v`: vertical | `rszB`<br/>*(resize: both)* |
 | `s` | **scale** | _(raw values)_ | `sUn`<br/>*(scale: unset)* |
-| `sbc` | **scrollbar-color** | _(raw values)_ | `sbcRed`<br/>*(scrollbar-color: Red)* |
+| `sbc` | **scrollbar-color** | _(raw values)_ | `sbcAuto`<br/>*(scrollbar-color: auto)* |
 | `sbg` | **scrollbar-gutter** | _(raw values)_ | `sbgUn`<br/>*(scrollbar-gutter: unset)* |
-| `sbw` | **scrollbar-width** | _(raw values)_ | `sbw10px`<br/>*(scrollbar-width: 10px)* |
+| `sbw` | **scrollbar-width** | _(raw values)_ | `sbwNone`<br/>*(scrollbar-width: none)* |
 | `scrb` | **scroll-behavior** | _(raw values)_ | `scrbUn`<br/>*(scroll-behavior: unset)* |
 | `scrm` | **scroll-margin** | _(raw values)_ | `scrm10px`<br/>*(scroll-margin: 10px)* |
 | `scrmb` | **scroll-margin-bottom** | _(raw values)_ | `scrmb10px`<br/>*(scroll-margin-bottom: 10px)* |
@@ -382,7 +396,7 @@ These abbreviations work with almost all properties (where applicable).
 | `scrpr` | **scroll-padding-right** | _(raw values)_ | `scrpr10px`<br/>*(scroll-padding-right: 10px)* |
 | `scrpt` | **scroll-padding-top** | _(raw values)_ | `scrpt10px`<br/>*(scroll-padding-top: 10px)* |
 | `scrsa` | **scroll-snap-align** | _(raw values)_ | `scrsaUn`<br/>*(scroll-snap-align: unset)* |
-| `scrss` | **scroll-snap-stop** | _(raw values)_ | `scrss10px`<br/>*(scroll-snap-stop: 10px)* |
+| `scrss` | **scroll-snap-stop** | _(raw values)_ | `scrssAlways`<br/>*(scroll-snap-stop: always)* |
 | `scrst` | **scroll-snap-type** | _(raw values)_ | `scrstUn`<br/>*(scroll-snap-type: unset)* |
 | `shit` | **shape-image-threshold** | _(raw values)_ | `shit[url('...')]`<br/>*(shape-image-threshold: url('...'))* |
 | `shm` | **shape-margin** | _(raw values)_ | `shm10px`<br/>*(shape-margin: 10px)* |
@@ -393,7 +407,7 @@ These abbreviations work with almost all properties (where applicable).
 | `tal` | **text-align-last** | `s`: start<br/> `e`: end<br/> `l`: left<br/> `r`: right<br/> `c`: center<br/> `j`: justify | `talS`<br/>*(text-align-last: start)* |
 | `tbl` | **table-layout** | _(raw values)_ | `tblUn`<br/>*(table-layout: unset)* |
 | `tbs` | **tab-size** | _(raw values)_ | `tbs10px`<br/>*(tab-size: 10px)* |
-| `tcu` | **text-combine-upright** | _(raw values)_ | `tcu10px`<br/>*(text-combine-upright: 10px)* |
+| `tcu` | **text-combine-upright** | _(raw values)_ | `tcuAll`<br/>*(text-combine-upright: all)* |
 | `td` | **text-decoration** | `u`: underline | `tdU`<br/>*(text-decoration: underline)* |
 | `tdc` | **text-decoration-color** | _(raw values)_ | `tdcRed`<br/>*(text-decoration-color: Red)* |
 | `tdl` | **text-decoration-line** | `u`: underline<br/> `o`: overline<br/> `lt`: line-through<br/> `b`: blink | `tdlU`<br/>*(text-decoration-line: underline)* |

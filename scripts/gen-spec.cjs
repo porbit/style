@@ -148,6 +148,14 @@ add('w[calc(100%;-;10px)')
 add('w]10')
 add('mdx:w10px')
 add('unknownprop10')
+// 2j. Mở rộng 0.4: property chuẩn viết đủ tên, custom property, `_` trong ngoặc vuông, số âm dạng `-.5`
+for (const c of [
+    'view-transition-nameHero', 'content-visibility[auto]', 'text-wrap[balance]', 'field-sizing[content]',
+    '--brand[#0a64e8]', '--gap[8px]', '--cRed', '--brandX',
+    'w[calc(100%_-_2rem)]', 'ff[Segoe_UI,sans-serif]', 'bgi[url(/a_b.png)]', 'content[a\\_b]', 'mx[1px_2px]',
+    'm-.5rem', 'mt-.5rem', 'm.5rem', 'tx-.5', 'opc-.5',
+    '-webkit-line-clamp[3]', '-webkit-box-orient[vertical]',
+]) add(c)
 add('x')
 
 const cases = [...corpus].sort().map(runNode)

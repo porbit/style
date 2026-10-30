@@ -73,40 +73,65 @@ export const TAILWIND_COVERAGE_MATRIX: readonly TailwindCoverageEntry[] = [
         notes: 'responsive variants and safe pseudo/pseudo-element variants are supported directly: hover, focus, active, visited, disabled, checked, before, after, placeholder, selection, first, last, odd, even.',
     },
     {
+        group: 'grid-position',
+        support: 'exact',
+        examples: ['grid-cols-3', 'col-span-2', 'col-start-2', 'grid-rows-2', 'top-1/2', 'inset-x-1/2'],
+        notes: 'lưới, vị trí theo phân số và phạm vi cột/hàng đổi 1:1 sang gtc, gtr, gc, gr, t, l, r, b.',
+    },
+    {
+        group: 'motion',
+        support: 'exact',
+        examples: ['duration-300', 'delay-150', 'ease-in-out', 'ease-linear'],
+        notes: 'thời lượng, độ trễ và hàm thời gian đổi sang trandur, trand, trantf; `transition` đứng một mình vẫn chỉ gần đúng (200ms).',
+    },
+    {
         group: 'motion-basic',
         support: 'partial',
         examples: ['transition'],
         notes: 'transition currently degrades to a generic 200ms x-css transition and should be reviewed before release.',
     },
     {
-        group: 'motion-detailed',
-        support: 'manual',
-        examples: ['duration-200', 'ease-out', 'delay-150'],
-        notes: 'timing-specific motion helpers are not auto-mapped safely and should block blind migration.',
+        group: 'transform-effects',
+        support: 'partial',
+        examples: ['scale-95', 'rotate-45', 'translate-x-4', 'blur-sm', 'backdrop-blur-md', 'brightness-50'],
+        notes: 'scale, rotate, blur, backdrop-blur, brightness dùng property riêng lẻ; translate-x và translate-y trên cùng phần tử ghi đè nhau vì dùng chung property `translate`, hãy gộp thành `trl[X_Y]`.',
     },
     {
         group: 'contextual-variants',
-        support: 'manual',
-        examples: ['group-hover:bg-slate-50', 'peer-focus:text-blue-600', 'dark:bg-slate-900'],
-        notes: 'group, peer, and dark-mode variants need product-specific rewrite strategy and should not be auto-applied.',
+        support: 'exact',
+        examples: ['group-hover:bg-slate-50', 'peer-checked:bg-blue-600', 'aria-expanded:rotate-180', 'data-[open=true]:flex', '[&>*]:mb-2', 'dark:bg-slate-900'],
+        notes: 'group, peer, aria, data, biến thể tuỳ ý `[&...]` và dark đổi sang hậu tố selector hoặc media key; dark cần khai báo breakpoints hoặc dùng darkMode: class.',
     },
     {
-        group: 'generated-content-and-dividers',
-        support: 'manual',
-        examples: ['divide-x', 'before:content-[\"\"]'],
-        notes: 'divide helpers and arbitrary generated-content flows need manual implementation review.',
+        group: 'opacity-colors-arbitrary',
+        support: 'exact',
+        examples: ['bg-black/50', 'text-white/80', 'w-[calc(100%_-_2rem)]', 'text-[14px]', 'z-[60]', '[mask-type:luminance]'],
+        notes: 'màu hex có độ mờ và giá trị tuỳ ý trong ngoặc vuông được đổi sang cú pháp ngoặc vuông của x-css, với `_` là khoảng trắng.',
     },
     {
-        group: 'transform-effects',
+        group: 'dividers-spacing-children',
+        support: 'exact',
+        examples: ['space-x-4', 'space-y-2', 'divide-y', 'divide-x', 'border-t-2', 'border-x'],
+        notes: 'khoảng cách giữa phần tử con và đường kẻ phân cách dùng selector `>*+*`.',
+    },
+    {
+        group: 'accessibility-text',
+        support: 'exact',
+        examples: ['sr-only', 'line-clamp-3', 'break-words', 'pointer-events-none', 'no-underline'],
+        notes: 'sr-only, cắt dòng, ngắt từ, sự kiện con trỏ.',
+    },
+    {
+        group: 'manual-review',
         support: 'manual',
-        examples: ['translate-x-4', 'scale-95', 'rotate-45', 'ring-2', 'outline-none', 'bg-gradient-to-r'],
-        notes: 'transforms, rings, advanced outlines, and gradients are not mapped safely enough for production auto-migration.',
+        examples: ['bg-gradient-to-r', 'from-blue-500', 'ring-2', 'animate-spin', 'prose', 'container', 'supports-[display:grid]:flex'],
+        notes: 'gradient theo hướng, ring, animate, plugin typography, container và biến thể supports cần viết tay: x-css biểu đạt được bằng giá trị tuỳ ý nhưng không có phép đổi 1:1 an toàn.',
     },
 ] as const
 
 const DEFAULT_READINESS_OPTIONS: Required<TailwindMigrationReadinessOptions> = {
     mode: 'safe',
     preserveUnknown: false,
+    darkMode: 'media',
 }
 
 const isSafeDetailForAutoApply = (detail: TailwindTokenConversion): boolean => {

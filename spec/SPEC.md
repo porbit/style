@@ -57,7 +57,9 @@ Quét từ vị trí đầu của phần còn lại; với ký tự tại `i`:
 | Ký tự | Điều kiện | Hành động |
 |-------|-----------|-----------|
 | `-` hoặc `.` | ký tự kế là chữ số | dừng prop (val bắt đầu) |
+| `-` | ký tự kế là `.` rồi một chữ số (`m-.5rem`) | dừng prop (val bắt đầu) |
 | `-` | gặp `--` và đã có ≥1 ký tự prop | dừng prop (val = CSS var) |
+| `--` ở đầu | prop là `--ten` rồi `[` | custom property, val là phần `[...]` (xem mục 4.1) |
 | `-` hoặc `.` | còn lại | thuộc prop, tiếp tục |
 | `a`–`z` | luôn | thuộc prop, tiếp tục |
 | khác (`A-Z`, `0-9`, `#`, `!`, `[`, `(`, `%`, …) | luôn | dừng prop (val bắt đầu) |
@@ -67,9 +69,23 @@ Quét từ vị trí đầu của phần còn lại; với ký tự tại `i`:
 1. Nếu `prop` ∈ `SHORT_PROPERTIES` → tên CSS = giá trị map.
 2. Ngược lại → tên CSS = chính `prop` (cho phép viết đầy đủ như `color`, `margin-top`).
 
-**Gating "known property"** (khi dictionary bật): class hợp lệ chỉ khi `prop` là
-(a) key trong `SHORT_PROPERTIES`, hoặc (b) một trong composite `mx my px py bdx bdy`,
-hoặc (c) một tên CSS đầy đủ (giá trị của `SHORT_PROPERTIES`). Nếu không → từ chối.
+**Gating "known property"** (khi dictionary bật): class hợp lệ chỉ khi `prop` là một trong:
+
+- (a) key trong `SHORT_PROPERTIES`;
+- (b) composite `mx my px py bdx bdy`;
+- (c) tên CSS đầy đủ là giá trị của `SHORT_PROPERTIES`;
+- (d) tên property CSS chuẩn trong `STANDARD_CSS_PROPERTIES` (`src/css-properties.ts`), ví dụ
+  `view-transition-name`, `content-visibility`, `anchor-name`, `field-sizing`;
+- (e) property có tiền tố nhà cung cấp `-webkit-`, `-moz-`, `-ms-`, `-o-`;
+- (f) custom property `--ten` — chỉ ở dạng có ngoặc vuông `--ten[gia-tri]` (xem 4.1).
+
+Không thuộc nhóm nào → từ chối. Khi `dictionaryImport: false` không áp dụng gating, mọi tên đều được nhận.
+
+### 4.1 Custom property
+
+`--ten[gia-tri]` sinh `--ten:gia-tri`. Dạng `--tenGiaTri` (không ngoặc vuông) bị từ chối vì mơ hồ với
+`prop--value` (CSS variable làm value, ví dụ `bgc--brand` → `background-color:var(--brand)`).
+Parser nhận `--ten` là property khi ký tự `[` xuất hiện sau tên chỉ gồm `[a-zA-Z0-9_-]`.
 
 ## 5. Phân giải `val`
 
@@ -77,7 +93,8 @@ Theo đúng `propToValue` (`src/core.ts`):
 
 1. `val` bắt đầu `!` → bật `important`, bỏ `!`.
 2. `val` bắt đầu `--` → `var(<val>)`.
-3. `val` dạng `[...]` → bỏ `[` `]`.
+3. `val` dạng `[...]` → bỏ `[` `]`, rồi giải mã `_` thành khoảng trắng (`\\_` giữ dấu gạch dưới;
+   nội dung `url(...)` được giữ nguyên). `w[calc(100%_-_2rem)]` → `width:calc(100% - 2rem)`.
 4. Ngược lại — tra dictionary theo **2 lượt**, mỗi lượt specific TRƯỚC common:
    - lượt 1 khóa = `lowercaseFirst(val)` (chỉ hạ ký tự đầu): `SPECIFIC_VALUES[prop][k] ?? exts[k]`
    - lượt 2 khóa = `val.toLowerCase()` (hạ toàn bộ): `SPECIFIC_VALUES[prop][k] ?? exts[k]`

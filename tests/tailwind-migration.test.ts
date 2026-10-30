@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { xcss } from '../src/core'
 import { classifyTailwindToken, convertTailwindClasses, convertTailwindToken } from '../src/tailwind'
 
+const convertTokenWithUnknownVariant = () => convertTailwindToken('supports-[display:grid]:bg-slate-50')
+
 describe('tailwind -> xcss converter', () => {
     it('converts common layout, spacing, and color utilities', () => {
         const result = convertTailwindClasses(
@@ -98,9 +100,9 @@ describe('tailwind -> xcss converter', () => {
         expect(transition.exact).toBe(false)
         expect(transition.outputs).toEqual(['tran0.2s'])
 
-        expect(duration.status).toBe('passthrough')
-        expect(duration.classification).toBe('ambiguous')
-        expect(duration.warnings.some((warning) => warning.message.includes('requires manual review'))).toBe(true)
+        expect(duration.status).toBe('converted')
+        expect(duration.exact).toBe(true)
+        expect(duration.outputs).toEqual(['trandur200ms'])
     })
 
     it('uses canonical display aliases and safe keyword encoding', () => {
@@ -151,18 +153,59 @@ describe('tailwind -> xcss converter', () => {
         })
 
         expect(result.converted).toContain('p10px')
+        expect(result.converted).toContain('trandur200ms')
         expect(result.passthrough).toEqual(['md:fxd[row]'])
-        expect(result.unsupported).toEqual(['duration-200', 'legacy-btn'])
+        expect(result.unsupported).toEqual(['legacy-btn'])
         expect(result.ambiguous).toEqual(['p-2.5', 'duration-200'])
     })
 
-    it('keeps ambiguous variant conversions raw in legacy mode instead of stripping variants', () => {
-        const result = convertTailwindToken('group-hover:bg-slate-50')
+    it('keeps token raw in legacy mode when a variant has no safe mapping', () => {
+        const result = convertTokenWithUnknownVariant()
 
         expect(result.status).toBe('passthrough')
         expect(result.classification).toBe('ambiguous')
-        expect(result.outputs).toEqual(['group-hover:bg-slate-50'])
+        expect(result.outputs).toEqual(['supports-[display:grid]:bg-slate-50'])
         expect(result.warnings.some((warning) => warning.message.includes('not mapped safely'))).toBe(true)
+    })
+
+    it('maps group, peer, aria, data and arbitrary variants to a selector suffix', () => {
+        expect(convertTailwindToken('group-hover:bg-slate-50').outputs).toEqual(['bgc#f8fafc@:is(.group:hover;*)'])
+        expect(convertTailwindToken('peer-checked:bg-blue-600').outputs).toEqual(['bgc#2563eb@:is(.peer:checked~*)'])
+        expect(convertTailwindToken('aria-expanded:rotate-180').outputs).toEqual(['rot[180deg]@[aria-expanded=true]'])
+        expect(convertTailwindToken('data-[open=true]:flex').outputs).toEqual(['dF@[data-open=true]'])
+        expect(convertTailwindToken('[&>*]:mb-2').outputs).toEqual(['mb8px@>*'])
+        expect(convertTailwindToken('md:hover:bg-blue-700').outputs).toEqual(['md:bgc#1d4ed8@:hover'])
+    })
+
+    it('maps dark: to a media key or to a .dark ancestor depending on darkMode', () => {
+        const media = convertTailwindToken('dark:bg-slate-900')
+        expect(media.outputs).toEqual(['dark:bgc#0f172a'])
+        expect(media.warnings.some((warning) => warning.message.includes('breakpoints'))).toBe(true)
+        expect(convertTailwindToken('dark:bg-slate-900', { darkMode: 'class' }).outputs).toEqual(['bgc#0f172a@:is(.dark;*)'])
+    })
+
+    it('converts grid, position fraction, motion, transform and opacity colors', () => {
+        const result = convertTailwindClasses(
+            'grid-cols-3 col-span-2 top-1/2 duration-300 ease-in-out scale-95 rotate-45 bg-black/50 pointer-events-none border-t-2',
+            { mode: 'safe' },
+        )
+        expect(result.output.split(' ')).toEqual([
+            'gtc[repeat(3,minmax(0,1fr))]',
+            'gc[span_2_/_span_2]',
+            't[50%]',
+            'trandur300ms',
+            'trantf[cubic-bezier(0.4,0,0.2,1)]',
+            's[0.95]',
+            'rot[45deg]',
+            'bgc[rgb(0_0_0_/_0.5)]',
+            'pe[none]',
+            'bdtw2px',
+        ])
+        expect(result.unsupported).toEqual([])
+    })
+
+    it('emits canonical font-weight alias fnw', () => {
+        expect(convertTailwindToken('font-bold').outputs).toEqual(['fnw700'])
     })
 
     it('nên sinh token bóng đổ không chứa khoảng trắng để dùng được trong thuộc tính class', () => {
@@ -172,5 +215,25 @@ describe('tailwind -> xcss converter', () => {
             expect(token.endsWith(']')).toBe(true)
         })
         expect(result.output.split(' ')).toHaveLength(2)
+    })
+
+    it('không âm thầm bỏ một media khi hai media cùng xuất hiện', () => {
+        const stacked = convertTailwindToken('md:dark:bg-slate-900', { mode: 'legacy' })
+        expect(stacked.status).toBe('passthrough')
+        expect(stacked.outputs).toEqual(['md:dark:bg-slate-900'])
+        expect(convertTailwindToken('md:dark:bg-slate-900', { mode: 'safe' }).status).toBe('unsupported')
+        expect(stacked.warnings.some((warning) => warning.blocking)).toBe(true)
+        expect(convertTailwindToken('md:hover:bg-slate-50').outputs).toEqual(['md:bgc#f8fafc@:hover'])
+        expect(convertTailwindToken('hover:focus:bg-white').outputs).toEqual(['bgc#ffffff@:hover:focus'])
+    })
+
+    it('giữ nguyên dấu gạch dưới trong chuỗi có nháy khi giải mã giá trị tuỳ ý', async () => {
+        const instance = xcss({ hashClassName: false })
+        const { clsx, getCssString } = instance.buildCss()
+        clsx('content["a_b"]')
+        clsx('w[calc(100%_-_2rem)]')
+        const css = getCssString()
+        expect(css).toContain('content:"a_b"')
+        expect(css).toContain('width:calc(100% - 2rem)')
     })
 })

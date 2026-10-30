@@ -1,4 +1,5 @@
 import { mitt } from './events'
+import { STANDARD_CSS_PROPERTIES, isOpenPropertyName } from './css-properties'
 import { parseClassName } from './parser'
 import {
     SHORT_PROPERTIES as BUILTIN_SHORT_PROPERTIES,
@@ -847,8 +848,86 @@ const setupCssLayers = (docRoot: Document | ShadowRoot | null, id?: string) => {
 }
 
 // Helper to hash config
+/**
+ * Giải mã `_` trong giá trị `[...]`: `_` -> khoảng trắng, `\\_` -> `_` nguyên văn.
+ * Giữ nguyên nội dung trong chuỗi có nháy (`"..."`, `'...'`) và trong `url(...)`, `attr(...)`
+ * vì đó là dữ liệu chữ, không phải cú pháp CSS.
+ * Cho phép viết `w[calc(100%_-_2rem)]` = `width: calc(100% - 2rem)` và vẫn có `content["a_b"]`.
+ */
+const decodeArbitraryUnderscore = (input: string): string => {
+    if (!input.includes('_')) return input
+    let out = ''
+    let i = 0
+    while (i < input.length) {
+        const ch = input[i]
+        if (ch === '\\' && input[i + 1] === '_') {
+            out += '_'
+            i += 2
+            continue
+        }
+        if (ch === '"' || ch === "'") {
+            let j = i + 1
+            while (j < input.length && input[j] !== ch) {
+                if (input[j] === '\\') j++
+                j++
+            }
+            const end = Math.min(j + 1, input.length)
+            out += input.slice(i, end)
+            i = end
+            continue
+        }
+        const head = input.slice(i, i + 5).toLowerCase()
+        if (head.startsWith('url(') || head.startsWith('attr(')) {
+            const close = input.indexOf(')', i)
+            const end = close === -1 ? input.length : close + 1
+            out += input.slice(i, end)
+            i = end
+            continue
+        }
+        out += ch === '_' ? ' ' : ch
+        i++
+    }
+    return out
+}
+
 // Mẫu giá trị không được phép khi không có CSS.supports để kiểm tra.
 const UNSAFE_VALUE_PATTERN = /[{}<]|\/\*/
+
+/**
+ * Kiểm tra cấu trúc của giá trị/selector khi không có CSS.supports.
+ * Từ chối: dấu `\` ở cuối (thoát mất `}` đóng khối), nháy không đóng, và ngoặc `(` `[`
+ * không đóng hoặc lồng sai. Một ngoặc hoặc nháy hở trong CSS sẽ nuốt mọi rule phía sau.
+ */
+const hasBalancedStructure = (text: string): boolean => {
+    const stack: string[] = []
+    let i = 0
+    while (i < text.length) {
+        const ch = text[i]
+        if (ch === '\\') {
+            if (i + 1 >= text.length) return false
+            i += 2
+            continue
+        }
+        if (ch === '"' || ch === "'") {
+            let j = i + 1
+            while (j < text.length && text[j] !== ch) {
+                if (text[j] === '\\') j++
+                j++
+            }
+            if (j >= text.length) return false
+            i = j + 1
+            continue
+        }
+        if (ch === '(' || ch === '[') stack.push(ch)
+        else if (ch === ')') {
+            if (stack.pop() !== '(') return false
+        } else if (ch === ']') {
+            if (stack.pop() !== '[') return false
+        }
+        i++
+    }
+    return stack.length === 0
+}
 
 const hashConfig = (config: XCSSConfig): string => {
     const excludes = Array.isArray(config.excludes)
@@ -1066,11 +1145,18 @@ export const xcss = (
     const shouldEnforceKnownProperties = dictionaryImport !== false
     const compositePropertyKeys = new Set(['mx', 'my', 'px', 'py', 'bdx', 'bdy'])
     let knownFullPropertyNames = new Set<string>()
+    const standardPropertyNames = new Set<string>(STANDARD_CSS_PROPERTIES)
     const isKnownPropertyKey = (prop: string): boolean => {
         if (!prop) return false
         if (!shouldEnforceKnownProperties) return true
         if (!PropertiesCss || Object.keys(PropertiesCss).length === 0) return true
-        return !!PropertiesCss[prop] || compositePropertyKeys.has(prop) || knownFullPropertyNames.has(prop)
+        return (
+            !!PropertiesCss[prop] ||
+            compositePropertyKeys.has(prop) ||
+            knownFullPropertyNames.has(prop) ||
+            standardPropertyNames.has(prop) ||
+            isOpenPropertyName(prop)
+        )
     }
 
     let PropertiesCss: CssPropertyMap = {}
@@ -2103,8 +2189,8 @@ export const xcss = (
         if (vx.startsWith('--')) {
             vx = 'var(' + vx + ')'
         } else if (v0 === '[' && vx.endsWith(']')) {
-            // Arbitrary Value: Strip brackets
-            vx = vx.substring(1, vx.length - 1)
+            // Arbitrary Value: Strip brackets, rồi giải mã `_` thành khoảng trắng.
+            vx = decodeArbitraryUnderscore(vx.substring(1, vx.length - 1))
         } else {
             // Dictionary Value Lookup
             if (vx.length > 0) {
@@ -2131,7 +2217,7 @@ export const xcss = (
 
         // Ở môi trường không có CSS.supports (SSR/CLI), chặn các chuỗi có thể thoát khỏi
         // khối rule hoặc thẻ <style>: dấu ngoặc nhọn, dấu '<', mở comment.
-        if (typeof CSS === 'undefined' && UNSAFE_VALUE_PATTERN.test(vx)) return null
+        if (typeof CSS === 'undefined' && (UNSAFE_VALUE_PATTERN.test(vx) || !hasBalancedStructure(vx))) return null
 
         // Step 4: Construct CSS
         let vxx = vx + (i ? ' !important' : '')
@@ -2223,6 +2309,7 @@ export const xcss = (
         const text = selector.trim()
         if (!text) return true
         if (/[{}<]|\/\*/.test(text)) return false
+        if (!hasBalancedStructure(text)) return false
         if (text === '#' || text === '(' || text === ')' || text === ',' || text === '>' || text === '+' || text === '~') return false
         if (text.startsWith('(') || text.startsWith(')')) return false
 
@@ -2326,6 +2413,8 @@ export const xcss = (
         if (!parsed) return null
         if (!isValidMediaKey(parsed.mq)) return null
         if (!parsed.prop.startsWith('[') && !isKnownPropertyKey(parsed.prop)) return null
+        // Custom property chỉ hợp lệ ở dạng `--ten[gia-tri]`; `--tenGiaTri` là mơ hồ nên bị từ chối.
+        if (parsed.prop.startsWith('--') && !parsed.val.startsWith('[')) return null
 
         let { mq: m = 'default', layer: l = '0', prop: p, val: v, selector: s = '' } = parsed
         const cssPropItems: string[] = []

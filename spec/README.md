@@ -34,7 +34,7 @@ npm run gen         # cả hai
 - **Node** ([tests/conformance.test.ts](../tests/conformance.test.ts)): chạy lại engine Node trên
   toàn bộ ground truth → khóa hành vi, bắt regression. Khi cố ý đổi engine, chạy lại `npm run gen:spec`.
 - **Rust** (`x-core/tests/conformance.rs`): chạy engine Rust trên cùng ground truth → đảm bảo parity.
-  Hiện khớp **100% / 3274 case** (2681 accepted, 593 rejected).
+  Lần đo parity gần nhất khớp **100% / 3274 case** (bản 0.3.x). Từ 0.4.0 bộ ground truth có **3294 case** (2698 accepted, 596 rejected): 20 case mới (property chuẩn viết đủ tên, custom property `--ten[...]`, `_` trong ngoặc vuông, số âm `-.5`) **chưa được chạy trên engine Rust**, nên parity của 0.4.0 là `NOT_TESTED` cho tới khi engine Rust được cập nhật và chạy lại.
 
 ## So khớp theo tuple ngữ nghĩa
 

@@ -16,6 +16,7 @@ Engine hoạt động ở hai chế độ:
 | File | Vai trò |
 | :--- | :--- |
 | `src/parser.ts` | Tách một chuỗi class thành tuple `{ mq, layer, prop, val, selector }`. Không phụ thuộc DOM và không phụ thuộc dictionary. |
+| `src/css-properties.ts` | Danh sách tên property CSS chuẩn được chấp nhận khi viết đủ tên (`STANDARD_CSS_PROPERTIES`), cùng quy tắc nhận tiền tố nhà cung cấp và custom property. |
 | `src/dictionary.ts` | Ba bảng tra: `SHORT_PROPERTIES` (406 prop), `COMMON_VALUES`, `SPECIFIC_VALUES`. |
 | `src/core.ts` | Engine chính: phân giải giá trị, dựng rule CSS, quản lý stylesheet, cache `localStorage`, đồng bộ đa tab, quan sát DOM. |
 | `src/index.ts` | API công khai và shared instance dùng chung theo `globalThis`. |
@@ -102,7 +103,7 @@ src/dictionary.ts ──gen-spec──▶ spec/dictionary.json ──gen-rust-di
 src/{core,parser}.ts ──gen-spec──▶ spec/conformance.core.json ──▶ x-core/tests/conformance.core.json
 ```
 
-Hợp đồng conformance so khớp theo tuple ngữ nghĩa `{accepted, media, layer, selector, declarations}`, không so tên class, vì hai engine dùng thuật toán hash và escape khác nhau. Hiện có 3274 case (2681 chấp nhận, 593 từ chối).
+Hợp đồng conformance so khớp theo tuple ngữ nghĩa `{accepted, media, layer, selector, declarations}`, không so tên class, vì hai engine dùng thuật toán hash và escape khác nhau. Hiện có 3294 case (2698 chấp nhận, 596 từ chối). 20 case thêm ở 0.4.0 chưa được chạy trên engine Rust; parity của 0.4.0 là chưa kiểm chứng cho tới khi engine Rust được cập nhật.
 
 Khi thay đổi hành vi engine một cách có chủ đích, phải chạy `npm run gen` để cập nhật lại hợp đồng.
 

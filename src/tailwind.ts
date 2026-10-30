@@ -7,6 +7,8 @@ export type TailwindConversionMode = 'legacy' | 'safe' | 'strict'
 export interface TailwindConversionWarning {
     token: string
     message: string
+    /** true khi cảnh báo khiến token không thể đổi an toàn (token được giữ nguyên hoặc bị loại). */
+    blocking?: boolean
 }
 
 export interface TailwindTokenConversion {
@@ -34,11 +36,17 @@ export interface TailwindConversionResult {
 export interface TailwindConversionOptions {
     preserveUnknown?: boolean
     mode?: TailwindConversionMode
+    /**
+     * Cách đổi biến thể `dark:`. `media` (mặc định) dùng media key `dark` và cần khai báo
+     * `breakpoints: [{ dark: '(prefers-color-scheme: dark)' }]`; `class` dùng tổ tiên `.dark`.
+     */
+    darkMode?: 'media' | 'class'
 }
 
 const DEFAULT_OPTIONS: Required<TailwindConversionOptions> = {
     preserveUnknown: true,
     mode: 'legacy',
+    darkMode: 'media',
 }
 
 const RESPONSIVE_VARIANTS = new Set(['xs', 'sm', 'md', 'lg', 'xl', '2xl'])
@@ -194,6 +202,9 @@ const SIZE_KEYWORDS: Record<string, string> = {
     auto: 'auto',
     full: '100%',
     screen: '100vw',
+    dvw: '100dvw',
+    svw: '100svw',
+    lvw: '100lvw',
     min: 'min-content',
     max: 'max-content',
     fit: 'fit-content',
@@ -203,6 +214,9 @@ const HEIGHT_KEYWORDS: Record<string, string> = {
     auto: 'auto',
     full: '100%',
     screen: '100vh',
+    dvh: '100dvh',
+    svh: '100svh',
+    lvh: '100lvh',
     min: 'min-content',
     max: 'max-content',
     fit: 'fit-content',
@@ -566,6 +580,19 @@ const TAILWIND_EXACT_UTILITIES = new Set([
     ...Object.keys(DIRECTIONAL_ROUNDED_MAP),
     'appearance-none',
     'transition',
+    'sr-only',
+    'not-sr-only',
+    'no-underline',
+    'shadow-inner',
+    'divide-x',
+    'divide-y',
+    'border-x',
+    'border-y',
+    'border-t',
+    'border-r',
+    'border-b',
+    'border-l',
+    'container',
 ])
 
 const TAILWIND_PREFIXES = [
@@ -626,6 +653,27 @@ const TAILWIND_PREFIXES = [
     'to-',
     'basis-',
     'order-',
+    'grid-cols-',
+    'grid-rows-',
+    'col-',
+    'row-',
+    'pointer-events-',
+    'space-',
+    'line-clamp-',
+    'blur',
+    'backdrop-',
+    'brightness-',
+    'contrast-',
+    'saturate-',
+    'stroke-',
+    'fill-',
+    'aspect-',
+    'resize',
+    'list-',
+    'break-',
+    'animate-',
+    'bg-gradient-',
+    'outline-offset-',
 ]
 
 const NEGATIVE_PREFIXES = new Set(['m', 'mx', 'my', 'mt', 'mr', 'mb', 'ml', 'top', 'right', 'bottom', 'left', 'inset', 'inset-x', 'inset-y'])
@@ -711,18 +759,100 @@ const normalizeFraction = (value: string): string | null => {
     return `${(numerator / denominator) * 100}%`
 }
 
-const appendVariants = (tokens: string[], variants: string[]): { tokens: string[], warnings: TailwindConversionWarning[] } => {
+const GROUP_PEER_STATES: Record<string, string> = {
+    hover: ':hover',
+    focus: ':focus',
+    active: ':active',
+    'focus-within': ':focus-within',
+    'focus-visible': ':focus-visible',
+    disabled: ':disabled',
+    checked: ':checked',
+}
+
+/**
+ * Đổi một biến thể Tailwind thành hậu tố selector của x-css (phần sau `@`).
+ * Trả về null khi chưa có cách biểu diễn an toàn.
+ */
+const variantToSelector = (variant: string): string | null => {
+    if (SELECTOR_VARIANTS[variant]) return SELECTOR_VARIANTS[variant]
+
+    const groupPeer = variant.match(/^(group|peer)-(.+)$/)
+    if (groupPeer && GROUP_PEER_STATES[groupPeer[2]]) {
+        const state = GROUP_PEER_STATES[groupPeer[2]]
+        return groupPeer[1] === 'group'
+            ? `:is(.group${state};*)`
+            : `:is(.peer${state}~*)`
+    }
+
+    const aria = variant.match(/^aria-(?:\[(.+)\]|([a-z-]+))$/)
+    if (aria) return `[aria-${aria[1] ?? `${aria[2]}=true`}]`
+
+    const data = variant.match(/^data-(?:\[(.+)\]|([a-z-]+))$/)
+    if (data) return `[data-${data[1] ?? `${data[2]}`}]`
+
+    // Biến thể tuỳ ý: `[&>*]`, `[&:nth-child(3)]`, `[&_p]`.
+    const arbitrary = variant.match(/^\[&(.*)\]$/)
+    if (arbitrary) {
+        const inner = arbitrary[1].replace(/_/g, ';')
+        return inner.startsWith(':') || inner.startsWith('[') || inner.startsWith('>') || inner.startsWith('+') || inner.startsWith('~') || inner.startsWith(';') || inner.startsWith('.')
+            ? inner
+            : null
+    }
+
+    return null
+}
+
+const appendVariants = (
+    tokens: string[],
+    variants: string[],
+    options?: { darkMode?: 'media' | 'class' },
+): { tokens: string[], warnings: TailwindConversionWarning[] } => {
     let media: string | null = null
     const selectors: string[] = []
     const warnings: TailwindConversionWarning[] = []
 
+    const setMedia = (key: string): boolean => {
+        if (media !== null && media !== key) {
+            warnings.push({
+                token: key,
+                message: `một class x-css chỉ mang một media; \`${media}:\` và \`${key}:\` không thể gộp. Khai báo một breakpoint tổ hợp trong \`breakpoints\`.`,
+                blocking: true,
+            })
+            return false
+        }
+        media = key
+        return true
+    }
+
     for (const variant of variants) {
         if (RESPONSIVE_VARIANTS.has(variant)) {
-            media = variant
+            setMedia(variant)
             continue
         }
 
-        const selector = SELECTOR_VARIANTS[variant]
+        if (variant === 'dark') {
+            if ((options?.darkMode ?? 'media') === 'class') {
+                selectors.push(':is(.dark;*)')
+            } else {
+                if (!setMedia('dark')) continue
+                warnings.push({
+                    token: variant,
+                    message: 'dark: được đổi thành media key `dark`; hãy khai báo breakpoints: [{ dark: \'(prefers-color-scheme: dark)\' }] (hoặc dùng darkMode: \'class\').',
+                })
+            }
+            continue
+        }
+
+        if (variant === 'print') {
+            if (!setMedia('print')) continue
+            warnings.push({
+                token: variant,
+                message: 'print: được đổi thành media key `print`; hãy khai báo breakpoints: [{ print: \'print\' }].',
+            })
+            continue
+        }
+
+        const selector = variantToSelector(variant)
         if (selector) {
             selectors.push(selector)
             continue
@@ -731,14 +861,22 @@ const appendVariants = (tokens: string[], variants: string[]): { tokens: string[
         warnings.push({
             token: variant,
             message: `unsupported Tailwind variant \`${variant}\``,
+            blocking: true,
         })
     }
 
-    const selectorSuffix = selectors.length > 0 ? `@${selectors.join('')}` : ''
+    const selectorSuffix = selectors.join('')
 
     return {
         tokens: tokens.map((token) => {
-            const withSelector = `${token}${selectorSuffix}`
+            let withSelector = token
+            if (selectorSuffix) {
+                const at = token.lastIndexOf('@')
+                // Token đã có selector riêng (ví dụ `ml16px@>*+*` của space-x): gộp để biến thể đứng trước.
+                withSelector = at > 0 && !token.slice(at).includes(']')
+                    ? `${token.slice(0, at)}@${selectorSuffix}${token.slice(at + 1)}`
+                    : `${token}@${selectorSuffix}`
+            }
             return media ? `${media}:${withSelector}` : withSelector
         }),
         warnings,
@@ -837,8 +975,256 @@ const buildSizeToken = (prefix: string, rawValue: string): string | null => {
     return `${property}[${normalized}]`
 }
 
+
+// ---------------------------------------------------------------------------
+// Nhóm utility mở rộng: lưới, vị trí phân số, motion, border từng cạnh, màu có độ mờ,
+// khoảng cách giữa phần tử con, line-clamp, filter, v.v.
+// Mỗi mục trả về token x-css tương đương; nếu không tương đương hoàn toàn thì
+// đặt exact=false kèm cảnh báo để người dùng rà soát.
+// ---------------------------------------------------------------------------
+
+const EASE_SCALE: Record<string, string> = {
+    linear: 'linear',
+    in: 'cubic-bezier(0.4,0,1,1)',
+    out: 'cubic-bezier(0,0,0.2,1)',
+    'in-out': 'cubic-bezier(0.4,0,0.2,1)',
+}
+
+const BLUR_SCALE: Record<string, string> = {
+    none: '0',
+    sm: '4px',
+    DEFAULT: '8px',
+    md: '12px',
+    lg: '16px',
+    xl: '24px',
+    '2xl': '40px',
+    '3xl': '64px',
+}
+
+const spacingOrFraction = (raw: string): string | null =>
+    normalizeSpacing(raw, true) ?? normalizeFraction(raw.startsWith('-') ? raw.slice(1) : raw)
+
+const hexToRgbTriplet = (hex: string): [number, number, number] | null => {
+    const m = hex.match(/^#([0-9a-f]{6})$/i)
+    if (!m) return null
+    const n = parseInt(m[1], 16)
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+/** `bg-black/50` -> `rgb(0_0_0_/_0.5)`. Chỉ áp dụng cho màu hex 6 ký tự trong bảng màu. */
+const normalizeColorWithAlpha = (value: string): string | null => {
+    const slash = value.lastIndexOf('/')
+    if (slash <= 0) return null
+    const color = normalizeColor(value.slice(0, slash))
+    const alphaRaw = value.slice(slash + 1)
+    if (!color || !/^\d{1,3}$/.test(alphaRaw)) return null
+    const rgb = hexToRgbTriplet(color)
+    if (!rgb) return null
+    const alpha = Math.min(100, Number(alphaRaw)) / 100
+    return `[rgb(${rgb.join('_')}_/_${alpha})]`
+}
+
+const ok = (
+    token: string,
+    outputs: string[],
+    exact = true,
+    warnings: TailwindConversionWarning[] = [],
+): TailwindBaseTokenConversion => ({ input: token, outputs, status: 'converted', exact, warnings })
+
+const approx = (token: string, outputs: string[], message: string): TailwindBaseTokenConversion =>
+    ok(token, outputs, false, [{ token, message }])
+
+const bracketInner = (value: string): string | null => {
+    const m = value.match(/^\[(.+)\]$/)
+    return m ? m[1] : null
+}
+
+const convertExtendedToken = (token: string): TailwindBaseTokenConversion | null => {
+    let m: RegExpMatchArray | null
+
+    // Thuộc tính tuỳ ý: [mask-type:luminance] -> mask-type[luminance]
+    if ((m = token.match(/^\[([a-z-]+):(.+)\]$/))) {
+        return ok(token, [`${m[1]}[${m[2]}]`])
+    }
+
+    // Lưới: grid-cols-*, grid-rows-*
+    if ((m = token.match(/^grid-(cols|rows)-(.+)$/))) {
+        const prop = m[1] === 'cols' ? 'gtc' : 'gtr'
+        const raw = m[2]
+        if (/^\d+$/.test(raw)) return ok(token, [`${prop}[repeat(${raw},minmax(0,1fr))]`])
+        if (raw === 'none') return ok(token, [`${prop}[none]`])
+        if (raw === 'subgrid') return ok(token, [`${prop}[subgrid]`])
+        const inner = bracketInner(raw)
+        if (inner) return ok(token, [`${prop}[${inner}]`])
+        return null
+    }
+
+    // Lưới: col-span-*, row-span-*, col-start-*, col-end-*, row-start-*, row-end-*
+    if ((m = token.match(/^(col|row)-span-(.+)$/))) {
+        const prop = m[1] === 'col' ? 'gc' : 'gr'
+        if (m[2] === 'full') return ok(token, [`${prop}[1_/_-1]`])
+        if (/^\d+$/.test(m[2])) return ok(token, [`${prop}[span_${m[2]}_/_span_${m[2]}]`])
+        return null
+    }
+    if ((m = token.match(/^(col|row)-(start|end)-(.+)$/))) {
+        const prop = `${m[1] === 'col' ? 'g' : 'gr'}${m[1] === 'col' ? 'c' : ''}${m[2] === 'start' ? 's' : 'e'}`
+        const inner = bracketInner(m[3])
+        if (/^-?\d+$/.test(m[3]) || m[3] === 'auto') return ok(token, [`${prop}[${m[3]}]`])
+        if (inner) return ok(token, [`${prop}[${inner}]`])
+        return null
+    }
+
+    // Vị trí phân số: top-1/2, left-1/3, inset-x-1/2, -top-1/2
+    if ((m = token.match(/^(-?)(top|right|bottom|left|inset|inset-x|inset-y)-(\d+\/\d+)$/))) {
+        const pct = normalizeFraction(m[3])
+        if (!pct) return null
+        const v = m[1] ? `-${pct}` : pct
+        const map: Record<string, string[]> = {
+            top: ['t'], right: ['r'], bottom: ['b'], left: ['l'],
+            inset: ['inset'], 'inset-x': ['l', 'r'], 'inset-y': ['t', 'b'],
+        }
+        return ok(token, map[m[2]].map((p) => `${p}[${v}]`))
+    }
+
+    // Sự kiện con trỏ, resize, danh sách, gạch chân, ngắt từ
+    const SIMPLE: Record<string, string[]> = {
+        'pointer-events-none': ['pe[none]'],
+        'pointer-events-auto': ['pe[auto]'],
+        'resize-none': ['rsz[none]'],
+        resize: ['rsz[both]'],
+        'resize-x': ['rsz[horizontal]'],
+        'resize-y': ['rsz[vertical]'],
+        'list-none': ['lst[none]'],
+        'list-disc': ['lst[disc]'],
+        'list-decimal': ['lst[decimal]'],
+        'no-underline': ['tdl[none]'],
+        'break-words': ['oflw[break-word]'],
+        'break-all': ['wrb[break-all]'],
+        'break-normal': ['oflw[normal]', 'wrb[normal]'],
+        'fill-current': ['fill[currentColor]'],
+        'stroke-current': ['stroke[currentColor]'],
+        'shadow-inner': ['bxsh[inset_0_2px_4px_0_rgb(0_0_0_/_0.05)]'],
+        'sr-only': ['pos[absolute]', 'w1px', 'h1px', 'p0', 'm-1px', 'ofl[hidden]', 'clip[rect(0,0,0,0)]', 'ws[nowrap]', 'bdw0'],
+        'not-sr-only': ['pos[static]', 'w[auto]', 'h[auto]', 'p0', 'm0', 'ofl[visible]', 'clip[auto]', 'ws[normal]'],
+        'divide-y': ['bdtw1px@>*+*'],
+        'divide-x': ['bdlw1px@>*+*'],
+        'border-x': ['bdlw1px', 'bdrw1px'],
+        'border-y': ['bdtw1px', 'bdbw1px'],
+        'border-t': ['bdtw1px'],
+        'border-r': ['bdrw1px'],
+        'border-b': ['bdbw1px'],
+        'border-l': ['bdlw1px'],
+        'bg-none': ['bgi[none]'],
+        'bg-cover': ['bgsz[cover]'],
+        'bg-contain': ['bgsz[contain]'],
+        'bg-center': ['bgp[center]'],
+        'bg-no-repeat': ['bgr[no-repeat]'],
+        'bg-fixed': ['bga[fixed]'],
+    }
+    if (SIMPLE[token]) return ok(token, SIMPLE[token])
+
+    // border-{t,r,b,l,x,y}-N: độ dày từng cạnh
+    if ((m = token.match(/^border-(t|r|b|l|x|y)-(\d+)$/))) {
+        const w = `${m[2]}px`
+        const map: Record<string, string[]> = {
+            t: [`bdtw${w}`], r: [`bdrw${w}`], b: [`bdbw${w}`], l: [`bdlw${w}`],
+            x: [`bdlw${w}`, `bdrw${w}`], y: [`bdtw${w}`, `bdbw${w}`],
+        }
+        return ok(token, map[m[1]])
+    }
+
+    // Màu có độ mờ: bg-black/50, text-white/80, border-white/20
+    if ((m = token.match(/^(bg|text|border)-(.+\/\d{1,3})$/))) {
+        const color = normalizeColorWithAlpha(m[2])
+        if (color) return ok(token, [`${m[1] === 'bg' ? 'bgc' : m[1] === 'text' ? 'c' : 'bdc'}${color}`])
+    }
+
+    // Màu / kích thước / ảnh tuỳ ý: text-[14px], bg-[url(...)], z-[60], aspect-[4/3]
+    if ((m = token.match(/^text-(\[.+\])$/))) {
+        const inner = bracketInner(m[1]) as string
+        if (/^(\d|\.\d|calc\(|clamp\(|min\(|max\()/.test(inner)) return ok(token, [`fns[${inner}]`])
+    }
+    if ((m = token.match(/^bg-(\[.+\])$/))) {
+        const inner = bracketInner(m[1]) as string
+        if (/^(url\(|[a-z-]*gradient\()/.test(inner)) return ok(token, [`bgi[${inner}]`])
+    }
+    if ((m = token.match(/^z-(\[.+\])$/))) return ok(token, [`z${m[1]}`])
+    if ((m = token.match(/^aspect-(\[.+\])$/))) return ok(token, [`ar${m[1]}`])
+
+    // Motion: duration, delay, ease
+    if ((m = token.match(/^duration-(.+)$/))) {
+        if (/^\d+$/.test(m[1])) return ok(token, [`trandur${m[1]}ms`])
+        const inner = bracketInner(m[1])
+        if (inner) return ok(token, [`trandur[${inner}]`])
+        return null
+    }
+    if ((m = token.match(/^delay-(.+)$/))) {
+        if (/^\d+$/.test(m[1])) return ok(token, [`trand${m[1]}ms`])
+        const inner = bracketInner(m[1])
+        if (inner) return ok(token, [`trand[${inner}]`])
+        return null
+    }
+    if ((m = token.match(/^ease-(.+)$/))) {
+        if (EASE_SCALE[m[1]]) return ok(token, [`trantf[${EASE_SCALE[m[1]]}]`])
+        const inner = bracketInner(m[1])
+        if (inner) return ok(token, [`trantf[${inner}]`])
+        return null
+    }
+
+    // Biến đổi: translate, scale, rotate dùng property riêng lẻ (không cộng dồn như Tailwind v3)
+    if ((m = token.match(/^(-?)translate-(x|y)-(.+)$/))) {
+        const v = spacingOrFraction(`${m[1]}${m[3]}`)
+        if (!v) return null
+        const pair = m[2] === 'x' ? `${v}_0` : `0_${v}`
+        return approx(token, [`trl[${pair}]`], `\`${token}\` dùng property \`translate\`; kết hợp translate-x và translate-y trên cùng phần tử sẽ ghi đè nhau, hãy gộp thành \`trl[X_Y]\`.`)
+    }
+    if ((m = token.match(/^(-?)scale-(\d+)$/))) {
+        const n = Number(m[2]) / 100
+        return ok(token, [`s[${m[1]}${n}]`])
+    }
+    if ((m = token.match(/^(-?)rotate-(\d+)$/))) return ok(token, [`rot[${m[1]}${m[2]}deg]`])
+
+    // Khoảng cách giữa phần tử con
+    if ((m = token.match(/^(-?)space-(x|y)-(.+)$/))) {
+        const v = normalizeSpacing(`${m[1]}${m[3]}`, true)
+        if (!v) return null
+        return ok(token, [`${m[2] === 'x' ? 'ml' : 'mt'}[${v}]@>*+*`])
+    }
+
+    // Cắt dòng
+    if ((m = token.match(/^line-clamp-(\d+|none)$/))) {
+        if (m[1] === 'none') return ok(token, ['-webkit-line-clamp[unset]', 'ofl[visible]', 'd[block]', '-webkit-box-orient[horizontal]'])
+        return ok(token, ['d[-webkit-box]', '-webkit-box-orient[vertical]', `-webkit-line-clamp[${m[1]}]`, 'ofl[hidden]'])
+    }
+
+    // Filter: blur, backdrop-blur, brightness, grayscale
+    if ((m = token.match(/^(backdrop-)?blur(?:-(.+))?$/))) {
+        const key = m[2] ?? 'DEFAULT'
+        const v = BLUR_SCALE[key] ?? (bracketInner(key) ?? null)
+        if (v) return ok(token, [`${m[1] ? 'bkdf' : 'flt'}[blur(${v})]`])
+        return null
+    }
+    if ((m = token.match(/^(backdrop-)?(brightness|contrast|saturate)-(\d+)$/))) {
+        return ok(token, [`${m[1] ? 'bkdf' : 'flt'}[${m[2]}(${Number(m[3]) / 100})]`])
+    }
+
+    // Độ dày nét SVG
+    if ((m = token.match(/^stroke-(\d+)$/))) return ok(token, [`stroke-width[${m[1]}]`])
+
+    // Viền / đường viền ngoài
+    if (token === 'outline-none') {
+        return approx(token, ['oli[2px_solid_transparent]', 'olo2px'], '`outline-none` đổi theo Tailwind v3 (viền trong suốt, giữ được chế độ tương phản cao); Tailwind v4 dùng `outline-style: none`.')
+    }
+    if ((m = token.match(/^outline-offset-(\d+)$/))) return ok(token, [`olo${m[1]}px`])
+
+    return null
+}
+
 const convertBaseToken = (token: string): TailwindBaseTokenConversion => {
     const warnings: TailwindConversionWarning[] = []
+
+    const extended = convertExtendedToken(token)
+    if (extended) return extended
 
     if (DIRECT_MAP[token]) {
         return {
@@ -947,7 +1333,7 @@ const convertBaseToken = (token: string): TailwindBaseTokenConversion => {
         if (weight) {
             return {
                 input: token,
-                outputs: [`fw${weight}`],
+                outputs: [`fnw${weight}`],
                 status: 'converted',
                 exact: true,
                 warnings,
@@ -1131,6 +1517,8 @@ const looksLikeTailwindBase = (base: string): boolean => {
 
 export const classifyTailwindToken = (token: string): TailwindTokenClassification => {
     const { variants, base } = splitVariants(token)
+    // `[mask-type:luminance]` là thuộc tính tuỳ ý của Tailwind, không phải nhóm alias `[name]` của x-css.
+    if (/^\[[a-z-]+:[^\]]+\]$/.test(base)) return 'tailwind'
     const tailwindLike = looksLikeTailwindBase(base) || variants.some((variant) => TAILWIND_ONLY_VARIANTS.has(variant))
     const parsed = parseClassName(token)
     const hasExplicitXcssBoundary =
@@ -1168,9 +1556,9 @@ export const convertTailwindToken = (
     const converted = convertBaseToken(base)
 
     if (converted.status === 'converted') {
-        const withVariants = appendVariants(converted.outputs, variants)
+        const withVariants = appendVariants(converted.outputs, variants, { darkMode: normalized.darkMode })
 
-        if (withVariants.warnings.length > 0) {
+        if (withVariants.warnings.some((w) => w.blocking)) {
             const warnings = [
                 {
                     token,
@@ -1207,7 +1595,7 @@ export const convertTailwindToken = (
             status: 'converted',
             classification,
             exact: converted.exact,
-            warnings: converted.warnings,
+            warnings: [...converted.warnings, ...withVariants.warnings],
         }
     }
 
