@@ -18,7 +18,7 @@ Alias hay nhầm: font-size \`fns\` (không phải \`fz\`/\`fs\`), font-weight \
 
 Hay dùng: \`dF dG dN dB dIF\` · \`fxdC fxw[wrap] fx1\` · \`aiC jcC jcSp gap16px\` · \`gtc[repeat(3,minmax(0,1fr))]\` · \`w100% mw1200px h40px mih100vh\` · \`m0;auto p16px px16px py8px\` · \`posR posA t0 l0 i0 z10\` · \`c#0f172a bgc#fff bd[1px_solid_#e2e8f0] bdra8px\` · \`fns14px fnw600 lh1.5 taC\` · \`bxsh[...] opc.8 tran[all_.15s] crP oflH\`.
 
-Nếu dự án bật phương ngữ Tailwind (\`dialects: [tailwindDialect()]\`), class Tailwind như \`flex items-center p-4 hover:bg-slate-50\` cũng chạy.
+Nếu dự án bật phương ngữ Tailwind (\`dialects: [tailwindV4Dialect()]\` từ \`@porbit/style/tailwind\`), class Tailwind như \`flex items-center p-4 hover:bg-slate-50\` cũng chạy.
 
 Có MCP server \`presence-style\`: gọi \`fix_classes\` cho mọi chuỗi class tự viết trước khi trả code; tra alias bằng \`lookup_dictionary\`; lấy component mẫu bằng \`get_component\`. Không có MCP: chạy \`npx presence-style check <thư-mục>\` để soát lỗi.
 `

@@ -1,6 +1,6 @@
 {
   "name": "@porbit/style",
-  "version": "0.7.3",
+  "version": "0.8.0",
   "description": "PresenceStyle: utility CSS engine mở — parse class runtime, sinh CSS theo layer/media, trích xuất CSS tĩnh, bộ component mẫu và MCP server cho agent AI.",
   "type": "commonjs",
   "license": "MIT",
@@ -22,7 +22,9 @@
     "design-system",
     "mcp",
     "model-context-protocol",
-    "vite-plugin"
+    "vite-plugin",
+    "tailwindcss",
+    "tailwind-runtime"
   ],
   "homepage": "https://github.com/porbit/style#readme",
   "repository": {
@@ -62,6 +64,18 @@
       "require": "./dist/tailwind.js",
       "default": "./dist/tailwind.mjs"
     },
+    "./tailwind-v4": {
+      "types": "./dist/tailwind-v4.d.ts",
+      "import": "./dist/tailwind-v4.mjs",
+      "require": "./dist/tailwind-v4.js",
+      "default": "./dist/tailwind-v4.mjs"
+    },
+    "./tailwind-auto": {
+      "types": "./dist/tailwind-auto.d.ts",
+      "import": "./dist/tailwind-auto.mjs",
+      "require": "./dist/tailwind-auto.js",
+      "default": "./dist/tailwind-auto.mjs"
+    },
     "./vite": {
       "types": "./dist/vite.d.ts",
       "import": "./dist/vite.mjs",
@@ -98,6 +112,7 @@
     "docs/guides/mcp.md",
     "docs/guides/components.md",
     "docs/guides/static-first.md",
+    "docs/guides/tailwind.md",
     "llms.txt",
     "llms-full.txt",
     "README.en.md",
@@ -108,7 +123,9 @@
   ],
   "sideEffects": [
     "./dist/index-auto.js",
-    "./dist/index-auto.mjs"
+    "./dist/index-auto.mjs",
+    "./dist/tailwind-auto.js",
+    "./dist/tailwind-auto.mjs"
   ],
   "engines": {
     "node": ">=20"
@@ -121,7 +138,7 @@
     "test:e2e": "npm run build && playwright test -c e2e/playwright.config.ts",
     "gen:spec": "node scripts/gen-spec.cjs",
     "gen:rust": "node scripts/gen-rust-dict.cjs",
-    "gen": "npm run gen:spec && npm run gen:rust && npm run gen:llms",
+    "gen": "npm run gen:spec && npm run gen:rust && npm run gen:tailwind && npm run gen:llms",
     "prepublishOnly": "node scripts/check-all.cjs",
     "typecheck": "tsc --noEmit",
     "test:run": "vitest run",
@@ -132,13 +149,16 @@
     "check:all": "node scripts/check-all.cjs",
     "check:quick": "node scripts/check-all.cjs --quick",
     "check:browser": "npm run build && node scripts/browser-checks.cjs",
-    "hooks:install": "git config core.hooksPath .githooks && echo \"Đã bật git hook trong .githooks\""
+    "hooks:install": "git config core.hooksPath .githooks && echo \"Đã bật git hook trong .githooks\"",
+    "gen:tailwind": "node scripts/gen-tailwind-map.mjs",
+    "check:tailwind": "npm run build && node eval/tailwind-parity.mjs && node eval/tailwind-variants.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.0.18",
     "apca-w3": "^0.1.9",
+    "tailwindcss": "4.3.5",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",
     "vitest": "^4.0.18"
