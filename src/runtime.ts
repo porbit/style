@@ -1,3 +1,7 @@
+/**
+ * Lõi runtime: engine, shared instance, trích xuất tĩnh và công cụ class.
+ * Không gồm Tailwind helper, để bản CDN (`index-auto`) nhẹ nhất có thể.
+ */
 import $$ from './core'
 import { XCSSConfig } from './core'
 import { getBootloaderScript } from './bootloader'
@@ -174,7 +178,6 @@ export const ready = shared.ready
 export const destroy = shared.destroy
 export { getBootloaderScript }
 export * from './extract'
-export * from './tailwind'
-export * from './tailwind-readiness'
+export * from './class-tools'
 export default $$
 export type { XCSSConfig, BootloaderScriptOptions }
