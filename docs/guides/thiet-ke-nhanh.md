@@ -88,7 +88,7 @@ Class `md:dF&aiC&jcC` sinh một rule duy nhất gồm `display:flex;align-items
 | Flex | `fxdC` `fxdR` `fx1` `fxw[wrap]` | `flex-direction`, `flex`, `flex-wrap` |
 | Căn chỉnh | `aiC` `jcC` `jcSp` `plcC` `pliC` | `align-items`, `justify-content`, `place-content`, `place-items` |
 | Khoảng cách | `m` `mt` `mb` `ml` `mr` `mx` `my` `p` `pt` `pb` `pl` `pr` `px` `py` `gap` | `margin`, `padding`, `gap` (trục `x`/`y` là alias ghép) |
-| Kích thước | `w` `h` `mw` `mih` `mah` | `width`, `height`, `max-width`, `min-height`, `max-height` |
+| Kích thước | `w` `h` `mw` `mih` `mh` | `width`, `height`, `max-width`, `min-height`, `max-height` |
 | Vị trí | `posR` `posA` `posF` `posSt` `t0` `l0` `z10` | `position`, `top`, `left`, `z-index` |
 | Màu | `c` `bgc` `bdc` | `color`, `background-color`, `border-color` |
 | Chữ | `fns` `fnw` `lh` `lts` `taC` `ttrU` `tdN` | `font-size`, `font-weight`, `line-height`, `letter-spacing`, `text-align`, `text-transform`, `text-decoration` |

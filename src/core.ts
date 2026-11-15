@@ -199,8 +199,19 @@ const writeKeyRegistry = (storage: Storage | null, key: string, registry: XCSSKe
     }
 }
 
+// Đọc `window.localStorage` có thể ném SecurityError (iframe sandbox, file://,
+// trình duyệt chặn cookie/bộ nhớ). Mọi truy cập phải đi qua hàm này.
+const getLocalStorageSafe = (): Storage | null => {
+    if (typeof window === 'undefined') return null
+    try {
+        return window.localStorage || null
+    } catch (_error) {
+        return null
+    }
+}
+
 const canUseWritableLocalStorage = (): boolean => {
-    if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') return false
+    if (!getLocalStorageSafe()) return false
 
     try {
         const key = '__xcss_cache_probe__'
@@ -1271,9 +1282,10 @@ export const xcss = (
         // If running in non-browser environment without a doc, we can still simulate for extraction
         const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined'
         const browserWindow = isBrowser ? window : null
-        const browserStorage = browserWindow?.localStorage || null
-        const cacheSupported = isBrowser && canUseCacheRuntime()
-        const cacheEnabled = cacheConfig.loadOnInit && cacheSupported
+        // Chỉ thăm dò (ghi/xoá thử) localStorage khi người dùng bật cache: tránh một lần
+        // ghi đồng bộ vào ổ đĩa cho mỗi engine khởi tạo ở cấu hình mặc định.
+        const cacheEnabled = !!cacheConfig.loadOnInit && isBrowser && canUseCacheRuntime()
+        const browserStorage = cacheEnabled ? getLocalStorageSafe() : null
         const cacheStorage = cacheEnabled ? browserStorage : null
         let docRoot: Document | ShadowRoot | null = null
         // Sheet/layer thuộc Document hoặc ShadowRoot bao quanh; observer phải bám
@@ -1918,12 +1930,27 @@ export const xcss = (
             }
         }
 
+        // Mỗi cặp (class nguồn, tên class xuất) chỉ cần dựng rule MỘT lần cho một engine.
+        // Trước đây mọi lần clsx()/mutation đều chạy lại classToProp + dựng chuỗi rule +
+        // tra Set cho từng token, kể cả token đã có CSS: re-render React, quét lần đầu
+        // (cùng class lặp ở hàng nghìn node) và burst mutation đều trả chi phí đó.
+        // Khoá gồm cả tên xuất vì một class có thể được áp trước khi được cấp key hash.
+        const appliedClassKeys = new Set<string>()
+        const appliedKeyOf = (sourceClassName: string): string => {
+            if (!shouldHashOutputClassName) return sourceClassName
+            const out = CSS_KEYS.get(sourceClassName)
+            return out ? sourceClassName + ' ' + out : sourceClassName
+        }
+
         const applyObservedItems = (items: string[]) => {
-            items.forEach((cls) => {
-                const sourceClassName = resolveSourceClassName(cls)
-                let item = classToProp(sourceClassName)
-                item && updateRules(sourceClassName, item)
-            })
+            for (let index = 0; index < items.length; index++) {
+                const sourceClassName = resolveSourceClassName(items[index])
+                const appliedKey = appliedKeyOf(sourceClassName)
+                if (appliedClassKeys.has(appliedKey)) continue
+                appliedClassKeys.add(appliedKey)
+                const item = classToProp(sourceClassName)
+                if (item) updateRules(sourceClassName, item)
+            }
         }
 
         const processObservedItems = (items: string[]) => {
@@ -1939,7 +1966,24 @@ export const xcss = (
 
         emitter.on('observeDom' as any, processObservedItems)
 
+        // Memo cho trường hợp phổ biến nhất: clsx('chuỗi class tĩnh') gọi lặp ở mỗi render.
+        // Chỉ dùng khi dictionary đã sẵn sàng (kết quả hash phụ thuộc dictionary).
+        const clsxStringCache = new Map<string, string>()
+
         const clsx = (...clsArrs: any[]) => {
+            // Khoá memo: nối các đối số chuỗi bằng khoảng trắng. Tách token của chuỗi nối
+            // cho cùng kết quả với tách từng đối số, nên khoá này chính xác. Đối số không
+            // phải chuỗi và không phải mảng (false, null, số) bị bỏ qua như cũ; có mảng thì không memo.
+            let memoKey: string | null = dictionaryReady ? '' : null
+            for (let index = 0; memoKey !== null && index < clsArrs.length; index++) {
+                const arg = clsArrs[index]
+                if (typeof arg === 'string') memoKey = memoKey ? memoKey + ' ' + arg : arg
+                else if (Array.isArray(arg)) memoKey = null
+            }
+            if (memoKey !== null) {
+                const cachedOutput = clsxStringCache.get(memoKey)
+                if (cachedOutput !== undefined) return cachedOutput
+            }
             // Tương đương flatten(Infinity) + split whitespace trước đây, nhưng
             // không tạo mảng trung gian cho từng đối số/chuỗi class.
             const pending = [...clsArrs].reverse()
@@ -2029,13 +2073,20 @@ export const xcss = (
             // In SSR/Non-browser, we might want to sync immediately?
             // Emit event to update styles
             // In SSR/Non-browser, sync immediately for extraction support
-            if (!isBrowser || isFirstRenderBatch) {
-                emitter.emit('observeDom' as any, lsCss)
-            } else {
-                queueMicrotask(() => emitter.emit('observeDom' as any, lsCss))
+            // Chỉ phát sự kiện cho token chưa được dựng rule: tránh cấp phát microtask và
+            // duyệt lại toàn bộ danh sách khi mọi class đã có CSS.
+            const pendingCss = lsCss.filter((token) => !appliedClassKeys.has(appliedKeyOf(token)))
+            if (pendingCss.length > 0) {
+                if (!isBrowser || isFirstRenderBatch) {
+                    emitter.emit('observeDom' as any, pendingCss)
+                } else {
+                    queueMicrotask(() => emitter.emit('observeDom' as any, pendingCss))
+                }
             }
 
-            return lsClassNew.join(' ')
+            const output = lsClassNew.join(' ')
+            if (memoKey !== null) setBounded(clsxStringCache, memoKey, output)
+            return output
         }
 
         const observe = () => {
@@ -2092,6 +2143,8 @@ export const xcss = (
                 keySyncBroadcastChannel = null
             }
             emitter.all.clear()
+            appliedClassKeys.clear()
+            clsxStringCache.clear()
             clearHotCaches()
             cssSupportsCache.clear()
         }
@@ -2683,8 +2736,15 @@ export const xcss = (
 
     // API công khai để xuất cache cho build thủ công
     const exportCache = () => {
-        if (!cacheConfig.loadOnInit || typeof window === 'undefined' || !window.localStorage) return lastKnownCacheData
-        const data = parseCacheDataSync(window.localStorage.getItem(cacheKey))
+        const storage = cacheConfig.loadOnInit ? getLocalStorageSafe() : null
+        if (!storage) return lastKnownCacheData
+        let raw: string | null = null
+        try {
+            raw = storage.getItem(cacheKey)
+        } catch (_error) {
+            return lastKnownCacheData
+        }
+        const data = parseCacheDataSync(raw)
         return data || lastKnownCacheData
     }
 
