@@ -16,6 +16,7 @@ const fs = require('fs')
 const path = require('path')
 
 const dict = require('../src/dictionary.ts')
+const { STANDARD_CSS_PROPERTIES } = require('../src/css-properties.ts')
 const core = require('../src/core.ts')
 const { parseClassName } = require('../src/parser.ts')
 
@@ -28,6 +29,9 @@ const dictionaryJson = {
     SHORT_PROPERTIES: dict.SHORT_PROPERTIES,
     COMMON_VALUES: dict.COMMON_VALUES,
     SPECIFIC_VALUES: dict.SPECIFIC_VALUES,
+    // Tên property CSS chuẩn viết đầy đủ (từ vựng mở, 0.4+): engine khác cần để nhận
+    // `content-visibility[auto]` mà không cần alias.
+    STANDARD_CSS_PROPERTIES: [...STANDARD_CSS_PROPERTIES],
 }
 fs.writeFileSync(
     path.join(SPEC_DIR, 'dictionary.json'),
@@ -67,7 +71,7 @@ const runNode = (input) => {
     const instance = xcss({ hashClassName: false })
     const { clsx, getCssString } = instance.buildCss()
     clsx(input)
-    const css = getCssString().trim()
+    const css = getCssString().replace(/^@layer l0(?:, l\d+)*;\s*/, '').trim()
     if (!css) return { input, accepted: false }
 
     // media/layer/selector từ parser (nguồn chân lý token), declarations từ engine.
@@ -155,6 +159,15 @@ for (const c of [
     'w[calc(100%_-_2rem)]', 'ff[Segoe_UI,sans-serif]', 'bgi[url(/a_b.png)]', 'content[a\\_b]', 'mx[1px_2px]',
     'm-.5rem', 'mt-.5rem', 'm.5rem', 'tx-.5', 'opc-.5',
     '-webkit-line-clamp[3]', '-webkit-box-orient[vertical]',
+]) add(c)
+// 2k. Chuỗi `&` (cùng media/layer/selector) và các trường hợp bị từ chối
+for (const c of [
+    'dF&aiC', 'md:dF&fxdC', 'dF&aiC@:hover', '2dF&jcC', 'md:2dF&aiC&jcSp@:hover', 'dF&md:aiC', 'dF&xyz1', 'dF&', 'm10px&p[1px_2px]',
+]) add(c)
+// 2l. Giá trị/selector có thể thoát khỏi khối rule khi sinh CSS ở server (phải bị từ chối)
+for (const c of [
+    'c[red}body{color:blue]', 'c[red<]', 'bgi[url(a)/*]', 'content["a]', 'w[calc(1px]', 'w[1px)]', 'c[red\\]',
+    'cRed@:hover{x}', 'cRed@:is(a', 'cRed@:hover<', 'cRed@/*x',
 ]) add(c)
 add('x')
 

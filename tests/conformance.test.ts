@@ -46,7 +46,7 @@ const runNode = (input: string): Case => {
     const instance = xcss({ hashClassName: false })
     const { clsx, getCssString } = instance.buildCss()
     clsx(input)
-    const css = getCssString().trim()
+    const css = getCssString().replace(/^@layer l0(?:, l\d+)*;\s*/, '').trim()
     if (!css) return { input, accepted: false }
     const parsed = parseClassName(input) || { mq: '', layer: '', prop: '', val: '', selector: '' }
     const mediaKey = parsed.mq || 'default'

@@ -5,7 +5,7 @@
  *
  * Import: `@porbit/style/analyze`.
  */
-import { xcss, type XCSSConfig } from './core'
+import { LAYER_ORDER_STATEMENT, xcss, type XCSSConfig } from './core'
 import { parseClassName } from './parser'
 import { COMMON_VALUES, SHORT_PROPERTIES, SPECIFIC_VALUES } from './dictionary'
 import { compactClassToken, findClassConflicts, getConflictKey, type ClassConflict } from './class-tools'
@@ -71,7 +71,8 @@ export const generateCssFor = (classes: string[], config: XCSSConfig = {}): stri
     const engine = xcss({ silent: true, ...config, hashClassName: false })
     const built = engine.buildCss(undefined)
     built.clsx(classes.join(' '))
-    const css = built.getCssString()
+    // Bỏ câu khai báo thứ tự layer (luôn có) để phép thử "có sinh CSS không" vẫn đúng.
+    const css = built.getCssString().replace(LAYER_ORDER_STATEMENT, '')
     built.destroy()
     return css
 }
@@ -247,8 +248,23 @@ const hasUnitlessLength = (token: string): boolean => {
     return LENGTH_PROPERTY.test(cssName) && /^-?(?:\d*\.)?\d+$/.test(value) && Number(value) !== 0
 }
 
+// Giá trị sai kiểu mà engine không có CSS.supports (Node, Rust) vẫn sinh: `g16px` là
+// `grid: 16px` (trình duyệt bỏ qua), gần như chắc chắn người viết muốn `gap`.
+const SINGLE_LENGTH = /^-?(?:\d*\.)?\d+(?:px|rem|em|%|vh|vw|ch|ex|vmin|vmax|pt)$/
+const VALUE_TYPE_MISTAKES: Record<string, string> = { grid: 'gap' }
+const hasValueTypeMistake = (token: string): string | null => {
+    const parsed = parseClassName(token)
+    if (!parsed) return null
+    const cssName = SHORT_PROPERTIES[parsed.prop] || parsed.prop
+    const value = parsed.val.replace(/^!/, '')
+    return VALUE_TYPE_MISTAKES[cssName] && SINGLE_LENGTH.test(value) ? VALUE_TYPE_MISTAKES[cssName] : null
+}
+
+/** Sai ngữ nghĩa CSS dù engine (không có CSS.supports) vẫn sinh được rule. */
+export const looksSemanticallyInvalid = (token: string): boolean => hasUnitlessLength(token) || hasValueTypeMistake(token) !== null
+
 export const suggestClassFix = (token: string, config: XCSSConfig = {}): string | null => {
-    const valid = (candidate: string) => !hasUnitlessLength(candidate) && generateCssFor([candidate], config).trim().length > 0
+    const valid = (candidate: string) => !looksSemanticallyInvalid(candidate) && generateCssFor([candidate], config).trim().length > 0
     // `op` là object-position nên `op0.5` vẫn "hợp lệ" ở Node; gần như luôn là nhầm với opacity.
     const opacityTypo = token.match(/^((?:[\w-]+:)?\d*)op([\d.]+)(@.*)?$/)
     if (opacityTypo) return opacityTypo[1] + 'opc' + opacityTypo[2] + (opacityTypo[3] || '')
@@ -297,6 +313,9 @@ export const suggestClassFix = (token: string, config: XCSSConfig = {}): string 
         // `fz14px` -> `fns14px`, `op0.5` -> `opc0.5`.
         const renamed = COMMON_MISTAKES[parsed.prop] || (parsed.prop === 'op' && /^[\d.]/.test(parsed.val) ? 'opc' : '')
         if (renamed) candidates.push(head + renamed + parsed.val + tail)
+        // `g16px` -> `gap16px`: property nhận sai kiểu giá trị.
+        const typeFix = hasValueTypeMistake(input)
+        if (typeFix) candidates.push(head + (ALIAS_BY_PROPERTY[typeFix] || typeFix) + parsed.val + tail)
         // `fontsize14px` -> `fns14px`, `colorRed` -> `cRed`: tên CSS viết liền, dính value.
         const lowered = (parsed.prop + parsed.val).toLowerCase()
         const compactName = COMPACT_NAMES_BY_LENGTH.find((name) => name.length >= 4 && lowered.startsWith(name) && lowered.length > name.length)
@@ -345,7 +364,7 @@ export const suggestClassFix = (token: string, config: XCSSConfig = {}): string 
 export const explainClass = (token: string, config: XCSSConfig = {}): ClassExplanation => {
     const parsed = parseClassName(token)
     const css = generateCssFor([token], config).trim()
-    const valid = css.length > 0
+    const valid = css.length > 0 && !looksSemanticallyInvalid(token)
     const hints: string[] = []
 
     if (!valid) {
