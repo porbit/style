@@ -9,6 +9,7 @@ export default defineConfig({
         components: 'src/components.ts',
         mcp: 'src/mcp.ts',
         tailwind: 'src/tailwind-entry.ts',
+        vite: 'src/vite.ts',
     },
     format: ['cjs', 'esm'],
     dts: true,

@@ -8,7 +8,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { collectFiles, DEFAULT_EXTENSIONS } from './files'
-import { extractFromClasses, extractCandidates, type ExtractOptions } from './extract'
+import { createPreloadManifest, extractFromClasses, extractCandidates, type ExtractOptions } from './extract'
 import { startMcpServer } from './mcp'
 import { MCP_CLIENTS, renderMcpConfig } from './mcp-config'
 
@@ -25,6 +25,7 @@ Tuỳ chọn:
   --out <file>       Ghi CSS ra file. Không có thì in ra stdout.
   --config <file>    File JSON cấu hình XCSSConfig (kèm khoá "safelist").
   --map <file>       Ghi map class nguồn -> class rút gọn ra file JSON.
+  --manifest <file>  Ghi manifest static-first (truyền vào tuỳ chọn \`preload\` ở runtime).
   --ext <danh-sách>  Phần mở rộng cần quét khi đường dẫn là thư mục.
                      Mặc định: html,htm,js,jsx,ts,tsx,vue,svelte,astro,mdx
   --silent           Không in thống kê ra stderr.
@@ -42,6 +43,7 @@ interface CliOptions {
     out?: string
     config?: string
     map?: string
+    manifest?: string
     extensions: string[]
     silent: boolean
     help: boolean
@@ -65,12 +67,13 @@ const parseArgs = (argv: string[]): CliOptions => {
             options.silent = true
             continue
         }
-        if (arg === '--out' || arg === '--config' || arg === '--map' || arg === '--ext') {
+        if (arg === '--out' || arg === '--config' || arg === '--map' || arg === '--manifest' || arg === '--ext') {
             const value = argv[++i]
             if (!value) throw new Error(`Thiếu giá trị cho tham số ${arg}`)
             if (arg === '--out') options.out = value
             else if (arg === '--config') options.config = value
             else if (arg === '--map') options.map = value
+            else if (arg === '--manifest') options.manifest = value
             else options.extensions = value.split(',').map((x) => x.trim().replace(/^\./, '')).filter(Boolean)
             continue
         }
@@ -184,6 +187,13 @@ export const runCli = async (argv: string[]): Promise<number> => {
         const mapPath = resolve(options.map)
         await mkdir(dirname(mapPath), { recursive: true })
         await writeFile(mapPath, JSON.stringify(result.classMap, null, 2), 'utf8')
+    }
+
+    if (options.manifest) {
+        const manifestPath = resolve(options.manifest)
+        await mkdir(dirname(manifestPath), { recursive: true })
+        const manifest = createPreloadManifest(result, { hashClassName: config.hashClassName })
+        await writeFile(manifestPath, JSON.stringify(manifest), 'utf8')
     }
 
     if (!options.silent) {

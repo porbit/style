@@ -24,7 +24,24 @@ export interface ExtractResult {
     classMap: Record<string, string>
     /** Số class thực sự sinh ra được CSS hợp lệ. */
     matched: number
+    /** Các class sinh được CSS (dùng làm manifest cho static-first). */
+    matchedClasses: string[]
 }
+
+/** Manifest static-first: truyền vào tuỳ chọn `preload` của engine ở runtime. */
+export interface PreloadManifest {
+    version: 1
+    hashClassName: boolean
+    classes: string[]
+    classMap: Record<string, string>
+}
+
+export const createPreloadManifest = (result: ExtractResult, options?: { hashClassName?: boolean }): PreloadManifest => ({
+    version: 1,
+    hashClassName: options?.hashClassName !== false,
+    classes: result.matchedClasses,
+    classMap: options?.hashClassName === false ? {} : result.classMap,
+})
 
 // Ký tự hợp lệ trong một class x-css: chữ, số, và các ký tự cú pháp của engine.
 // KHÔNG gồm dấu nháy kép và dấu phẩy để token không nuốt cú pháp của mã nguồn.
@@ -148,6 +165,7 @@ export const extractFromClasses = async (
     await engine.ready
 
     const classMap: Record<string, string> = {}
+    const matchedClasses: string[] = []
     let matched = 0
 
     candidates.forEach((candidate) => {
@@ -155,6 +173,7 @@ export const extractFromClasses = async (
         const probeOutput = probe ? probe.clsx(candidate) : output
         if (probeOutput !== candidate) {
             matched++
+            matchedClasses.push(candidate)
             if (!keepOriginalNames) classMap[candidate] = output
         }
     })
@@ -167,7 +186,7 @@ export const extractFromClasses = async (
     const css = built.getCssString()
     built.destroy()
 
-    return { css, candidates, classMap, matched }
+    return { css, candidates, classMap, matched, matchedClasses }
 }
 
 /**

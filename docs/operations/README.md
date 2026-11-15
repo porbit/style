@@ -59,6 +59,7 @@ presence-style extract <đường-dẫn...> [tuỳ chọn]
 | `--out <file>` | Ghi CSS ra file; không có thì in ra stdout. | stdout |
 | `--config <file>` | File JSON `XCSSConfig`, hỗ trợ thêm khoá `safelist`. | không |
 | `--map <file>` | Ghi map class nguồn -> class rút gọn ra JSON. | không |
+| `--manifest <file>` | Ghi manifest static-first để truyền vào tuỳ chọn `preload` ở runtime ([hướng dẫn](../guides/static-first.md)). | không |
 | `--ext <danh-sách>` | Phần mở rộng cần quét khi đường dẫn là thư mục. | `html,htm,js,jsx,ts,tsx,vue,svelte,astro,mdx` |
 | `--silent` | Không in thống kê ra stderr. | `false` |
 | `-h`, `--help` | Hiển thị trợ giúp. | — |

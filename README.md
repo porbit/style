@@ -244,6 +244,24 @@ export function Button({ primary, children }) {
 }
 ```
 
+## Static-First Và Vite
+
+CSS sinh sẵn lúc build, runtime chỉ xử lý class phát sinh lúc chạy. Với 3.000 node, khởi tạo giảm từ ~24 ms xuống ~2,7 ms.
+
+```js
+// vite.config.js
+import presenceStyle from '@porbit/style/vite'
+export default { plugins: [presenceStyle()] }
+```
+
+```js
+import 'virtual:presence-style.css'
+import manifest from 'virtual:presence-style-manifest'
+xcss.cssObserve(document, { hashClassName: false, preload: { ...manifest, skipInitialScan: true } })
+```
+
+Không dùng bundler: `presence-style extract src --out presence.css --manifest presence-manifest.json`. Chi tiết: [docs/guides/static-first.md](./docs/guides/static-first.md).
+
 ## Bộ Component Mẫu
 
 `@porbit/style/components` có sẵn recipe cho button, badge, card, form (input, select, textarea, checkbox), alert, avatar, navbar, tabs, table, modal, progress, skeleton, spinner, breadcrumb, pagination, tooltip, container, stack, grid. Màu và bo góc đọc từ token `--ps-*`, đổi theme chỉ cần đổi biến.
@@ -1017,6 +1035,7 @@ Bộ test Playwright (Chromium/Firefox/WebKit + Pixel 5/iPhone 13) nằm trong [
 - Từ vựng mở, viết mọi CSS: [docs/guides/tu-vung-mo.md](./docs/guides/tu-vung-mo.md)
 - Bộ component mẫu: [docs/guides/components.md](./docs/guides/components.md)
 - MCP server cho agent AI: [docs/guides/mcp.md](./docs/guides/mcp.md)
+- Static-first và plugin Vite (CSS sinh sẵn lúc build): [docs/guides/static-first.md](./docs/guides/static-first.md)
 - Đánh giá so với Tailwind và lộ trình tối ưu: [docs/strategy/danh-gia-va-dinh-huong.md](./docs/strategy/danh-gia-va-dinh-huong.md)
 - Dictionary đầy đủ: [DICTIONARY.md](./DICTIONARY.md)
 - Đặc tả cú pháp chuẩn (đa engine): [spec/SPEC.md](./spec/SPEC.md)
