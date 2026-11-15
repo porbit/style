@@ -5,14 +5,21 @@
  *   npx presence-style extract "src/**\/*.tsx" --out dist/presence.css
  *   npx presence-style extract index.html --out out.css --config presence-style.config.json
  */
-import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
+import { collectFiles, DEFAULT_EXTENSIONS } from './files'
 import { extractFromClasses, extractCandidates, type ExtractOptions } from './extract'
+import { startMcpServer } from './mcp'
+import { MCP_CLIENTS, renderMcpConfig } from './mcp-config'
 
 const HELP = `presence-style — trích xuất CSS tĩnh cho @porbit/style
 
 Cách dùng:
   presence-style extract <đường-dẫn...> [tuỳ chọn]
+  presence-style mcp [--root <thư-mục>]     Chạy MCP server qua stdio cho agent AI
+  presence-style mcp-config [client]        In lệnh/cấu hình cài MCP cho từng agent
+                                            (claude, claude-desktop, codex, cursor, vscode,
+                                             windsurf, gemini, cline, zed, opencode, json)
 
 Tuỳ chọn:
   --out <file>       Ghi CSS ra file. Không có thì in ra stdout.
@@ -26,11 +33,9 @@ Tuỳ chọn:
 Ví dụ:
   presence-style extract src --out dist/presence.css
   presence-style extract index.html --config presence-style.config.json
+  presence-style mcp-config claude
 `
 
-const DEFAULT_EXTENSIONS = ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'vue', 'svelte', 'astro', 'mdx']
-// Thư mục không bao giờ cần quét: artifact build và phụ thuộc.
-const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.next', '.output', 'target'])
 
 interface CliOptions {
     inputs: string[]
@@ -78,32 +83,6 @@ const parseArgs = (argv: string[]): CliOptions => {
     return options
 }
 
-/** Liệt kê file cần quét từ một đường dẫn (file hoặc thư mục, đệ quy). */
-const collectFiles = async (target: string, extensions: string[]): Promise<string[]> => {
-    const absolute = resolve(target)
-    const info = await stat(absolute).catch(() => null)
-    if (!info) return []
-
-    if (info.isFile()) return [absolute]
-    if (!info.isDirectory()) return []
-
-    const entries = await readdir(absolute, { withFileTypes: true })
-    const files: string[] = []
-
-    for (const entry of entries) {
-        if (entry.name.startsWith('.') && entry.name !== '.') continue
-        if (entry.isDirectory()) {
-            if (SKIP_DIRS.has(entry.name)) continue
-            files.push(...(await collectFiles(join(absolute, entry.name), extensions)))
-            continue
-        }
-        const ext = entry.name.split('.').pop()?.toLowerCase() || ''
-        if (extensions.includes(ext)) files.push(join(absolute, entry.name))
-    }
-
-    return files
-}
-
 export const runCli = async (argv: string[]): Promise<number> => {
     const command = argv[0]
 
@@ -118,6 +97,28 @@ export const runCli = async (argv: string[]): Promise<number> => {
     if (!command) {
         process.stdout.write(HELP)
         return 1
+    }
+
+    if (command === 'mcp') {
+        const rest = argv.slice(1)
+        const rootIndex = rest.indexOf('--root')
+        const root = rootIndex !== -1 ? rest[rootIndex + 1] : undefined
+        if (rootIndex !== -1 && !root) {
+            process.stderr.write('Thiếu giá trị cho tham số --root\n')
+            return 1
+        }
+        await startMcpServer({ root })
+        return 0
+    }
+
+    if (command === 'mcp-config') {
+        const client = argv[1]
+        if (client && !MCP_CLIENTS.includes(client as any)) {
+            process.stderr.write(`Client không hỗ trợ: ${client}. Có: ${MCP_CLIENTS.join(', ')}\n`)
+            return 1
+        }
+        process.stdout.write(renderMcpConfig(client as any))
+        return 0
     }
 
     let options: CliOptions

@@ -44,6 +44,7 @@ Kết quả build nằm trong `dist/`:
 | `npm run gen` | Chạy cả `gen:spec` và `gen:rust`. |
 | `npm run verify` | Cổng kiểm chứng: `typecheck` + `test:run` + `build`. |
 | `npm run extract` | Gọi CLI trích xuất từ bản build trong `dist/`. |
+| `npm run mcp` | Chạy MCP server từ bản build trong `dist/` (stdio). |
 
 ## 4. CLI `presence-style`
 
@@ -84,6 +85,26 @@ Ví dụ file cấu hình `presence-style.config.json`:
   "breakpoints": [{ "tablet": "screen and (min-width: 768px)" }],
   "safelist": ["md:dF", "cBrand"]
 }
+```
+
+### Lệnh `mcp` và `mcp-config`
+
+```bash
+presence-style mcp [--root <thư-mục>]
+```
+
+Chạy MCP server qua stdio. `--root` (hoặc biến môi trường `PRESENCE_STYLE_MCP_ROOT`) giới hạn thư mục mà tool `extract_css` được đọc; mặc định là thư mục hiện tại.
+
+```bash
+presence-style mcp-config [claude|claude-desktop|codex|cursor|vscode|windsurf|gemini|cline|zed|opencode|json]
+```
+
+In lệnh hoặc JSON/TOML cấu hình cài server cho agent tương ứng; không có đối số thì in tất cả. Chi tiết: [docs/guides/mcp.md](../guides/mcp.md).
+
+Kiểm tra nhanh server sau khi build:
+
+```bash
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/cli-bin.js mcp
 ```
 
 ## 5. Quy Trình Phát Hành npm

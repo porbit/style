@@ -1,5 +1,24 @@
 # Lịch Sử Thay Đổi
 
+## 0.5.0
+
+**Thêm mới**
+- Bộ component mẫu `@porbit/style/components`: hàm `recipe()` (variant, compound variant, default, memo) và recipe cho button, badge, card, form, alert, avatar, navbar, tabs, table, modal, progress, skeleton, spinner, breadcrumb, pagination, tooltip, container, stack, grid. Theme bằng token `--ps-*` với `createComponentTheme()` (sáng/tối, `darkMode: 'media' | 'class'`). Trang demo `demo/components.html`.
+- MCP server không phụ thuộc thư viện ngoài: `npx -y @porbit/style mcp`. Tool `explain_class`, `generate_css`, `extract_css`, `lookup_dictionary`, `convert_tailwind`, `list_components`, `get_component`, `get_theme`; resource tài liệu và prompt `build_ui`.
+- Lệnh `presence-style mcp-config [client]` in cấu hình cài cho Claude Code, Claude Desktop, Codex, Cursor, VS Code, Windsurf, Gemini CLI, Cline, Zed, opencode.
+- Hướng dẫn `docs/guides/components.md`, `docs/guides/mcp.md`; README bổ sung lệnh cài pnpm/yarn/bun.
+
+**Hiệu năng**
+- Mỗi cặp (class nguồn, tên class xuất) chỉ dựng rule một lần cho mỗi engine; lần gặp sau bỏ qua toàn bộ parse, dựng chuỗi rule và tra Set.
+- `clsx()` memo theo chuỗi đầu vào và không phát sự kiện/microtask khi mọi class đã có CSS.
+- Không còn ghi thử `localStorage` khi khởi tạo engine nếu chưa bật `cache.loadOnInit`.
+- Đo trên Chromium (3.000 node, 20 class/node): quét DOM lần đầu ~40–68 ms → ~20–27 ms; 20.000 lần `clsx` ~180–270 ms → ~40–97 ms. Burst 2.000 node mới không đổi đáng kể (chi phí chủ yếu ở layout của trình duyệt).
+
+**Sửa lỗi**
+- `buildCss()` và `exportCache()` ném `SecurityError` khi trình duyệt chặn truy cập `localStorage` (iframe sandbox, `about:blank`, chặn bộ nhớ trang).
+- Tài liệu thiết kế nhanh ghi alias `max-height` là `mah`; alias đúng là `mh`.
+
+
 ## 0.4.0
 
 Mở rộng phạm vi biểu đạt: mọi khai báo CSS đều viết được thành một class.

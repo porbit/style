@@ -4,11 +4,25 @@
 
 ## Cài Đặt Nhanh
 
-### 1) NPM
+### 1) NPM / pnpm / yarn / bun
 
 ```bash
 npm install @porbit/style
 ```
+
+```bash
+pnpm add @porbit/style
+```
+
+```bash
+yarn add @porbit/style
+```
+
+```bash
+bun add @porbit/style
+```
+
+Yêu cầu Node.js 20 trở lên cho CLI, SSR và MCP server. Package không có dependency runtime.
 
 ### 2) Dùng trực tiếp qua URL (không cần bundler)
 
@@ -229,6 +243,45 @@ export function Button({ primary, children }) {
   );
 }
 ```
+
+## Bộ Component Mẫu
+
+`@porbit/style/components` có sẵn recipe cho button, badge, card, form (input, select, textarea, checkbox), alert, avatar, navbar, tabs, table, modal, progress, skeleton, spinner, breadcrumb, pagination, tooltip, container, stack, grid. Màu và bo góc đọc từ token `--ps-*`, đổi theme chỉ cần đổi biến.
+
+```js
+import xcss from '@porbit/style'
+import { componentTheme, button, card } from '@porbit/style/components'
+
+xcss.cssObserve(document, { base: componentTheme })
+
+button({ variant: 'outline', size: 'sm' }) // chuỗi class x-css
+```
+
+Ghi đè class của recipe bằng layer `2` trở lên (`button({ class: '2bdra999px' })`). Chi tiết: [docs/guides/components.md](./docs/guides/components.md). Xem trực quan: `demo/components.html`.
+
+## MCP Cho Agent AI (Claude Code, Codex, Cursor...)
+
+Package kèm MCP server chạy qua stdio để agent tự kiểm tra class, tra alias, sinh CSS và lấy component mẫu.
+
+```bash
+claude mcp add presence-style --scope user -- npx -y @porbit/style mcp
+```
+
+```bash
+codex mcp add presence-style -- npx -y @porbit/style mcp
+```
+
+```bash
+gemini mcp add presence-style npx -y @porbit/style mcp
+```
+
+In cấu hình cho Cursor, VS Code, Windsurf, Claude Desktop, Cline, Zed, opencode:
+
+```bash
+npx -y @porbit/style mcp-config
+```
+
+Chi tiết và danh sách tool: [docs/guides/mcp.md](./docs/guides/mcp.md).
 
 ## Shared Instance (Khởi Tạo Một Lần)
 
@@ -940,6 +993,8 @@ Bộ test Playwright (Chromium/Firefox/WebKit + Pixel 5/iPhone 13) nằm trong [
 
 - Thiết kế nhanh một giao diện: [docs/guides/thiet-ke-nhanh.md](./docs/guides/thiet-ke-nhanh.md)
 - Từ vựng mở, viết mọi CSS: [docs/guides/tu-vung-mo.md](./docs/guides/tu-vung-mo.md)
+- Bộ component mẫu: [docs/guides/components.md](./docs/guides/components.md)
+- MCP server cho agent AI: [docs/guides/mcp.md](./docs/guides/mcp.md)
 - Dictionary đầy đủ: [DICTIONARY.md](./DICTIONARY.md)
 - Đặc tả cú pháp chuẩn (đa engine): [spec/SPEC.md](./spec/SPEC.md)
 - Kiến trúc và luồng runtime: [docs/architecture/README.md](./docs/architecture/README.md)
