@@ -11,6 +11,8 @@ import { collectFiles, DEFAULT_EXTENSIONS } from './files'
 import { createPreloadManifest, extractFromClasses, extractCandidates, type ExtractOptions } from './extract'
 import { startMcpServer } from './mcp'
 import { runInit } from './init'
+import { resolveConfigFile } from './config-file'
+import { getComponentClasses } from './components'
 import { explainClass, findClassAttributes, findClassTokens, isXcssLike, sortClassesInSource } from './analyze'
 import { findClassConflicts } from './class-tools'
 import { MCP_CLIENTS, renderMcpConfig } from './mcp-config'
@@ -23,9 +25,11 @@ Cách dùng:
                                             Báo class không sinh CSS và class xung đột
   presence-style sort <đường-dẫn...> [--write | --check]
                                             Sắp xếp class trong thuộc tính class tĩnh
-  presence-style init [--agents] [--mcp]   Tạo presence-style.config.json; --agents thêm quy tắc
+  presence-style init [--agents] [--mcp] [--tailwind]
+                                            Tạo presence-style.config.json; --agents thêm quy tắc
                                             vào AGENTS.md/CLAUDE.md; --mcp ghi .mcp.json,
-                                            .cursor/mcp.json, .vscode/mcp.json
+                                            .cursor/mcp.json, .vscode/mcp.json; --tailwind
+                                            bật phương ngữ Tailwind trong cấu hình
   presence-style mcp [--root <thư-mục>]     Chạy MCP server qua stdio cho agent AI
   presence-style mcp-config [client]        In lệnh/cấu hình cài MCP cho từng agent
                                             (claude, claude-desktop, codex, cursor, vscode,
@@ -38,6 +42,7 @@ Tuỳ chọn:
   --manifest <file>  Ghi manifest static-first (truyền vào tuỳ chọn \`preload\` ở runtime).
   --ext <danh-sách>  Phần mở rộng cần quét khi đường dẫn là thư mục.
                      Mặc định: html,htm,js,jsx,ts,tsx,vue,svelte,astro,mdx
+  --components       Thêm mọi class của bộ component mẫu vào CSS tĩnh.
   --silent           Không in thống kê ra stderr.
   -h, --help         Hiển thị trợ giúp.
 
@@ -56,6 +61,7 @@ interface CliOptions {
     manifest?: string
     extensions: string[]
     silent: boolean
+    components?: boolean
     help: boolean
 }
 
@@ -75,6 +81,10 @@ const parseArgs = (argv: string[]): CliOptions => {
         }
         if (arg === '--silent') {
             options.silent = true
+            continue
+        }
+        if (arg === '--components') {
+            options.components = true
             continue
         }
         if (arg === '--out' || arg === '--config' || arg === '--map' || arg === '--manifest' || arg === '--ext') {
@@ -119,9 +129,14 @@ const runSourceCommand = async (command: 'sort' | 'check', argv: string[]): Prom
         return 1
     }
     let config: ExtractOptions = {}
+    // Không truyền --config: tự dùng presence-style.config.json ở thư mục hiện tại nếu có.
+    if (!options.config) {
+        const fallback = resolve('presence-style.config.json')
+        if (await readFile(fallback, 'utf8').then(() => true, () => false)) options.config = fallback
+    }
     if (options.config) {
         try {
-            config = JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions
+            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions)
         } catch (error) {
             process.stderr.write(`Không đọc được file cấu hình ${options.config}: ${(error as Error).message}\n`)
             return 1
@@ -220,12 +235,12 @@ export const runCli = async (argv: string[]): Promise<number> => {
 
     if (command === 'init') {
         const rest = argv.slice(1)
-        const unknown = rest.filter((arg) => arg !== '--agents' && arg !== '--mcp')
+        const unknown = rest.filter((arg) => arg !== '--agents' && arg !== '--mcp' && arg !== '--tailwind')
         if (unknown.length) {
             process.stderr.write(`Tham số không hợp lệ: ${unknown.join(' ')}\n`)
             return 1
         }
-        const result = await runInit({ cwd: process.cwd(), agents: rest.includes('--agents'), mcp: rest.includes('--mcp') })
+        const result = await runInit({ cwd: process.cwd(), agents: rest.includes('--agents'), mcp: rest.includes('--mcp'), tailwind: rest.includes('--tailwind') })
         const show = (label: string, files: string[]) =>
             files.forEach((file) => process.stdout.write(`${label} ${relative(process.cwd(), file) || file}\n`))
         show('tạo   ', result.created)
@@ -262,9 +277,14 @@ export const runCli = async (argv: string[]): Promise<number> => {
     }
 
     let config: ExtractOptions = {}
+    // Không truyền --config: tự dùng presence-style.config.json ở thư mục hiện tại nếu có.
+    if (!options.config) {
+        const fallback = resolve('presence-style.config.json')
+        if (await readFile(fallback, 'utf8').then(() => true, () => false)) options.config = fallback
+    }
     if (options.config) {
         try {
-            config = JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions
+            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions)
         } catch (error) {
             process.stderr.write(`Không đọc được file cấu hình ${options.config}: ${(error as Error).message}\n`)
             return 1
@@ -287,6 +307,9 @@ export const runCli = async (argv: string[]): Promise<number> => {
         extractCandidates(source).forEach((candidate) => candidates.add(candidate))
     }
 
+    if (options.components) {
+        config = { ...config, safelist: [...(config.safelist || []), ...getComponentClasses()] }
+    }
     const result = await extractFromClasses([...candidates], { ...config, silent: true })
 
     if (options.out) {

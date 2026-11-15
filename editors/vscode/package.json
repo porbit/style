@@ -5,9 +5,19 @@
   "version": "0.1.0",
   "publisher": "vuits24",
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/porbit/style.git", "directory": "editors/vscode" },
-  "engines": { "vscode": "^1.80.0" },
-  "categories": ["Linters", "Programming Languages", "Other"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/porbit/style.git",
+    "directory": "editors/vscode"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Linters",
+    "Programming Languages",
+    "Other"
+  ],
   "main": "./extension.js",
   "activationEvents": [
     "onLanguage:html",
@@ -19,17 +29,28 @@
   ],
   "contributes": {
     "commands": [
-      { "command": "presenceStyle.sortClasses", "title": "PresenceStyle: Sắp xếp class trong file" }
+      {
+        "command": "presenceStyle.sortClasses",
+        "title": "PresenceStyle: Sắp xếp class trong file"
+      }
     ],
     "configuration": {
       "title": "PresenceStyle",
       "properties": {
-        "presenceStyle.enable": { "type": "boolean", "default": true, "description": "Bật kiểm tra class x-css." },
-        "presenceStyle.configFile": { "type": "string", "default": "presence-style.config.json", "description": "File cấu hình (breakpoints, theme, aliases) tương đối với gốc workspace." }
+        "presenceStyle.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Bật kiểm tra class x-css."
+        },
+        "presenceStyle.configFile": {
+          "type": "string",
+          "default": "presence-style.config.json",
+          "description": "File cấu hình (breakpoints, theme, aliases) tương đối với gốc workspace."
+        }
       }
     }
   },
   "dependencies": {
-    "@porbit/style": "^0.7.0"
+    "@porbit/style": "^0.7.1"
   }
 }

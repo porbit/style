@@ -13,6 +13,8 @@ export interface InitOptions {
     cwd: string
     agents?: boolean
     mcp?: boolean
+    /** Thêm `"dialects": ["tailwind"]` vào file cấu hình mới. */
+    tailwind?: boolean
 }
 
 export interface InitResult {
@@ -62,7 +64,8 @@ export const runInit = async (options: InitOptions): Promise<InitResult> => {
     if (await readText(configFile)) {
         result.skipped.push(configFile)
     } else {
-        await writeText(configFile, JSON.stringify(SAMPLE_CONFIG, null, 2) + '\n')
+        const sample = options.tailwind ? { ...SAMPLE_CONFIG, dialects: ['tailwind'] } : SAMPLE_CONFIG
+        await writeText(configFile, JSON.stringify(sample, null, 2) + '\n')
         result.created.push(configFile)
     }
 

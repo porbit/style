@@ -2745,7 +2745,26 @@ export const xcss = (
         if (!docx) return undefined
 
         if (skipInitialScan) {
-            // Static-first: HTML ban đầu đã có CSS tĩnh, chỉ theo dõi thay đổi sau này.
+            // Static-first: không quét trước paint đầu. Vẫn quét một lần khi trình duyệt rảnh
+            // để bù class không có trong CSS tĩnh (ví dụ class do JS sinh trước khi observe);
+            // class đã có trong manifest bị bỏ qua O(1) nên lượt quét này rẻ.
+            const target = docx
+            const deferredScan = () => {
+                if (!active) return
+                if (target instanceof Element) {
+                    cb(getClassAttrs(target))
+                    return
+                }
+                const deferredClasses: string[] = []
+                const elements = target.querySelectorAll?.('[class]')
+                if (elements) {
+                    for (let i = 0; i < elements.length; i++) collectClassesInto(elements[i] as Element, deferredClasses)
+                }
+                if (deferredClasses.length) cb(deferredClasses)
+            }
+            const idle = (globalThis as any).requestIdleCallback as ((fn: () => void, opts?: { timeout: number }) => number) | undefined
+            if (typeof idle === 'function') idle(deferredScan, { timeout: 500 })
+            else setTimeout(deferredScan, 0)
         } else if (docx instanceof Element) {
             cb(getClassAttrs(docx))
         } else {

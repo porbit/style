@@ -12,7 +12,7 @@ const createLanguageService = (analyze) => {
     let cachedConfigKey = ''
 
     const explain = (token, config) => {
-        const key = JSON.stringify(config || {})
+        const key = JSON.stringify(config || {}) + ((config && config.dialects && config.dialects.length) || 0)
         if (key !== cachedConfigKey) {
             explainCache.clear()
             cachedConfigKey = key
