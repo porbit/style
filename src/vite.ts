@@ -15,6 +15,7 @@
 import { readFile } from 'node:fs/promises'
 import { extname, isAbsolute, relative, resolve } from 'node:path'
 import { collectFiles, DEFAULT_EXTENSIONS } from './files'
+import { getComponentClasses } from './components'
 import { createPreloadManifest, extractCandidates, extractFromClasses, type ExtractOptions, type PreloadManifest } from './extract'
 
 export interface PresenceStyleViteOptions extends ExtractOptions {
@@ -22,6 +23,11 @@ export interface PresenceStyleViteOptions extends ExtractOptions {
     include?: string[]
     /** Phần mở rộng cần quét. */
     extensions?: string[]
+    /**
+     * Đưa mọi class của `@porbit/style/components` vào CSS tĩnh (class do recipe sinh trong
+     * JS không quét được từ mã nguồn). Bật khi dùng bộ component mẫu.
+     */
+    components?: boolean
 }
 
 export const VIRTUAL_CSS_ID = 'virtual:presence-style.css'
@@ -40,7 +46,10 @@ interface MinimalServer {
 }
 
 export default function presenceStyle(options: PresenceStyleViteOptions = {}) {
-    const { include = ['src', 'index.html'], extensions = DEFAULT_EXTENSIONS, ...extractOptions } = options
+    const { include = ['src', 'index.html'], extensions = DEFAULT_EXTENSIONS, components = false, ...extractOptions } = options
+    if (components) {
+        extractOptions.safelist = [...(extractOptions.safelist || []), ...getComponentClasses()]
+    }
     // CSS tĩnh dùng tên class nguồn để khớp với HTML/JSX; người dùng có thể bật lại hash.
     const engineOptions: ExtractOptions = { silent: true, hashClassName: false, ...extractOptions }
     let root = process.cwd()

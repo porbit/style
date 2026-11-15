@@ -734,3 +734,20 @@ export const getComponentSnippet = (name: string): ComponentSnippet | undefined 
     const key = String(name || '').toLowerCase()
     return COMPONENT_SNIPPETS.find((item) => item.name === key)
 }
+
+/**
+ * Mọi class mà các recipe có thể sinh ra (mọi giá trị của mọi variant). Dùng làm `safelist`
+ * khi trích xuất CSS tĩnh, vì class do recipe sinh trong JS không quét được từ mã nguồn.
+ */
+export const getComponentClasses = (): string[] => {
+    const tokens = new Set<string>()
+    const add = (classes: string) => classes.split(/\s+/).forEach((token) => token && tokens.add(token))
+    for (const fn of Object.values(ui) as Array<Recipe<RecipeVariants>>) {
+        add(fn())
+        for (const [name, values] of Object.entries(fn.variantKeys)) {
+            for (const value of values as string[]) add(fn({ [name]: value } as RecipeProps<RecipeVariants>))
+        }
+        for (const compound of fn.config.compoundVariants || []) add(compound.class)
+    }
+    return [...tokens]
+}
