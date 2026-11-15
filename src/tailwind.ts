@@ -665,6 +665,8 @@ const TAILWIND_PREFIXES = [
     'rotate-',
     'skew-',
     'ring-',
+    'accent-',
+    'caret-',
     'outline-',
     'from-',
     'via-',
@@ -1113,6 +1115,14 @@ const convertExtendedToken = (token: string): TailwindBaseTokenConversion | null
         'resize-x': ['rsz[horizontal]'],
         'resize-y': ['rsz[vertical]'],
         'list-none': ['lst[none]'],
+        'border-collapse': ['bdcl[collapse]'],
+        'border-separate': ['bdcl[separate]'],
+        'tabular-nums': ['fnvn[tabular-nums]'],
+        'proportional-nums': ['fnvn[proportional-nums]'],
+        'lining-nums': ['fnvn[lining-nums]'],
+        'oldstyle-nums': ['fnvn[oldstyle-nums]'],
+        'slashed-zero': ['fnvn[slashed-zero]'],
+        'normal-nums': ['fnvn[normal]'],
         'list-disc': ['lst[disc]'],
         'list-decimal': ['lst[decimal]'],
         'no-underline': ['tdl[none]'],
@@ -1264,7 +1274,31 @@ const convertBaseToken = (token: string): TailwindBaseTokenConversion => {
         }
     }
 
+    // ring: Tailwind dựng bằng box-shadow + biến màu. x-css đặt box-shadow trực tiếp nên
+    // ring sẽ thay bóng đổ khác trên cùng phần tử (đánh dấu exact=false).
+    const ringWidth = token.match(/^ring(?:-(\d+))?$/)
+    if (ringWidth) {
+        const width = ringWidth[1] ?? '1'
+        warnings.push({ token, message: `\`${token}\` dùng box-shadow; nếu phần tử có shadow-* thì ring sẽ thay bóng đổ đó.` })
+        return {
+            input: token,
+            outputs: [width === '0' ? 'bxsh[0_0_#0000]' : `bxsh[0_0_0_${width}px_var(--tw-ring-color,currentColor)]`],
+            status: 'converted',
+            exact: false,
+            warnings,
+        }
+    }
+    const ringColor = token.match(/^ring-(.+)$/)
+    if (ringColor) {
+        const color = normalizeColor(ringColor[1])
+        if (color) {
+            return { input: token, outputs: [`--tw-ring-color[${color}]`], status: 'converted', exact: true, warnings }
+        }
+    }
+
     const colorPrefixes: Array<[RegExp, string]> = [
+        [/^accent-(.+)$/, 'acc'],
+        [/^caret-(.+)$/, 'caret-color'],
         [/^bg-(.+)$/, 'bgc'],
         [/^text-(.+)$/, 'c'],
         [/^border-(.+)$/, 'bdc'],
@@ -1753,3 +1787,81 @@ export const convertTailwindClasses = (
 }
 
 export const tailwindToXcss = convertTailwindClasses
+
+// ---------------------------------------------------------------------------
+// Phương ngữ Tailwind cho runtime (`dialects: [tailwindDialect()]`)
+// ---------------------------------------------------------------------------
+
+const rebuildToken = (token: string, prop: string, val: string): string | null => {
+    const parsed = parseClassName(token)
+    if (!parsed) return null
+    return (parsed.mq ? parsed.mq + ':' : '') + parsed.layer + prop + val + (parsed.selector ? '@' + parsed.selector : '')
+}
+
+const bracketValue = (val: string): string => (val.startsWith('[') && val.endsWith(']') ? val.slice(1, -1) : val)
+
+/**
+ * Ở runtime mỗi class Tailwind là MỘT rule riêng, nên giá trị mặc định nằm trong rule này
+ * có thể đè giá trị của rule khác tuỳ thứ tự xuất hiện trên trang. Xử lý như Tailwind v4:
+ * - `border`: bỏ `border-color: currentColor` (đã là giá trị khởi tạo của CSS).
+ * - `transition-*`: duration/easing đọc biến `--tw-duration`/`--tw-ease` với mặc định.
+ * - `duration-*`/`ease-*`: đặt cả biến lẫn property, nên thắng ở mọi thứ tự.
+ */
+const adaptForRuntime = (base: string, outputs: string[]): string[] => {
+    const isTransition = /^transition(?:$|-)/.test(base) && base !== 'transition-none' && !/^transition-(?:discrete|normal)$/.test(base)
+    const result: string[] = []
+    for (const output of outputs) {
+        const parsed = parseClassName(output)
+        if (!parsed) {
+            result.push(output)
+            continue
+        }
+        if (/^border(?:-[trblxy])?(?:-\d+)?$/.test(base) && /^bd[trblxy]?c$/.test(parsed.prop) && /^currentcolor$/i.test(bracketValue(parsed.val))) {
+            continue
+        }
+        if (isTransition && parsed.prop === 'trandur') {
+            result.push(rebuildToken(output, 'trandur', `[var(--tw-duration,${parsed.val})]`) || output)
+            continue
+        }
+        if (isTransition && parsed.prop === 'trantf') {
+            result.push(rebuildToken(output, 'trantf', `[var(--tw-ease,${bracketValue(parsed.val)})]`) || output)
+            continue
+        }
+        if (/^duration-/.test(base) && parsed.prop === 'trandur') {
+            const variable = rebuildToken(output, '--tw-duration', `[${bracketValue(parsed.val)}]`)
+            if (variable) result.push(variable)
+        }
+        if (/^ease-/.test(base) && parsed.prop === 'trantf') {
+            const variable = rebuildToken(output, '--tw-ease', `[${bracketValue(parsed.val)}]`)
+            if (variable) result.push(variable)
+        }
+        result.push(output)
+    }
+    return result
+}
+
+/**
+ * Tạo phương ngữ Tailwind cho engine: class Tailwind được đổi sang x-css ngay lúc chạy,
+ * không cần build. Class x-css thật vẫn đi đường x-css như cũ.
+ *
+ *   xcss.cssObserve(document, { dialects: [tailwindDialect()] })
+ */
+export const tailwindDialect = (options?: Omit<TailwindConversionOptions, 'compact'>) => {
+    const conversionOptions: TailwindConversionOptions = { mode: 'safe', preserveUnknown: false, ...options }
+    return (className: string): string[] | null => {
+        if (classifyTailwindToken(className) === 'xcss') return null
+        const result = convertTailwindToken(className, conversionOptions)
+        if (result.status !== 'converted' || result.outputs.length === 0) return null
+        return adaptForRuntime(splitVariants(className).base, result.outputs)
+    }
+}
+
+/**
+ * Hàm đổi class viết theo thói quen Tailwind thành token x-css, dùng làm gợi ý sửa
+ * (`setTailwindFallback(tailwindFixFallback)` trong `@porbit/style/analyze`).
+ */
+export const tailwindFixFallback = (token: string): string[] | null => {
+    if (classifyTailwindToken(token) === 'xcss') return null
+    const result = convertTailwindToken(token, { mode: 'safe', preserveUnknown: false })
+    return result.status === 'converted' ? result.outputs : null
+}

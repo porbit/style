@@ -48,6 +48,11 @@ export type XCSSConfig = {
      * để runtime trả đúng tên class đã dùng trong CSS tĩnh.
      */
     preload?: XCSSPreloadManifest
+    /**
+     * Phương ngữ được thử TRƯỚC cú pháp x-css, ví dụ `[tailwindDialect()]` từ
+     * `@porbit/style/tailwind` để viết thẳng class Tailwind mà không cần build.
+     */
+    dialects?: XCSSDialect[]
     cache?: {
         styleId?: string
         version?: string
@@ -57,6 +62,13 @@ export type XCSSConfig = {
         loadOnInit?: boolean
     }
 }
+
+/**
+ * Phương ngữ: hàm đổi một class theo cú pháp khác (ví dụ Tailwind) thành các token x-css.
+ * Trả `null` khi không nhận class đó; engine sẽ xử lý class như x-css bình thường.
+ * Các token trả về phải cùng media, layer và selector để gộp thành một rule.
+ */
+export type XCSSDialect = (className: string) => string[] | null
 
 export type XCSSPreloadManifest = {
     classes?: string[]
@@ -1098,7 +1110,9 @@ export const xcss = (
         silent = false,
         maxCacheEntries = 5000,
         cache: cacheOptions = {},
+        dialects = [],
     } = modules || {}
+    const dialectList: XCSSDialect[] = Array.isArray(dialects) ? dialects.filter((d) => typeof d === 'function') : []
 
     // Logger nội bộ: tôn trọng `silent` để bundle production không phát log rác.
     const warn = (...args: unknown[]): void => {
@@ -2427,11 +2441,68 @@ export const xcss = (
         return result
     }
 
+    // Gộp nhiều token x-css (cùng media/layer/selector) thành một rule cho một class nguồn.
+    function resolveTokenGroup(tokens: string[], className: string) {
+        let media = ''
+        let layer = ''
+        let selector = ''
+        const declarations: string[] = []
+        for (let index = 0; index < tokens.length; index++) {
+            const parsed = parseClassName(tokens[index])
+            if (!parsed) return null
+            if (!isValidMediaKey(parsed.mq)) return null
+            if (!parsed.prop.startsWith('[') && !isKnownPropertyKey(parsed.prop)) return null
+            if (parsed.prop.startsWith('--') && !parsed.val.startsWith('[')) return null
+            if (index === 0) {
+                media = parsed.mq || ''
+                layer = parsed.layer || ''
+                selector = parsed.selector || ''
+            } else if ((parsed.mq || '') !== media || (parsed.layer || '') !== layer || (parsed.selector || '') !== selector) {
+                return null
+            }
+            const value = propToValue(parsed.prop, parsed.val)
+            if (!value) return null
+            declarations.push(value)
+        }
+        if (declarations.length === 0) return null
+        const selectorStr = selector.replace(/(';|;)/g, (v: string) => (v == "';" ? ';' : ' '))
+        if (selectorStr) {
+            if (typeof CSS !== 'undefined') {
+                if (!cssSupports(`selector(${className}${selectorStr})`)) return null
+            } else if (!isLikelyValidSelectorFallback(selectorStr)) {
+                return null
+            }
+        }
+        return {
+            media: media || 'default',
+            layer: layer || '0',
+            className,
+            property: declarations.join(';'),
+            selector: selectorStr,
+            cssRules: `.${className}${selectorStr}{${declarations.join(';')}}`,
+        }
+    }
+
     function computeClassToProp(txtClass: string) {
         if (!shouldProcessClass(txtClass)) return null
 
         const parseTarget = prefix ? txtClass.slice(prefix.length) : txtClass
         const className = typeof CSS !== 'undefined' ? CSS.escape(txtClass) : escapeCssIdentifier(txtClass)
+
+        if (dialectList.length) {
+            for (const dialect of dialectList) {
+                let tokens: string[] | null = null
+                try {
+                    tokens = dialect(parseTarget)
+                } catch (_error) {
+                    tokens = null
+                }
+                if (tokens && tokens.length) {
+                    const resolved = resolveTokenGroup(tokens, className)
+                    if (resolved) return resolved
+                }
+            }
+        }
 
         // Support chained utilities: "md:dF&fxdC@;li", "dF&fk-fxdC@;li", "md:[grp1]&[grp2]@;li"
         if (parseTarget.includes('&') && !parseTarget.startsWith('&')) {
