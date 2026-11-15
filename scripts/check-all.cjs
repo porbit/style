@@ -25,6 +25,7 @@ const BUDGET = {
     'dist/index-auto.mjs': 23 * 1024, // bản CDN
     'dist/index.mjs': 36 * 1024,
     'dist/components.mjs': 8 * 1024,
+    'dist/tailwind-auto.mjs': 57 * 1024, // thay @tailwindcss/browser (75 KB)
 }
 const EVAL_MIN = { xcssValidAfterFix: 99, tailwindValid: 98, holdout: 85 }
 
@@ -80,7 +81,7 @@ const steps = [
                 },
             })
             if (!r.ok) return r
-            const files = ['spec', 'presence_style/x-core/tests/conformance.core.json', 'presence_style/x-core/src/dictionary_generated.rs', 'llms.txt', 'llms-full.txt']
+            const files = ['spec', 'presence_style/x-core/tests/conformance.core.json', 'presence_style/x-core/src/dictionary_generated.rs', 'src/tailwind-generated.ts', 'llms.txt', 'llms-full.txt']
             const diff = run('git', ['status', '--porcelain', '--', ...files])
             const changed = diff.out.trim()
             return changed
@@ -114,6 +115,26 @@ const steps = [
                 // giữ nguyên output thô
             }
             return { ok: r.ok, detail }
+        },
+    },
+    {
+        name: 'tailwind',
+        // Khớp Tailwind thật (mẫu 4.000 class + biến thể + runtime + theme) và độ phủ biến thể.
+        run: () => {
+            const parity = run('node', ['eval/tailwind-parity.mjs', '--limit=4000'])
+            if (!parity.ok) {
+                if (/launch|Executable doesn't exist|Cannot find (module|package) 'tailwindcss'/.test(parity.out)) return { ok: true, skipped: true, detail: 'thiếu Chromium hoặc tailwindcss' }
+                return parity
+            }
+            const variants = run('node', ['eval/tailwind-variants.mjs'])
+            const report = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-parity.sample.json'), 'utf8'))
+            const coverage = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-variants.json'), 'utf8'))
+            const ok = variants.ok && report.base.percent >= 99.9 && report.variants.percent === 100 && report.runtime.percent === 100 &&
+                report.theme.matched === report.theme.checked && coverage.percent >= 95
+            return {
+                ok,
+                detail: `class ${report.base.percent}% · biến thể ${report.variants.percent}% · runtime ${report.runtime.percent}% · theme ${report.theme.matched}/${report.theme.checked} · độ phủ biến thể ${coverage.percent}%`,
+            }
         },
     },
     {
