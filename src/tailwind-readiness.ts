@@ -121,10 +121,16 @@ export const TAILWIND_COVERAGE_MATRIX: readonly TailwindCoverageEntry[] = [
         notes: 'sr-only, cắt dòng, ngắt từ, sự kiện con trỏ.',
     },
     {
+        group: 'ring',
+        support: 'partial',
+        examples: ['ring', 'ring-2', 'focus:ring-2', 'ring-blue-500'],
+        notes: 'ring-N đổi sang box-shadow 0 0 0 Npx var(--tw-ring-color, currentColor), ring-{màu} đặt biến --tw-ring-color; vì dùng box-shadow trực tiếp nên ring thay bóng đổ shadow-* trên cùng phần tử.',
+    },
+    {
         group: 'manual-review',
         support: 'manual',
-        examples: ['bg-gradient-to-r', 'from-blue-500', 'ring-2', 'animate-spin', 'prose', 'container', 'supports-[display:grid]:flex'],
-        notes: 'gradient theo hướng, ring, animate, plugin typography, container và biến thể supports cần viết tay: x-css biểu đạt được bằng giá trị tuỳ ý nhưng không có phép đổi 1:1 an toàn.',
+        examples: ['bg-gradient-to-r', 'from-blue-500', 'animate-spin', 'prose', 'container', 'supports-[display:grid]:flex'],
+        notes: 'gradient theo hướng, animate, plugin typography, container và biến thể supports cần viết tay: x-css biểu đạt được bằng giá trị tuỳ ý nhưng không có phép đổi 1:1 an toàn.',
     },
 ] as const
 

@@ -1,5 +1,7 @@
 # PresenceStyle (`@porbit/style`)
 
+Tiếng Việt · [English](./README.en.md)
+
 `@porbit/style` là utility CSS engine siêu nhẹ, parse class theo cú pháp ngắn và sinh CSS runtime theo layer + media. Đây là **công thức tổng quát**, không phải bộ class đóng: bảng alias chỉ là lối tắt, còn mọi property và giá trị CSS đều viết được (xem [Từ vựng mở](./docs/guides/tu-vung-mo.md)). Người dùng Tailwind có thể chuyển sang bằng [helper migration](#tailwind-migration-helper).
 
 ## Cài Đặt Nhanh
@@ -244,6 +246,23 @@ export function Button({ primary, children }) {
 }
 ```
 
+## Viết Thẳng Class Tailwind (Phương Ngữ Runtime)
+
+Đã quen Tailwind (người hoặc AI)? Bật phương ngữ và viết class Tailwind như bình thường, CSS sinh lúc chạy, không cần build:
+
+```js
+import xcss from '@porbit/style'
+import { tailwindDialect } from '@porbit/style/tailwind'
+
+xcss.cssObserve(document, { dialects: [tailwindDialect({ darkMode: 'class' })] })
+```
+
+```html
+<div class="flex items-center gap-4 p-4 rounded-lg bg-white hover:bg-slate-50 md:grid-cols-3">…</div>
+```
+
+Class x-css vẫn chạy song song. Phương ngữ được thử trước, nên token mơ hồ như `z-10` hiểu theo nghĩa Tailwind (`z-index: 10`). `duration-*`/`ease-*` dùng biến CSS như Tailwind v4 nên thắng mặc định của `transition-*` ở mọi thứ tự rule. Utility chưa có phép đổi (gradient, `animate-*`, `prose`...) không sinh CSS.
+
 ## Static-First Và Vite
 
 CSS sinh sẵn lúc build, runtime chỉ xử lý class phát sinh lúc chạy. Với 3.000 node, khởi tạo giảm từ ~24 ms xuống ~2,7 ms.
@@ -304,6 +323,14 @@ codex mcp add presence-style -- npx -y @porbit/style mcp
 ```bash
 gemini mcp add presence-style npx -y @porbit/style mcp
 ```
+
+Thêm quy tắc viết class cho agent vào dự án (`AGENTS.md`, `CLAUDE.md`) và cấu hình MCP cho Claude Code, Cursor, VS Code:
+
+```bash
+npx -y @porbit/style init --agents --mcp
+```
+
+Bản rút gọn cho LLM: [llms.txt](./llms.txt) (khoảng 1.200 token), đầy đủ: [llms-full.txt](./llms-full.txt). Đánh giá độ chính xác: [eval/](./eval/README.md).
 
 In cấu hình cho Cursor, VS Code, Windsurf, Claude Desktop, Cline, Zed, opencode:
 

@@ -1,5 +1,34 @@
 # Lịch Sử Thay Đổi
 
+## 0.7.0
+
+Giai đoạn 2–4 của lộ trình (`docs/strategy/danh-gia-va-dinh-huong.md`).
+
+**Hiệu năng (giai đoạn 2)**
+- Static-first: tuỳ chọn `preload` (manifest class đã có CSS tĩnh) và `preload.skipInitialScan`. 3.000 node trên Chromium: khởi tạo ~24 ms → ~15–19 ms (`preload`) → ~2,7 ms (`skipInitialScan`).
+- `presence-style extract --manifest`, `createPreloadManifest`, `ExtractResult.matchedClasses`.
+- Plugin Vite `@porbit/style/vite`: CSS ảo `virtual:presence-style.css` và manifest `virtual:presence-style-manifest` cho dev và build, cập nhật nóng theo file.
+- Đã đo và không làm: tạo stylesheet theo media khi cần (12 sheet rỗng chỉ tốn 0,1 ms), gom `insertRule` (300 rule: 0,6 ms so với 0,5 ms).
+
+**Trải nghiệm người viết (giai đoạn 3)**
+- `@porbit/style/analyze`: `explainClass`, `analyzeClasses`, `fixClasses`, `sortClasses`, `sortClassesInSource`, `findClassAttributes`, `findClassTokens`, `isXcssLike`.
+- `presence-style check` (lỗi và xung đột theo `file:dòng:cột`, mã thoát 1) và `presence-style sort [--write|--check]`.
+- Extension VS Code trong `editors/vscode`: diagnostic, quick fix, hover CSS, gợi ý alias, lệnh sắp xếp.
+- README tiếng Anh `README.en.md`.
+
+**Cho AI (giai đoạn 4)**
+- Phương ngữ runtime: tuỳ chọn `dialects` và `tailwindDialect()` — viết thẳng class Tailwind, không cần build.
+- `presence-style init [--agents] [--mcp]`: config, khối quy tắc trong `AGENTS.md`/`CLAUDE.md`, cấu hình MCP cho Claude Code, Cursor, VS Code.
+- `llms.txt`, `llms-full.txt` (`npm run gen:llms`); resource MCP `presence-style://docs/agent-rules`.
+- Bộ đánh giá `eval/`: chấm class trên Chromium thật và độ chính xác của `fix_classes` trên tập độc lập (18/20 ở lần chạy đầu).
+- `fix_classes` khái quát hơn: tên CSS viết liền (`fontsize14px`), alias tự đoán (`bdf` → `bkdf`), từ khoá có dấu gạch (`dinlineblock` → `dIb`), kiểu `property-giá-trị` (`cur-pointer` → `crP`), thói quen Tailwind (`w-full` → `w100%`, `mt-4` → `mt16px`); không đoán bừa (`vah`, `xyz123` giữ nguyên).
+- Tailwind helper bổ sung `ring-*`, `ring-{màu}`, `accent-*`, `caret-*`, `tabular-nums` và nhóm `*-nums`, `border-collapse`/`border-separate`.
+
+**Thay đổi hành vi cần biết**
+- Bảng coverage: nhóm `ring` chuyển từ `manual` sang `partial` (ring dùng box-shadow nên thay bóng đổ `shadow-*` trên cùng phần tử).
+- Alias chính tắc được ưu tiên khi gợi ý sửa (`bdra`, `fnw`, `mw`, `ff`, `bxsh`).
+
+
 ## 0.6.0
 
 Giai đoạn 1 của lộ trình tối ưu (`docs/strategy/danh-gia-va-dinh-huong.md`).

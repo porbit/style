@@ -1,0 +1,1383 @@
+# PresenceStyle (@porbit/style)
+
+> Utility CSS engine mở: class viết tắt (x-css) được đổi thành CSS lúc chạy (không cần build) hoặc lúc build. Mọi property CSS viết được thành class; ưu tiên tường minh bằng layer số. Có phương ngữ Tailwind ở runtime, bộ component mẫu, plugin Vite và MCP server. Phiên bản 0.7.0.
+
+## Viết class @porbit/style (x-css)
+
+Cú pháp: `[media:][layer]property value[@selector]`, ví dụ `md:2bgc#0a64e8@:hover`.
+
+1. Property là alias chữ thường liền nhau (`bgc`, `fns`, `bdra`) hoặc tên CSS đầy đủ (`view-transition-name[hero]`, `--brand[#fff]`).
+2. Value dạng chữ viết hoa ký tự đầu: `dF` (flex), `aiC` (center), `posA` (absolute), `jcSp` (space-between). Không viết `df`.
+3. Khoảng trắng trong value: `;` (`p8px;16px`) hoặc `_` trong `[]` (`w[calc(100%_-_2rem)]`, `bxsh[0_1px_2px_rgba(0,0,0,.1)]`).
+4. Trạng thái là hậu tố: `cRed@:hover`, `opc.5@:disabled`, `c#999@::placeholder`. Không viết `hover:cRed`.
+5. Breakpoint mobile-first: `sm: md: lg: xl: 2xl:` (min-width); `sma: mda: lga: xla:` (max-width).
+6. Biến CSS: `bgc--brand` → `background-color: var(--brand)`.
+7. Ưu tiên bằng layer (số trước property): `2bdra999px` thắng `bdra8px` ở mọi thứ tự. Không đặt hai class cùng property, cùng layer, cùng media trên một phần tử.
+
+Alias hay nhầm: font-size `fns` (không phải `fz`/`fs`), font-weight `fnw`, opacity `opc` (`op` là object-position), transition `tran`, min-height `mih`, max-height `mh`, max-width `mw`, z-index `z`, cursor `cr` (`crP` = pointer), text-transform `ttr`, border-radius `bdra`, box-shadow `bxsh`, outline `oli`.
+
+Hay dùng: `dF dG dN dB dIF` · `fxdC fxw[wrap] fx1` · `aiC jcC jcSp gap16px` · `gtc[repeat(3,minmax(0,1fr))]` · `w100% mw1200px h40px mih100vh` · `m0;auto p16px px16px py8px` · `posR posA t0 l0 i0 z10` · `c#0f172a bgc#fff bd[1px_solid_#e2e8f0] bdra8px` · `fns14px fnw600 lh1.5 taC` · `bxsh[...] opc.8 tran[all_.15s] crP oflH`.
+
+Nếu dự án bật phương ngữ Tailwind (`dialects: [tailwindDialect()]`), class Tailwind như `flex items-center p-4 hover:bg-slate-50` cũng chạy.
+
+Có MCP server `presence-style`: gọi `fix_classes` cho mọi chuỗi class tự viết trước khi trả code; tra alias bằng `lookup_dictionary`; lấy component mẫu bằng `get_component`. Không có MCP: chạy `npx presence-style check <thư-mục>` để soát lỗi.
+
+## Tài liệu
+
+- [README.en.md](https://raw.githubusercontent.com/porbit/style/main/README.en.md): Overview (English): install, syntax, Tailwind dialect, static-first, components, MCP, CLI
+- [docs/guides/thiet-ke-nhanh.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/thiet-ke-nhanh.md): Hướng dẫn thiết kế nhanh: quy trình 5 bước, bảng alias hay dùng, lỗi thường gặp
+- [docs/guides/tu-vung-mo.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/tu-vung-mo.md): Từ vựng mở: viết mọi property/giá trị CSS khi chưa có alias
+- [docs/guides/components.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/components.md): Bộ component mẫu: recipe, theme --ps-*, ghi đè bằng layer
+- [docs/guides/static-first.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/static-first.md): Static-first và plugin Vite
+- [docs/guides/mcp.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/mcp.md): MCP server: cài cho từng agent, danh sách tool
+- [DICTIONARY.md](https://raw.githubusercontent.com/porbit/style/main/DICTIONARY.md): Toàn bộ alias property và value
+- [spec/SPEC.md](https://raw.githubusercontent.com/porbit/style/main/spec/SPEC.md): Đặc tả cú pháp chuẩn
+
+## Tuỳ chọn
+
+- [llms-full.txt](https://raw.githubusercontent.com/porbit/style/main/llms-full.txt): toàn bộ tài liệu trên trong một file
+
+
+---
+
+<!-- README.en.md -->
+
+# PresenceStyle (`@porbit/style`)
+
+[Tiếng Việt](./README.md) · English
+
+A utility CSS engine that turns short class names into real CSS **at runtime** (no build step required) or **at build time** (static extraction, Vite plugin). It is an open formula rather than a closed class set: every CSS property and value can be written as a class, and priority is explicit through numeric cascade layers.
+
+```html
+<script type="module" src="https://unpkg.com/@porbit/style/dist/index-auto.mjs"></script>
+
+<button class="dF aiC jcC p10px;16px bdN bdra8px bgc#0a64e8 cWhite opc0.9@:hover">
+  Sign in
+</button>
+```
+
+## Install
+
+```bash
+npm install @porbit/style
+```
+
+Node.js 20+ for the CLI, SSR and the MCP server. No runtime dependencies.
+
+## Syntax
+
+```text
+[media:][layer]property value[@selector]
+
+md : 2 bgc #0a64e8 @:hover
+│    │ │   │        └─ selector (optional): @:hover, @::before, @;li (";" = space)
+│    │ │   └────────── value: #0a64e8 | Red | 10px | [calc(100%_-_10px)]
+│    │ └────────────── property alias (bgc = background-color) or any full CSS name
+│    └──────────────── layer (optional): higher number always wins
+└───────────────────── media (optional): xs sm md lg xl 2xl sma mda lga xla or custom
+```
+
+Four rules cover most cases:
+
+1. The property is a run of lowercase letters; it stops at the first uppercase letter, digit, `#`, `!`, `[` or `%`.
+2. Word values start with an uppercase letter: `dF` (flex), `aiC` (center), `posR` (relative). `df` is wrong.
+3. Spaces inside a value are written `;` (`p8px;16px`) or `_` inside brackets (`w[calc(100%_-_2rem)]`).
+4. States are suffixes: `cRed@:hover`, not `hover:cRed`.
+
+Any CSS property works by its full name: `view-transition-name[hero]`, `-webkit-line-clamp[3]`, `--brand[#0a64e8]`. Aliases are listed in [DICTIONARY.md](./DICTIONARY.md).
+
+## Already Know Tailwind?
+
+Enable the Tailwind dialect and keep writing Tailwind classes; they are converted at runtime, no build step:
+
+```js
+import xcss from '@porbit/style'
+import { tailwindDialect } from '@porbit/style/tailwind'
+
+xcss.cssObserve(document, { dialects: [tailwindDialect()] })
+```
+
+```html
+<div class="flex items-center gap-4 p-4 rounded-lg bg-white hover:bg-slate-50">…</div>
+```
+
+Or migrate source code once: `convertTailwindClasses('flex items-center h-10', { compact: true }).output` → `dF aiC h40px`.
+
+## Static-First and Vite
+
+```js
+// vite.config.js
+import presenceStyle from '@porbit/style/vite'
+export default { plugins: [presenceStyle()] }
+
+// main.js
+import 'virtual:presence-style.css'
+import manifest from 'virtual:presence-style-manifest'
+xcss.cssObserve(document, { hashClassName: false, preload: { ...manifest, skipInitialScan: true } })
+```
+
+On 3,000 nodes (Chromium) start-up drops from ~24 ms (pure runtime) to ~2.7 ms. Without a bundler: `npx presence-style extract src --out presence.css --manifest presence-manifest.json`.
+
+## Components
+
+`@porbit/style/components` ships variant recipes (button, badge, card, form fields, alert, avatar, navbar, tabs, table, modal, progress, skeleton, spinner, breadcrumb, pagination, tooltip, layout helpers) themed by `--ps-*` custom properties, light and dark.
+
+```js
+import { componentTheme, button } from '@porbit/style/components'
+xcss.cssObserve(document, { base: componentTheme })
+button({ variant: 'outline', size: 'sm' }) // class string
+```
+
+Override recipe classes with layer 2 or higher: `button({ class: '2bdra999px' })`.
+
+## AI Agents (MCP)
+
+The package includes an MCP server so agents can validate, fix and generate classes instead of guessing:
+
+```bash
+claude mcp add presence-style --scope user -- npx -y @porbit/style mcp
+codex mcp add presence-style -- npx -y @porbit/style mcp
+gemini mcp add presence-style npx -y @porbit/style mcp
+npx -y @porbit/style mcp-config   # Cursor, VS Code, Windsurf, Claude Desktop, Cline, Zed, opencode
+```
+
+Tools: `fix_classes`, `explain_class`, `generate_css`, `extract_css`, `lookup_dictionary`, `convert_tailwind`, `list_components`, `get_component`, `get_theme`. Add project rules for agents with `npx presence-style init --agents`. A compact reference for LLMs lives in [llms.txt](./llms.txt).
+
+## CLI
+
+| Command | Purpose |
+| :--- | :--- |
+| `presence-style extract <paths> --out f.css [--manifest m.json]` | Static CSS (and manifest) from source files |
+| `presence-style check <paths>` | Report classes that produce no CSS (with fixes) and conflicting classes; exit 1 on problems |
+| `presence-style sort <paths> [--write \| --check]` | Sort classes in static class attributes |
+| `presence-style init [--agents] [--mcp]` | Create config, agent rules and `.mcp.json` |
+| `presence-style mcp` / `mcp-config [client]` | Run the MCP server / print client setup |
+
+## Editor
+
+A VS Code extension (diagnostics, quick fixes, hover CSS, completion, sort command) lives in [editors/vscode](./editors/vscode).
+
+## When to Choose It
+
+| Your project | Good fit |
+| :--- | :--- |
+| UI driven by data or users (page builders, CMS, themes) | **PresenceStyle** |
+| No build step, embeddable widgets, plain HTML | **PresenceStyle** (CDN build, 21 KB gzip) |
+| Web Components / Shadow DOM | **PresenceStyle** |
+| Fixed UI with a build, zero JS for CSS required | Tailwind, or PresenceStyle static-first |
+
+The full evaluation (Vietnamese) is in [docs/strategy/danh-gia-va-dinh-huong.md](./docs/strategy/danh-gia-va-dinh-huong.md).
+
+## License
+
+MIT. See [LICENSE](./LICENSE).
+
+
+---
+
+<!-- docs/guides/thiet-ke-nhanh.md -->
+
+# Hướng Dẫn Thiết Kế Nhanh Một Giao Diện
+
+Tài liệu này dẫn từ con số 0 đến một giao diện hoàn chỉnh bằng `@porbit/style`. Mọi class trong tài liệu đã được kiểm tra hai lớp: engine sinh ra CSS, và trình duyệt (Chromium, Firefox, WebKit) chấp nhận từng khai báo bằng `CSS.supports`. Tra cứu đầy đủ nằm ở [DICTIONARY.md](../../DICTIONARY.md); đặc tả cú pháp nằm ở [spec/SPEC.md](../../spec/SPEC.md).
+
+## 1. Bật Engine
+
+```html
+<script type="module">
+  import xcss from 'https://unpkg.com/@porbit/style@latest/dist/index.mjs';
+  xcss.cssObserve(document, { theme: { brand: '#0a64e8', ink: '#0f172a' } });
+</script>
+```
+
+`theme` khai báo token màu để dùng như value: `cBrand`, `bgcBrand`. Token ghi đè mọi value viết tắt cùng tên trong `COMMON_VALUES`.
+
+## 2. Đọc Một Class Trong 10 Giây
+
+```text
+md : 2 bgc #0a64e8 @:hover
+│    │ │   │        └─ selector (tùy chọn): hậu tố @, ví dụ @:hover, @::before, @;li
+│    │ │   └────────── value: #0a64e8 | Red | 10px | [calc(100%;-;10px)]
+│    │ └────────────── property viết tắt: bgc = background-color
+│    └──────────────── layer (tùy chọn): số, càng lớn càng ưu tiên
+└───────────────────── media (tùy chọn): xs sm md lg xl 2xl sma mda lga xla hoặc key tự khai báo
+```
+
+Bốn quy tắc đủ dùng cho 90% trường hợp:
+
+1. **Property là chữ thường liền nhau**, dừng ở ký tự đầu tiên không phải `a-z` (chữ hoa, số, `#`, `!`, `[`, `%`).
+2. **Value dạng chữ phải viết hoa ký tự đầu**: `dF` (flex), `aiC` (center), `posR` (relative). Viết `df` là sai vì `df` bị đọc là property.
+3. **Khoảng trắng trong value viết bằng `;`**: `p8px;16px` → `padding: 8px 16px`.
+4. **Value phức tạp bọc trong `[]`**: `w[calc(100%;-;10px)]`, `bxsh[0;8px;24px;rgba(15,23,42,.12)]`.
+
+## 3. Quy Trình 5 Bước
+
+| Bước | Việc làm | Class thường dùng |
+| :--- | :--- | :--- |
+| 1 | Dựng khung bằng flex/grid | `dF` `fxdC` `dG` `gtc[repeat(3,1fr)]` |
+| 2 | Căn chỉnh và khoảng cách | `aiC` `jcC` `jcSp` `gap16px` `p24px` `mb12px` |
+| 3 | Kích thước | `w100%` `w400px` `mw400px` `h40px` `mih100vh` |
+| 4 | Màu, viền, bóng | `bgc#fff` `cBrand` `bd1px;solid;#e2e8f0` `bdra12px` `bxsh[...]` |
+| 5 | Trạng thái và responsive | `opc0.9@:hover` `bgcBrand@:focus` `md:dG` `sma:dN` |
+
+## 4. Ví Dụ Hoàn Chỉnh: Thẻ Đăng Nhập
+
+```html
+<body class="m0 mih100vh dF aiC jcC bgc#f1f5f9">
+  <form class="w100% mw400px p32px bgc#ffffff bdra16px bxsh[0;8px;24px;rgba(15,23,42,.12)] dF fxdC gap16px">
+    <h1 class="m0 fns24px fnw700 cInk">Đăng nhập</h1>
+    <input class="h40px p0;12px bd1px;solid;#cbd5e1 bdra8px fns14px bdcBrand@:focus" />
+    <input class="h40px p0;12px bd1px;solid;#cbd5e1 bdra8px fns14px" type="password" />
+    <button class="h40px bdN bdra8px bgcBrand cWhite fnw600 crP opc0.9@:hover">Tiếp tục</button>
+  </form>
+</body>
+```
+
+Đọc nhanh: `dF fxdC gap16px` = flex dọc, cách nhau 16px; `bdcBrand@:focus` = đổi màu viền khi focus; `crP` = `cursor:pointer`.
+
+## 5. Ví Dụ Responsive: Lưới Thẻ
+
+```html
+<section class="dG gtc1fr gap16px p16px md:gtc[repeat(2,1fr)] lg:gtc[repeat(3,1fr)]">
+  <article class="p20px bgc#ffffff bd1px;solid;#e2e8f0 bdra12px">
+    <h2 class="m0 mb8px fns18px fnw600">Tiêu đề</h2>
+    <p class="m0 c#475569 lh1.5">Nội dung mô tả.</p>
+  </article>
+</section>
+```
+
+Thiết kế theo hướng mobile-first: class không có tiền tố áp cho mọi màn hình; `md:` và `lg:` chỉ áp từ độ rộng `768px` và `992px` trở lên. Muốn ẩn ở màn hình nhỏ dùng `sma:dN` (áp khi rộng tối đa `768px`).
+
+## 6. Gộp Nhiều Utility Cùng Selector
+
+Dùng `&` để gộp, mọi phần phải cùng media, layer và selector:
+
+```html
+<div class="md:dF&aiC&jcC"></div>
+<li class="cRed&fnw600@;li"></li>
+```
+
+Class `md:dF&aiC&jcC` sinh một rule duy nhất gồm `display:flex;align-items:center;justify-content:center`.
+
+## 7. Bảng Tra Nhanh Các Alias Hay Dùng
+
+| Nhóm | Alias | CSS |
+| :--- | :--- | :--- |
+| Hiển thị | `dF` `dG` `dB` `dN` | `display: flex / grid / block / none` |
+| Flex | `fxdC` `fxdR` `fx1` `fxw[wrap]` | `flex-direction`, `flex`, `flex-wrap` |
+| Căn chỉnh | `aiC` `jcC` `jcSp` `plcC` `pliC` | `align-items`, `justify-content`, `place-content`, `place-items` |
+| Khoảng cách | `m` `mt` `mb` `ml` `mr` `mx` `my` `p` `pt` `pb` `pl` `pr` `px` `py` `gap` | `margin`, `padding`, `gap` (trục `x`/`y` là alias ghép) |
+| Kích thước | `w` `h` `mw` `mih` `mh` | `width`, `height`, `max-width`, `min-height`, `max-height` |
+| Vị trí | `posR` `posA` `posF` `posSt` `t0` `l0` `z10` | `position`, `top`, `left`, `z-index` |
+| Màu | `c` `bgc` `bdc` | `color`, `background-color`, `border-color` |
+| Chữ | `fns` `fnw` `lh` `lts` `taC` `ttrU` `tdN` | `font-size`, `font-weight`, `line-height`, `letter-spacing`, `text-align`, `text-transform`, `text-decoration` |
+| Viền | `bd` `bdN` `bdra` `bdw` `bds` | `border`, `border-radius`, `border-width`, `border-style` |
+| Hiệu ứng | `bxsh` `opc` `tran` `crP` `oflH` `oflyA` | `box-shadow`, `opacity`, `transition`, `cursor`, `overflow` |
+
+## 8. Nhầm Lẫn Thường Gặp
+
+| Dễ nhầm | Dùng đúng | Lý do |
+| :--- | :--- | :--- |
+| `fz14px`, `fs14px` | `fns14px` | Font-size là `fns`. |
+| `fw700` | `fnw700` | Cả hai chạy; `fnw` là alias chính tắc, `fw` giữ để tương thích. |
+| `minh100vh`, `mnh100vh` | `mih100vh` | Min-height là `mih`. |
+| `zi10` | `z10` | Z-index là `z`. |
+| `ouN`, `outN` | `outlineN` hoặc `oliN` | Outline là `oli` hoặc tên đầy đủ `outline`. |
+| `curPointer`, `zi9` | `crPointer`, `z9` | Cursor là `cr`, z-index là `z`. |
+| `ttU` | `ttrU` | Text-transform là `ttr`. |
+| `op0.8` | `opc0.8` | `op` là object-position. |
+| `bdbr` cho bo góc dưới phải | `bdbrr` | `bdbr` là `box-decoration-break`. |
+| `cC` cho màu | `c#...` hoặc `cBrand` | `cC` nghĩa là `color:center` (không hợp lệ, bị trình duyệt từ chối). |
+| `hover:cRed` | `cRed@:hover` | Selector đặt ở hậu tố `@`. |
+
+Alias chính tắc khi một property có nhiều alias: `bdra` (border-radius), `fnw` (font-weight), `mw` (max-width), `ff` (font-family), `bxsh` (box-shadow). Các alias còn lại (`bda`, `fw`, `mxw`, `fnf`, `bxshd`) vẫn chạy để không phá mã hiện có.
+
+Muốn dùng property chưa có alias, xem [Từ vựng mở](./tu-vung-mo.md).
+
+Mẹo kiểm tra nhanh: nếu class không ra CSS, mở `DICTIONARY.md` và tìm alias theo tên CSS gốc (ví dụ tìm `min-height`).
+
+## 9. Quy Tắc Layer Cần Nhớ
+
+1. Dùng layer `0` đến `23`; engine khai báo sẵn thứ tự `l0 → l23`.
+2. Layer ngoài dải (ví dụ `24cRed`, `30cRed`) vẫn hoạt động nhưng thứ tự giữa chúng theo lần xuất hiện đầu tiên, không theo số. Tránh phụ thuộc vào chúng.
+3. Layer (cascade layer) được xét **trước** media: một class layer cao thắng class layer thấp kể cả khi class layer thấp nằm trong media khớp. Ví dụ ở màn hình `md`, `5cBlue` thắng `md:cRed` vì `l5` đứng sau `l0`. Muốn ghi đè theo breakpoint, đặt cùng layer hoặc layer cao hơn: `md:5cRed`.
+4. Trong cùng layer, media khai báo sau trong danh sách (`sm` → `md` → `lg`) thắng media trước.
+
+## 10. Khi Dùng Với Trích Xuất Tĩnh
+
+1. Class chứa dấu phẩy được nhận khi dấu phẩy nằm trong `[...]`, ví dụ `ff[Inter,system-ui,sans-serif]`.
+2. Trích xuất tĩnh không có `CSS.supports` nên không loại được giá trị sai về mặt CSS (ví dụ `w100p`). Hãy kiểm tra class trên trình duyệt thật trước khi phát hành.
+3. Class sinh bằng ghép chuỗi (`'m' + size + 'px'`) không quét được; khai báo trong `safelist`.
+
+
+---
+
+<!-- docs/guides/tu-vung-mo.md -->
+
+# Từ Vựng Mở: Viết Được Mọi CSS
+
+`@porbit/style` không phải bộ class có sẵn mà là **công thức** để mô tả CSS. Bảng alias trong [DICTIONARY.md](../../DICTIONARY.md) chỉ là lối tắt. **Mọi khai báo CSS** (property + giá trị) đều viết được thành một class; các cấu trúc không phải khai báo (at-rule như `@keyframes`, `@font-face`, `@container`) đi theo đường riêng ở mục 7. Tài liệu này là bản đồ để người và AI tự khám phá mà không gặp giới hạn không giải thích.
+
+## 1. Công Thức Tổng Quát
+
+```text
+[media:][layer]<property><value>[@selector]
+```
+
+Chỉ cần nhớ ba quy tắc:
+
+1. **Property**: dùng alias viết tắt (`bgc`) hoặc **tên CSS đầy đủ** (`background-color`). Cả hai cùng hợp lệ.
+2. **Value**: dùng value viết tắt (`Red`, `F`), giá trị thô (`10px`, `#fff`), hoặc **ngoặc vuông** `[...]` cho giá trị bất kỳ.
+3. **Mọi thứ khác đi theo dấu**: `md:` (media), số đứng đầu (layer), `@...` (selector), `!` (important), `&` (gộp).
+
+## 2. Ba Lối Vào Cho Một Property
+
+| Cần viết | Cách viết | Kết quả |
+| :--- | :--- | :--- |
+| Property có alias | `bgcRed` | `background-color: Red` |
+| Property chuẩn chưa có alias | `view-transition-name[hero]` | `view-transition-name: hero` |
+| Custom property | `--brand[#0a64e8]` | `--brand: #0a64e8` |
+| Property có tiền tố nhà cung cấp | `-webkit-line-clamp[3]` | `-webkit-line-clamp: 3` |
+
+Danh sách property chuẩn được chấp nhận nằm ở `src/css-properties.ts` (`STANDARD_CSS_PROPERTIES`). Property không có trong danh sách và không có tiền tố nhà cung cấp sẽ bị từ chối khi từ điển đang bật; đặt `dictionaryImport: false` để bỏ kiểm tra tên property.
+
+## 3. Giá Trị Bất Kỳ Trong Ngoặc Vuông
+
+Trong `[...]`:
+
+| Ký tự | Ý nghĩa | Ví dụ | Kết quả |
+| :--- | :--- | :--- | :--- |
+| `_` | khoảng trắng | `w[calc(100%_-_2rem)]` | `width: calc(100% - 2rem)` |
+| `;` | khoảng trắng (cách viết cũ) | `w[calc(100%;-;2rem)]` | `width: calc(100% - 2rem)` |
+| `\_` | dấu gạch dưới nguyên văn | `ff[Foo\_Bar]` | `font-family: Foo_Bar` |
+| `".."` `'..'` | chuỗi có nháy giữ nguyên, kể cả `_` | `content["a_b"]` | `content: "a_b"` |
+| `,` | giữ nguyên | `ff[Inter,system-ui,sans-serif]` | `font-family: Inter,system-ui,sans-serif` |
+| `url(...)` | giữ nguyên, kể cả `_` | `bgi[url(/a_b.png)]` | `background-image: url(/a_b.png)` |
+
+Nhờ vậy mọi hàm CSS đều viết được: `clamp()`, `min()`, `max()`, `color-mix()`, `oklch()`, `repeat()`, `minmax()`, `cubic-bezier()`, `linear-gradient()`.
+
+## 4. Điều Kiện Và Ngữ Cảnh: Selector Và Media
+
+| Muốn | Cách viết |
+| :--- | :--- |
+| Trạng thái | `cRed@:hover` `cRed@:focus-visible` `cRed@:disabled` |
+| Phần tử giả | `cRed@::before` `cRed@::placeholder` |
+| Thuộc tính | `cRed@[aria-expanded=true]` `cRed@[data-open=true]` |
+| Phần tử con / anh em | `cRed@>li` `cRed@+li` `cRed@;li` (hậu duệ) |
+| Khi cha có trạng thái | `cRed@:is(.group:hover;*)` |
+| Khi anh em trước có trạng thái | `cRed@:is(.peer:checked~*)` |
+| Khi tổ tiên có lớp | `cRed@:is(.dark;*)` |
+| Hàm chọn | `cRed@:has(>img)` `cRed@:not(:disabled)` |
+| Breakpoint có sẵn | `md:cRed` (xs sm md lg xl 2xl sma mda lga xla) |
+| Media tuỳ ý | khai báo `breakpoints: [{ dark: '(prefers-color-scheme: dark)' }]` rồi `dark:cRed` |
+
+Media tuỳ ý dùng cho mọi truy vấn (khai báo trong cấu hình, kể cả khi trích xuất tĩnh: `extractFromClasses(classes, { breakpoints: [...] })`): `print`, `(prefers-reduced-motion: reduce)`, `(min-width: 900px)`, `(orientation: landscape)`.
+
+Dấu `;` trong selector là khoảng trắng; ví dụ `@;li` là `li` bên trong phần tử.
+
+## 5. Cách Khám Phá Dành Cho AI Và Người
+
+1. **Có alias không?** Tìm tên CSS gốc trong [DICTIONARY.md](../../DICTIONARY.md) (cột Property). Có thì dùng alias.
+2. **Không có alias?** Viết tên CSS đầy đủ rồi đặt giá trị trong `[...]`: `<ten-css>[<gia-tri>]`.
+3. **Giá trị có khoảng trắng hoặc hàm?** Dùng `_` thay khoảng trắng trong `[...]`.
+4. **Cần điều kiện?** Thêm `@selector` hoặc tiền tố `media:`.
+5. **Cần ghi đè?** Tăng layer (số đứng đầu) hoặc dùng `!`.
+6. **Không chắc có sinh CSS không?** Chạy `npx presence-style extract <file>` hoặc `extractFromClasses([...])` và xem `matched`.
+
+Khi một tên đầy đủ trùng với alias của property khác, alias thắng: `r10px` là `right:10px` (không phải thuộc tính SVG `r`), `d[none]` là `display:none` (không phải `d` của SVG path). Muốn dùng property SVG trùng tên, viết trong CSS thường.
+
+Quy tắc dự phòng: `<ten-css-day-du>[<gia-tri>]` luôn đúng với bất kỳ property CSS chuẩn nào.
+
+## 6. Mở Rộng Vocabulary
+
+| Nhu cầu | Cách làm |
+| :--- | :--- |
+| Thêm tên giá trị dùng lại (là bí danh giá trị, **không** tạo custom property CSS) | `theme: { brand: '#0a64e8' }` rồi `cBrand` → `color:#0a64e8` |
+| Dùng biến CSS | khai báo `base: ':root{--brand:#0a64e8}'`, rồi `c--brand` → `color:var(--brand)`; hoặc đặt giá trị cục bộ `--brand[#0a64e8]` |
+| Gộp nhiều khai báo thành một tên | `aliases: { card: ['padding:16px', 'border-radius:12px'] }` rồi `[card]` |
+| Thêm breakpoint hoặc media | `breakpoints: [{ tablet: 'screen and (min-width: 900px)' }]` |
+| Thêm alias property hoặc value mới | dùng `dictionaryImport` trỏ tới module từ điển riêng |
+| Bỏ kiểm tra tên property | `dictionaryImport: false`: nhận mọi tên property không kiểm tra, nhưng **mất toàn bộ alias viết tắt** và không còn composite `mx`/`px`; chỉ dùng khi bạn viết toàn tên đầy đủ |
+
+## 7. Giới Hạn Thật Sự (Không Che Giấu)
+
+0. **Class là mã, không phải dữ liệu.** Engine sinh CSS từ bất kỳ class nào xuất hiện trong DOM, kể cả giá trị như `bgi[url(//ten-mien-la/x)]` (làm trình duyệt gửi yêu cầu mạng) hay `ff[url(...)]`. Đừng hiển thị thuộc tính `class` do người dùng cuối nhập mà chưa lọc. Nếu cần nhận class từ nguồn không tin cậy, dùng `excludes`/`excludePrefixes` hoặc chỉ cho phép danh sách class đã duyệt (`safelist` + tắt observer).
+
+1. **Trích xuất tĩnh không kiểm tra được giá trị sai.** Không có `CSS.supports` ngoài trình duyệt nên `w[banana]` vẫn sinh `width:banana`; trình duyệt sẽ bỏ qua khai báo đó. Giá trị chứa `{`, `}`, `<`, `/*` luôn bị từ chối.
+2. **Class ghép chuỗi động** (`'m' + n + 'px'`) không quét tĩnh được; đưa vào `safelist`.
+3. **`@keyframes`, `@font-face`, `@property`, `@container`, `@supports`** là at-rule, không phải một class. Viết chúng trong `base` (CSS gốc đưa vào trang trước các rule class, ví dụ `base: '@keyframes spin{to{transform:rotate(360deg)}}'`) hoặc file CSS thường; class gọi chúng bằng `anin[spin]` hoặc `ani[spin_1s_linear_infinite]`.
+4. **Một class chỉ mang một media.** `md:dark:cRed` không hợp lệ. Muốn "màn hình `md` và chế độ tối", khai báo một breakpoint tổ hợp: `breakpoints: [{ mddark: 'screen and (min-width: 768px) and (prefers-color-scheme: dark)' }]` rồi dùng `mddark:cRed`.
+5. **`translate`, `scale`, `rotate`** là property riêng lẻ của CSS hiện đại, không cộng dồn như `transform`. Muốn kết hợp, dùng `tra[...]` (transform) một lần.
+
+
+---
+
+<!-- docs/guides/components.md -->
+
+# Bộ Component Mẫu
+
+`@porbit/style/components` cung cấp các **recipe**: hàm trả về chuỗi class x-css theo variant, giống cách `cva` hoặc các bộ UI của Tailwind hoạt động. Không có component đóng gói, không phụ thuộc framework: dùng được với HTML thuần, React, Vue, Svelte, Astro...
+
+Xem toàn bộ mẫu trực quan ở `demo/components.html` (chạy `npm run build` rồi mở qua một static server tại gốc repo).
+
+## 1. Bật Theme Và Engine
+
+Màu, bo góc, bóng đổ, font của recipe đều đọc từ CSS custom property `--ps-*`. Nạp theme một lần qua tuỳ chọn `base`:
+
+```js
+import xcss from '@porbit/style'
+import { componentTheme } from '@porbit/style/components'
+
+xcss.cssObserve(document, { base: componentTheme })
+```
+
+Đổi theme theo thương hiệu, hoặc chuyển chế độ tối sang dạng class `.dark`:
+
+```js
+import { createComponentTheme } from '@porbit/style/components'
+
+const theme = createComponentTheme({
+  light: { primary: '#7c3aed', 'primary-hover': '#6d28d9', radius: '12px' },
+  dark: { primary: '#a78bfa' },
+  darkMode: 'class', // mặc định 'media' (theo hệ điều hành)
+})
+xcss.cssObserve(document, { base: theme })
+```
+
+Danh sách token: `bg surface fg muted muted-hover muted-fg border border-strong primary primary-hover primary-fg primary-soft success success-soft warning warning-soft danger danger-hover danger-fg danger-soft info info-soft ring radius radius-lg shadow shadow-lg font`.
+
+## 2. Dùng Recipe
+
+```js
+import { button, card, cardBody, badge } from '@porbit/style/components'
+
+button()                                   // solid, md
+button({ variant: 'outline', size: 'sm' })
+button({ variant: 'danger', block: 'true' })
+badge({ tone: 'success' })
+```
+
+React:
+
+```jsx
+import { clsx } from '@porbit/style'
+import { button } from '@porbit/style/components'
+
+export const Button = ({ variant, size, className, ...props }) => (
+  <button className={clsx(button({ variant, size, class: className }))} {...props} />
+)
+```
+
+| Recipe | Variant |
+| :--- | :--- |
+| `button` | `variant`: solid, secondary, outline, ghost, danger, link · `size`: sm, md, lg, icon · `block`: true |
+| `badge` | `tone`: neutral, primary, success, warning, danger, info |
+| `card` + `cardHeader` `cardTitle` `cardDescription` `cardBody` `cardFooter` | `elevated`: true/false · `interactive`: true |
+| `label` `input` `textarea` `select` `checkbox` `helperText` | `input.size`: sm, md, lg · `input.invalid`: true · `helperText.tone`: muted, danger |
+| `alert` | `tone`: info, success, warning, danger |
+| `avatar` | `size`: sm, md, lg |
+| `navbar` `navLink` | `navLink.active`: true |
+| `tabs` `tab` | `tab.active`: true |
+| `table` `tableHead` `tableRow` `tableCell` | |
+| `modalOverlay` `modal` | |
+| `progress` `progressBar` `skeleton` `spinner` | |
+| `breadcrumb` `pagination` `pageItem` | `pageItem.active`: true |
+| `tooltip` `tooltipContent` | |
+| `container` `stack` `grid` | `stack.gap`: sm, md, lg · `grid.cols`: 2, 3, 4 |
+
+HTML mẫu đầy đủ của từng nhóm nằm trong `COMPONENT_SNIPPETS` (cũng lấy được qua tool MCP `get_component`).
+
+## 3. Ghi Đè Bằng Layer
+
+Atomic CSS có một quy luật dễ quên: khi hai class cùng đặt một thuộc tính với cùng độ ưu tiên, **rule xuất hiện trước trên trang thua**, không phụ thuộc thứ tự viết trong thuộc tính `class`. Bộ component tránh hẳn tình huống này bằng cascade layer:
+
+| Layer | Dùng cho |
+| :--- | :--- |
+| `0` | class nền của recipe |
+| `1` | variant cần thắng class nền (`active`, `invalid`, `block`, cỡ chữ của `input`) |
+| `2` trở lên | class ghi đè của bạn |
+
+```js
+button({ class: '2bdra999px 2p0;28px' })   // nút bo tròn, rộng hơn
+card({ class: '2bdc--ps-primary' })         // viền màu chủ đạo
+```
+
+## 4. Tự Viết Recipe
+
+```js
+import { recipe } from '@porbit/style/components'
+
+export const chip = recipe({
+  base: 'dIF aiC gap6px h28px p0;10px bdra999px fns13px',
+  variants: {
+    tone: { neutral: 'bgc--ps-muted', brand: 'bgc--ps-primary-soft c--ps-primary' },
+    removable: { true: '1pr4px' },
+  },
+  compoundVariants: [{ tone: 'brand', removable: 'true', class: 'bd[1px_solid_currentColor]' }],
+  defaultVariants: { tone: 'neutral' },
+})
+```
+
+Kết quả recipe được memo theo tổ hợp props nên gọi trong mỗi lần render không tốn chi phí đáng kể.
+
+
+---
+
+<!-- docs/guides/static-first.md -->
+
+# Static-First: CSS Sinh Sẵn Lúc Build, Runtime Chỉ Lo Phần Động
+
+Runtime của `@porbit/style` sinh CSS cho mọi class nó thấy trong DOM. Với trang có nội dung cố định, phần lớn việc đó có thể làm sẵn lúc build. Static-first gồm hai phần:
+
+1. **Build**: trích xuất CSS tĩnh và một *manifest* (danh sách class đã có CSS).
+2. **Runtime**: nạp manifest qua tuỳ chọn `preload`; engine bỏ qua các class đó và chỉ sinh CSS cho class phát sinh lúc chạy (dữ liệu từ API, nội dung người dùng, component tải muộn).
+
+## Số Liệu Đo (Chromium, 3.000 node × 21 class, trung vị 5 lần)
+
+| Chế độ | Khởi tạo + quét lần đầu |
+| :--- | :--- |
+| Runtime thuần | 23–25 ms |
+| Static-first (`preload`) | 15–19 ms |
+| Static-first + `skipInitialScan` | **2,7 ms** |
+
+Phần lớn chi phí runtime nằm ở việc duyệt DOM (khoảng 126.000 token class), không ở việc sinh CSS. Vì vậy lợi ích lớn nhất đến từ `skipInitialScan`: khi HTML ban đầu được render từ cùng lần build đã trích xuất CSS, engine không cần quét lại.
+
+## Với Vite
+
+```js
+// vite.config.js
+import presenceStyle from '@porbit/style/vite'
+
+export default {
+  plugins: [presenceStyle({ include: ['src', 'index.html'] })],
+}
+```
+
+```js
+// src/main.js
+import 'virtual:presence-style.css'
+import manifest from 'virtual:presence-style-manifest'
+import xcss from '@porbit/style'
+
+xcss.cssObserve(document, {
+  hashClassName: false,                       // khớp với CSS tĩnh (plugin mặc định không hash)
+  preload: { ...manifest, skipInitialScan: true },
+})
+```
+
+Plugin quét các file trong `include` (mặc định `src` và `index.html`), sinh CSS ảo `virtual:presence-style.css` ở cả dev server và build, và cập nhật nóng khi một file đổi class (chỉ quét lại file đó). Không cần cài thêm gói nào ngoài `vite`.
+
+## Không Dùng Bundler
+
+```bash
+npx presence-style extract src --out public/presence.css --manifest public/presence-manifest.json --config presence-style.config.json
+```
+
+```html
+<link rel="stylesheet" href="/presence.css" />
+<script type="module">
+  import xcss from 'https://unpkg.com/@porbit/style/dist/index.mjs'
+  const manifest = await fetch('/presence-manifest.json').then((r) => r.json())
+  xcss.cssObserve(document, { hashClassName: false, preload: { ...manifest, skipInitialScan: true } })
+</script>
+```
+
+Dùng `index.mjs` (không phải `index-auto.mjs`, vốn tự observe ngay khi import nên không kịp nhận manifest). File cấu hình nên đặt `"hashClassName": false` để class trong HTML trùng tên với CSS tĩnh. Nếu build bật hash, `manifest.classMap` mang tên rút gọn và runtime trả đúng tên đó qua `clsx()`; HTML phải được sinh qua `clsx()` của cùng cấu hình.
+
+## Khi Nào Không Nên Bật `skipInitialScan`
+
+- HTML ban đầu có class không nằm trong nguồn được quét (template ở CMS, chuỗi ghép động như `'m' + size + 'px'`): các class đó sẽ không có CSS cho tới khi DOM đổi. Thêm chúng vào `safelist` hoặc tắt `skipInitialScan`.
+- Không chắc CSS tĩnh và HTML đến từ cùng một lần build.
+
+## Các Tối Ưu Đã Đo Và Không Làm
+
+| Ý tưởng | Đo được | Quyết định |
+| :--- | :--- | :--- |
+| Tạo stylesheet theo media khi cần (thay vì 12 sheet lúc khởi tạo) | Tạo + adopt 12 sheet rỗng: 0,1 ms | Không làm: lợi ích không đáng so với rủi ro sai thứ tự cascade |
+| Gom `insertRule` thành một `replaceSync` | 300 rule: 0,6 ms so với 0,5 ms | Không làm: chênh lệch không đáng kể |
+| Khởi tạo engine trên document rỗng | 0,4 ms | Đã đủ nhẹ |
+
+
+---
+
+<!-- docs/guides/mcp.md -->
+
+# MCP Server Cho Agent AI
+
+`@porbit/style` có sẵn một MCP server (Model Context Protocol) chạy qua stdio. Khi cài vào agent (Claude Code, Codex, Cursor, VS Code Copilot, Gemini CLI, Windsurf, Cline, Zed, opencode...), agent có thể tự kiểm tra cú pháp class, tra alias, sinh CSS và lấy component mẫu thay vì đoán.
+
+Server không cần cài thêm thư viện nào: chỉ cần Node.js 20 trở lên.
+
+```bash
+npx -y @porbit/style mcp
+```
+
+## Cài Một Lệnh Cho Cả Dự Án
+
+```bash
+npx -y @porbit/style init --agents --mcp
+```
+
+Tạo `presence-style.config.json`; thêm khối quy tắc viết class vào `AGENTS.md` (Codex, Cursor, Gemini CLI, Copilot, opencode đọc file này) và `CLAUDE.md` (import `@AGENTS.md`); gộp server `presence-style` vào `.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json` mà không xoá server khác. Chạy lại an toàn.
+
+## Cài Đặt Nhanh Theo Từng Agent
+
+In lệnh cài cho mọi agent, hoặc cho một agent cụ thể:
+
+```bash
+npx -y @porbit/style mcp-config
+```
+
+```bash
+npx -y @porbit/style mcp-config codex
+```
+
+### Claude Code
+
+```bash
+claude mcp add presence-style --scope user -- npx -y @porbit/style mcp
+```
+
+Dùng chung cho cả nhóm (ghi vào `.mcp.json` ở gốc dự án, nên commit file này):
+
+```bash
+claude mcp add presence-style --scope project -- npx -y @porbit/style mcp
+```
+
+Kiểm tra bằng `claude mcp list` hoặc gõ `/mcp` trong phiên Claude Code.
+
+### OpenAI Codex CLI
+
+```bash
+codex mcp add presence-style -- npx -y @porbit/style mcp
+```
+
+Hoặc thêm vào `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.presence-style]
+command = "npx"
+args = ["-y", "@porbit/style", "mcp"]
+```
+
+### Gemini CLI
+
+```bash
+gemini mcp add presence-style npx -y @porbit/style mcp
+```
+
+### VS Code (GitHub Copilot)
+
+```bash
+code --add-mcp '{"name":"presence-style","command":"npx","args":["-y","@porbit/style","mcp"]}'
+```
+
+Hoặc tạo `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "presence-style": { "type": "stdio", "command": "npx", "args": ["-y", "@porbit/style", "mcp"] }
+  }
+}
+```
+
+### Cursor, Windsurf, Claude Desktop, Cline / Roo Code
+
+Các client này dùng chung khoá `mcpServers`:
+
+| Client | File cấu hình |
+| :--- | :--- |
+| Cursor | `.cursor/mcp.json` (dự án) hoặc `~/.cursor/mcp.json` |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` |
+| Claude Desktop | `claude_desktop_config.json` (Settings → Developer → Edit Config) |
+| Cline / Roo Code | `cline_mcp_settings.json` (MCP Servers → Configure) |
+
+```json
+{
+  "mcpServers": {
+    "presence-style": { "command": "npx", "args": ["-y", "@porbit/style", "mcp"] }
+  }
+}
+```
+
+### Zed (`settings.json`)
+
+```json
+{
+  "context_servers": {
+    "presence-style": { "source": "custom", "command": "npx", "args": ["-y", "@porbit/style", "mcp"] }
+  }
+}
+```
+
+### opencode (`opencode.json`)
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "presence-style": { "type": "local", "command": ["npx", "-y", "@porbit/style", "mcp"], "enabled": true }
+  }
+}
+```
+
+### Windows
+
+Nếu client báo không tìm thấy `npx`, đổi `"command": "npx"` thành `"command": "cmd"` và thêm `"/c", "npx"` vào đầu `args`:
+
+```json
+{ "command": "cmd", "args": ["/c", "npx", "-y", "@porbit/style", "mcp"] }
+```
+
+### Dùng Bản Cài Trong Dự Án Hoặc Bản Đang Phát Triển
+
+Khi đã `npm install -D @porbit/style`, trỏ thẳng vào bin trong dự án để không tải lại mỗi lần:
+
+```json
+{ "command": "node", "args": ["node_modules/@porbit/style/dist/cli-bin.js", "mcp"] }
+```
+
+Khi phát triển chính repo này: `npm run build` rồi dùng `node dist/cli-bin.js mcp` (hoặc `npm run mcp`).
+
+## Công Cụ (Tools)
+
+| Tool | Việc làm |
+| :--- | :--- |
+| `fix_classes` | Tự sửa chuỗi class: `df` → `dF`, `fz14px` → `fns14px`, `hover:cRed` → `cRed@:hover`, `op0.5` → `opc0.5`, rút gọn `ai[center]` → `aiC`; liệt kê class không sửa được và các nhóm xung đột. Agent nên gọi trước khi trả code. |
+| `explain_class` | Tách class thành media/layer/property/value/selector, trả CSS sinh ra, bản sửa đề xuất, gợi ý và các nhóm xung đột. |
+| `generate_css` | Sinh CSS tĩnh cho danh sách class, tuỳ chọn kèm CSS theme của component. |
+| `extract_css` | Quét `source` hoặc file/thư mục trong workspace và sinh CSS. Chỉ đọc, không ghi file. |
+| `lookup_dictionary` | Tìm alias theo tên CSS hoặc alias (`font-size` → `fns`), kèm value viết tắt. |
+| `convert_tailwind` | Chuyển class Tailwind sang x-css (mặc định mode `safe`, output rút gọn; `compact: false` để giữ dạng chính tắc). |
+| `list_components` | Liệt kê component mẫu và variant của từng recipe. |
+| `get_component` | Lấy HTML mẫu (`name`) hoặc chuỗi class của recipe (`recipe` + `props`). |
+| `get_theme` | Sinh CSS token `--ps-*` với màu/bo góc tuỳ chỉnh. |
+
+Ngoài ra server cung cấp resource (đặc tả cú pháp, hướng dẫn thiết kế, từ vựng mở, dictionary JSON, theme CSS) và prompt `build_ui` để agent dựng giao diện theo đúng quy tắc.
+
+## An Toàn
+
+1. `extract_css` chỉ đọc file nằm trong thư mục gốc (thư mục chạy server). Đổi bằng `--root <thư-mục>` hoặc biến môi trường `PRESENCE_STYLE_MCP_ROOT`.
+2. Server không ghi file, không gọi mạng; tuỳ chọn `dictionaryImport` dạng URL và `cache` bị bỏ qua khi truyền qua MCP.
+3. Kiểm tra ở Node không có `CSS.supports`, nên giá trị sai ngữ nghĩa CSS (ví dụ `w100p`) chỉ bị phát hiện trên trình duyệt.
+
+
+---
+
+<!-- DICTIONARY.md -->
+
+# CSS Dictionary
+
+## Global Common Values
+These abbreviations work with almost all properties (where applicable).
+
+| Abbreviation | Value |
+| :--- | :--- |
+| `un` | unset |
+| `ini` | initial |
+| `in` | inherit |
+| `n` | none |
+| `a` | auto |
+| `t` | top |
+| `r` | right |
+| `b` | bottom |
+| `l` | left |
+| `c` | center |
+| `cc` | currentColor |
+| `col` | collapse |
+| `das` | dashed |
+| `dot` | dotted |
+| `dub` | double |
+| `e` | end |
+| `fitc` | fit-content |
+| `h` | hidden |
+| `j` | justify |
+| `m` | middle |
+| `maxc` | max-content |
+| `minc` | min-content |
+| `rv` | revert |
+| `s` | start |
+| `sol` | solid |
+| `tr` | transparent |
+| `vis` | visible |
+
+---
+
+## Alias Chính Tắc
+
+Một số property có hai alias cùng chỉ tới một tên CSS. Dùng alias chính tắc trong mã mới và trong đầu ra của công cụ; alias còn lại vẫn chạy để tương thích.
+
+| Tên CSS | Alias chính tắc | Alias giữ để tương thích |
+| :--- | :--- | :--- |
+| `border-radius` | `bdra` | `bda` |
+| `font-weight` | `fnw` | `fw` |
+| `max-width` | `mw` | `mxw` |
+| `font-family` | `ff` | `fnf` |
+| `box-shadow` | `bxsh` | `bxshd` |
+
+Property CSS chuẩn không có trong bảng dưới vẫn dùng được bằng tên đầy đủ: `view-transition-name[hero]`. Xem [Từ vựng mở](./docs/guides/tu-vung-mo.md).
+
+## Property Dictionary
+
+| Abbreviation | Property | Values | Example |
+| :--- | :--- | :--- | :--- |
+| `a` | **all** | _(raw values)_ | `aUn`<br/>*(all: unset)* |
+| `ac` | **align-content** | `s`: start<br/> `e`: end<br/> `fs`: flex-start<br/> `fe`: flex-end<br/> `n`: normal<br/> `b`: baseline<br/> `fb`: first baseline<br/> `lb`: last baseline<br/> `sp`: space-between<br/> `sa`: space-around<br/> `se`: space-evenly<br/> `st`: stretch<br/> `sc`: safe center<br/> `uc`: unsafe center | `acS`<br/>*(align-content: start)* |
+| `acc` | **accent-color** | `u`: unset | `accU`<br/>*(accent-color: unset)* |
+| `ai` | **align-items** | `n`: normal<br/> `c`: center<br/> `s`: start<br/> `e`: end<br/> `fs`: flex-start<br/> `fe`: flex-end<br/> `ss`: self-start<br/> `se`: self-end<br/> `b`: baseline<br/> `fb`: first baseline<br/> `lb`: last baseline<br/> `sc`: safe center<br/> `uc`: unsafe center | `aiN`<br/>*(align-items: normal)* |
+| `ani` | **animation** | _(raw values)_ | `aniUn`<br/>*(animation: unset)* |
+| `anic` | **animation-composition** | `r`: replace<br/> `a`: add<br/> `ac`: accumulate<br/> `ra`: replace, add<br/> `aac`: add, accumulate<br/> `raac`: replace, add, accumulate | `anicR`<br/>*(animation-composition: replace)* |
+| `anide` | **animation-delay** | _(raw values)_ | `anide250ms`<br/>*(animation-delay: 250ms)* |
+| `anidi` | **animation-direction** | `r`: reverse<br/> `a`: alternate<br/> `ar`: alternate-reverse<br/> `nr`: normal, reverse<br/> `arn`: alternate, reverse, normal | `anidiR`<br/>*(animation-direction: reverse)* |
+| `anidu` | **animation-duration** | _(raw values)_ | `anidu250ms`<br/>*(animation-duration: 250ms)* |
+| `anifm` | **animation-fill-mode** | `f`: forwards<br/> `b`: backwards<br/> `nb`: none, backwards<br/> `fbn`: both, forwards, none | `anifmF`<br/>*(animation-fill-mode: forwards)* |
+| `aniic` | **animation-iteration-count** | _(raw values)_ | `aniic5`<br/>*(animation-iteration-count: 5)* |
+| `anin` | **animation-name** | `s`: slide | `aninS`<br/>*(animation-name: slide)* |
+| `anips` | **animation-play-state** | `p`: paused<br/> `r`: running | `anipsP`<br/>*(animation-play-state: paused)* |
+| `anitf` | **animation-timing-function** | `ei`: ease-in<br/> `eo`: ease-out<br/> `eio`: ease-in-out<br/> `l`: linear<br/> `ss`: step-start<br/> `se`: step-end | `anitfL`<br/>*(animation-timing-function: linear)* |
+| `ap` | **appearance** | `mb`: menulist-button<br/> `tf`: textfield<br/> `b`: button<br/> `c`: checkbox | `apB`<br/>*(appearance: button)* |
+| `ar` | **aspect-ratio** | `s`: 1 / 1<br/> `v`: 16 / 9 | `arS`<br/>*(aspect-ratio: 1 / 1)* |
+| `as` | **align-self** | `n`: normal<br/> `c`: center<br/> `s`: start<br/> `e`: end<br/> `ss`: self-start<br/> `se`: self-end<br/> `fs`: flex-start<br/> `fe`: flex-end<br/> `b`: baseline<br/> `fb`: first baseline<br/> `lb`: last baseline<br/> `st`: stretch<br/> `sc`: safe center<br/> `uc`: unsafe center | `asN`<br/>*(align-self: normal)* |
+| `b` | **bottom** | _(raw values)_ | `b10px`<br/>*(bottom: 10px)* |
+| `bd` | **border** | `d`: dotted<br/> `ds`: dashed<br/> `db`: double<br/> `g`: groove<br/> `r`: ridge<br/> `i`: inset<br/> `o`: outset | `bdD`<br/>*(border: dotted)* |
+| `bda` | **border-radius** | _(raw values)_ | `bda10px`<br/>*(border-radius: 10px)* |
+| `bdb` | **border-bottom** | _(raw values)_ | `bdb10px`<br/>*(border-bottom: 10px)* |
+| `bdbc` | **border-bottom-color** | _(raw values)_ | `bdbcRed`<br/>*(border-bottom-color: Red)* |
+| `bdblc` | **border-block-color** | _(raw values)_ | `bdblcRed`<br/>*(border-block-color: Red)* |
+| `bdble` | **border-block-end** | _(raw values)_ | `bdbleUn`<br/>*(border-block-end: unset)* |
+| `bdblec` | **border-block-end-color** | _(raw values)_ | `bdblecRed`<br/>*(border-block-end-color: Red)* |
+| `bdbles` | **border-block-end-style** | `d`: dotted<br/> `ds`: dashed<br/> `db`: double<br/> `g`: groove<br/> `r`: ridge<br/> `i`: inset<br/> `o`: outset | `bdblesD`<br/>*(border-block-end-style: dotted)* |
+| `bdblew` | **border-block-end-width** | _(raw values)_ | `bdblew10px`<br/>*(border-block-end-width: 10px)* |
+| `bdblk` | **border-block** | _(raw values)_ | `bdblkUn`<br/>*(border-block: unset)* |
+| `bdblr` | **border-bottom-left-radius** | _(raw values)_ | `bdblr10px`<br/>*(border-bottom-left-radius: 10px)* |
+| `bdbls` | **border-block-start** | _(raw values)_ | `bdblsUn`<br/>*(border-block-start: unset)* |
+| `bdblsc` | **border-block-start-color** | _(raw values)_ | `bdblscRed`<br/>*(border-block-start-color: Red)* |
+| `bdblss` | **border-block-start-style** | `d`: dotted<br/> `ds`: dashed<br/> `db`: double<br/> `g`: groove<br/> `r`: ridge<br/> `i`: inset<br/> `o`: outset | `bdblssD`<br/>*(border-block-start-style: dotted)* |
+| `bdblst` | **border-block-style** | `d`: dotted<br/> `ds`: dashed<br/> `db`: double<br/> `g`: groove<br/> `r`: ridge<br/> `i`: inset<br/> `o`: outset | `bdblstD`<br/>*(border-block-style: dotted)* |
+| `bdblsw` | **border-block-start-width** | _(raw values)_ | `bdblsw10px`<br/>*(border-block-start-width: 10px)* |
+| `bdblwi` | **border-block-width** | _(raw values)_ | `bdblwi10px`<br/>*(border-block-width: 10px)* |
+| `bdbr` | **box-decoration-break** | `c`: clone<br/> `s`: slice | `bdbrC`<br/>*(box-decoration-break: clone)* |
+| `bdbrr` | **border-bottom-right-radius** | _(raw values)_ | `bdbrr10px`<br/>*(border-bottom-right-radius: 10px)* |
+| `bdbst` | **border-bottom-style** | `d`: dotted<br/> `ds`: dashed<br/> `db`: double<br/> `g`: groove<br/> `r`: ridge<br/> `i`: inset<br/> `o`: outset | `bdbstD`<br/>*(border-bottom-style: dotted)* |
+| `bdbw` | **border-bottom-width** | `t`: thin<br/> `m`: medium<br/> `th`: thick | `bdbwT`<br/>*(border-bottom-width: thin)* |
+| `bdc` | **border-color** | _(raw values)_ | `bdcRed`<br/>*(border-color: Red)* |
+| `bdcl` | **border-collapse** | `s`: separate<br/> `c`: collapse | `bdclS`<br/>*(border-collapse: separate)* |
+| `bdeer` | **border-end-end-radius** | _(raw values)_ | `bdeer10px`<br/>*(border-end-end-radius: 10px)* |
+| `bdesr` | **border-end-start-radius** | _(raw values)_ | `bdesr10px`<br/>*(border-end-start-radius: 10px)* |
+| `bdi` | **border-inline** | _(raw values)_ | `bdiUn`<br/>*(border-inline: unset)* |
+| `bdic` | **border-inline-color** | _(raw values)_ | `bdicRed`<br/>*(border-inline-color: Red)* |
+| `bdie` | **border-inline-end** | _(raw values)_ | `bdieUn`<br/>*(border-inline-end: unset)* |
+| `bdiec` | **border-inline-end-color** | _(raw values)_ | `bdiecRed`<br/>*(border-inline-end-color: Red)* |
+| `bdies` | **border-inline-end-style** | _(raw values)_ | `bdiesUn`<br/>*(border-inline-end-style: unset)* |
+| `bdiew` | **border-inline-end-width** | _(raw values)_ | `bdiew10px`<br/>*(border-inline-end-width: 10px)* |
+| `bdimg` | **border-image** | _(raw values)_ | `bdimg[url('...')]`<br/>*(border-image: url('...'))* |
+| `bdinw` | **border-inline-width** | _(raw values)_ | `bdinw10px`<br/>*(border-inline-width: 10px)* |
+| `bdio` | **border-image-outset** | _(raw values)_ | `bdio[url('...')]`<br/>*(border-image-outset: url('...'))* |
+| `bdir` | **border-image-repeat** | `st`: stretch<br/> `r`: repeat<br/> `rn`: round<br/> `s`: space | `bdirR`<br/>*(border-image-repeat: repeat)* |
+| `bdis` | **border-image-slice** | _(raw values)_ | `bdis[url('...')]`<br/>*(border-image-slice: url('...'))* |
+| `bdisc` | **border-inline-start-color** | _(raw values)_ | `bdiscRed`<br/>*(border-inline-start-color: Red)* |
+| `bdisrc` | **border-image-source** | _(raw values)_ | `bdisrc[url('...')]`<br/>*(border-image-source: url('...'))* |
+| `bdiss` | **border-inline-start-style** | _(raw values)_ | `bdissUn`<br/>*(border-inline-start-style: unset)* |
+| `bdista` | **border-inline-start** | _(raw values)_ | `bdistaUn`<br/>*(border-inline-start: unset)* |
+| `bdistl` | **border-inline-style** | _(raw values)_ | `bdistlUn`<br/>*(border-inline-style: unset)* |
+| `bdisw` | **border-inline-start-width** | _(raw values)_ | `bdisw10px`<br/>*(border-inline-start-width: 10px)* |
+| `bdiw` | **border-image-width** | _(raw values)_ | `bdiw10px`<br/>*(border-image-width: 10px)* |
+| `bdl` | **border-left** | _(raw values)_ | `bdl10px`<br/>*(border-left: 10px)* |
+| `bdlc` | **border-left-color** | _(raw values)_ | `bdlcRed`<br/>*(border-left-color: Red)* |
+| `bdls` | **border-left-style** | _(raw values)_ | `bdlsSolid`<br/>*(border-left-style: solid)* |
+| `bdlw` | **border-left-width** | `t`: thin<br/> `m`: medium<br/> `th`: thick | `bdlwT`<br/>*(border-left-width: thin)* |
+| `bdr` | **border-right** | _(raw values)_ | `bdr10px`<br/>*(border-right: 10px)* |
+| `bdra` | **border-radius** | _(raw values)_ | `bdra10px`<br/>*(border-radius: 10px)* |
+| `bdrc` | **border-right-color** | _(raw values)_ | `bdrcRed`<br/>*(border-right-color: Red)* |
+| `bdrs` | **border-right-style** | `dt`: dotted<br/> `ds`: dashed<br/> `s`: solid<br/> `db`: double<br/> `g`: groove<br/> `r`: ridge<br/> `in`: inset<br/> `out`: outset | `bdrsS`<br/>*(border-right-style: solid)* |
+| `bdrw` | **border-right-width** | `t`: thin<br/> `m`: medium<br/> `th`: thick | `bdrwT`<br/>*(border-right-width: thin)* |
+| `bds` | **border-style** | `dt`: dotted<br/> `ds`: dashed<br/> `s`: solid<br/> `db`: double<br/> `g`: groove<br/> `r`: ridge<br/> `in`: inset<br/> `out`: outset | `bdsS`<br/>*(border-style: solid)* |
+| `bdser` | **border-start-end-radius** | _(raw values)_ | `bdser10px`<br/>*(border-start-end-radius: 10px)* |
+| `bdsp` | **border-spacing** | _(raw values)_ | `bdsp10px`<br/>*(border-spacing: 10px)* |
+| `bdssr` | **border-start-start-radius** | _(raw values)_ | `bdssr10px`<br/>*(border-start-start-radius: 10px)* |
+| `bdt` | **border-top** | _(raw values)_ | `bdt10px`<br/>*(border-top: 10px)* |
+| `bdtc` | **border-top-color** | _(raw values)_ | `bdtcRed`<br/>*(border-top-color: Red)* |
+| `bdtlr` | **border-top-left-radius** | _(raw values)_ | `bdtlr10px`<br/>*(border-top-left-radius: 10px)* |
+| `bdtrr` | **border-top-right-radius** | _(raw values)_ | `bdtrr10px`<br/>*(border-top-right-radius: 10px)* |
+| `bdts` | **border-top-style** | `dt`: dotted<br/> `ds`: dashed<br/> `s`: solid<br/> `db`: double<br/> `g`: groove<br/> `r`: ridge<br/> `in`: inset<br/> `out`: outset | `bdtsS`<br/>*(border-top-style: solid)* |
+| `bdtw` | **border-top-width** | `t`: thin<br/> `m`: medium<br/> `th`: thick | `bdtwT`<br/>*(border-top-width: thin)* |
+| `bdw` | **border-width** | `t`: thin<br/> `m`: medium<br/> `th`: thick | `bdwT`<br/>*(border-width: thin)* |
+| `bg` | **background** | _(raw values)_ | `bgRed`<br/>*(background: Red)* |
+| `bga` | **background-attachment** | `s`: scroll<br/> `f`: fixed<br/> `l`: local | `bgaS`<br/>*(background-attachment: scroll)* |
+| `bgbm` | **background-blend-mode** | `n`: normal<br/> `m`: multiply<br/> `s`: screen<br/> `o`: overlay<br/> `d`: darken<br/> `l`: lighten<br/> `cd`: color-dodge<br/> `i`: color-burn<br/> `hl`: hard-light<br/> `sl`: soft-light<br/> `di`: difference<br/> `e`: exclusion<br/> `h`: hue<br/> `sa`: saturation<br/> `c`: color<br/> `lu`: luminosity | `bgbmN`<br/>*(background-blend-mode: normal)* |
+| `bgc` | **background-color** | `t`: transparent<br/> `c`: currentcolor | `bgcT`<br/>*(background-color: transparent)* |
+| `bgcl` | **background-clip** | `bb`: border-box<br/> `pb`: padding-box<br/> `cb`: content-box<br/> `t`: text | `bgclT`<br/>*(background-clip: text)* |
+| `bgi` | **background-image** | _(raw values)_ | `bgi[url('...')]`<br/>*(background-image: url('...'))* |
+| `bgo` | **background-origin** | `bb`: border-box<br/> `pb`: padding-box<br/> `cb`: content-box | `bgoBb`<br/>*(background-origin: border-box)* |
+| `bgp` | **background-position** | `t`: top<br/> `b`: bottom<br/> `l`: left<br/> `r`: right<br/> `c`: center<br/> `lt`: left top<br/> `ct`: center top<br/> `rt`: right top<br/> `lc`: left center<br/> `cc`: center center<br/> `rc`: right center<br/> `lb`: left bottom<br/> `cb`: center bottom<br/> `rb`: right bottom | `bgpT`<br/>*(background-position: top)* |
+| `bgpx` | **background-position-x** | `l`: left<br/> `r`: right<br/> `c`: center | `bgpxL`<br/>*(background-position-x: left)* |
+| `bgpy` | **background-position-y** | `t`: top<br/> `b`: bottom<br/> `c`: center | `bgpyT`<br/>*(background-position-y: top)* |
+| `bgr` | **background-repeat** | `r`: repeat<br/> `x`: repeat-x<br/> `y`: repeat-y<br/> `s`: space<br/> `rn`: round<br/> `n`: no-repeat<br/> `rs`: repeat space<br/> `rr`: repeat repeat<br/> `nr`: no-repeat round | `bgrR`<br/>*(background-repeat: repeat)* |
+| `bgs` | **background-size** | `c`: contain | `bgsC`<br/>*(background-size: contain)* |
+| `bkdf` | **backdrop-filter** | _(raw values)_ | `bkdfUn`<br/>*(backdrop-filter: unset)* |
+| `bkfv` | **backface-visibility** | _(raw values)_ | `bkfvUn`<br/>*(backface-visibility: unset)* |
+| `blks` | **block-size** | _(raw values)_ | `blks10px`<br/>*(block-size: 10px)* |
+| `brka` | **break-after** | _(raw values)_ | `brkaPage`<br/>*(break-after: page)* |
+| `brkb` | **break-before** | _(raw values)_ | `brkbPage`<br/>*(break-before: page)* |
+| `brki` | **break-inside** | _(raw values)_ | `brkiAvoid`<br/>*(break-inside: avoid)* |
+| `bxsh` | **box-shadow** | _(raw values)_ | `bxshUn`<br/>*(box-shadow: unset)* |
+| `bxshd` | **box-shadow** | _(raw values)_ | `bxshdUn`<br/>*(box-shadow: unset)* |
+| `bxsz` | **box-sizing** | _(raw values)_ | `bxszUn`<br/>*(box-sizing: unset)* |
+| `c` | **color** | `i`: inherit<br/> `t`: transparent | `cI`<br/>*(color: inherit)* |
+| `caps` | **caption-side** | _(raw values)_ | `capsUn`<br/>*(caption-side: unset)* |
+| `cip` | **color-interpolation** | _(raw values)_ | `cipAuto`<br/>*(color-interpolation: auto)* |
+| `ciw` | **contain-intrinsic-width** | _(raw values)_ | `ciw10px`<br/>*(contain-intrinsic-width: 10px)* |
+| `clpp` | **clip-path** | _(raw values)_ | `clppUn`<br/>*(clip-path: unset)* |
+| `clr` | **clear** | _(raw values)_ | `clrUn`<br/>*(clear: unset)* |
+| `cnt` | **contain** | _(raw values)_ | `cntUn`<br/>*(contain: unset)* |
+| `cntibs` | **contain-intrinsic-block-size** | _(raw values)_ | `cntibs10px`<br/>*(contain-intrinsic-block-size: 10px)* |
+| `cntih` | **contain-intrinsic-height** | _(raw values)_ | `cntih10px`<br/>*(contain-intrinsic-height: 10px)* |
+| `cntiis` | **contain-intrinsic-inline-size** | _(raw values)_ | `cntiis10px`<br/>*(contain-intrinsic-inline-size: 10px)* |
+| `cntis` | **contain-intrinsic-size** | _(raw values)_ | `cntis10px`<br/>*(contain-intrinsic-size: 10px)* |
+| `cntri` | **counter-increment** | _(raw values)_ | `cntri[item]`<br/>*(counter-increment: item)* |
+| `cntrr` | **counter-reset** | _(raw values)_ | `cntrr[item]`<br/>*(counter-reset: item)* |
+| `cntrs` | **counter-set** | _(raw values)_ | `cntrs[item_5]`<br/>*(counter-set: item 5)* |
+| `col` | **columns** | _(raw values)_ | `colUn`<br/>*(columns: unset)* |
+| `colc` | **column-count** | _(raw values)_ | `colc5`<br/>*(column-count: 5)* |
+| `colf` | **column-fill** | _(raw values)_ | `colfAuto`<br/>*(column-fill: auto)* |
+| `colg` | **column-gap** | _(raw values)_ | `colg10px`<br/>*(column-gap: 10px)* |
+| `colr` | **column-rule** | _(raw values)_ | `colrUn`<br/>*(column-rule: unset)* |
+| `colrc` | **column-rule-color** | _(raw values)_ | `colrcRed`<br/>*(column-rule-color: Red)* |
+| `colrs` | **column-rule-style** | _(raw values)_ | `colrsUn`<br/>*(column-rule-style: unset)* |
+| `colrw` | **column-rule-width** | _(raw values)_ | `colrw10px`<br/>*(column-rule-width: 10px)* |
+| `cols` | **column-span** | _(raw values)_ | `colsUn`<br/>*(column-span: unset)* |
+| `colw` | **column-width** | _(raw values)_ | `colw10px`<br/>*(column-width: 10px)* |
+| `cr` | **cursor** | `p`: pointer<br/> `d`: default<br/> `cm`: context-menu<br/> `h`: help<br/> `pg`: progress<br/> `w`: wait<br/> `c`: cell<br/> `t`: text<br/> `vt`: vertical-text<br/> `al`: alias<br/> `cp`: copy<br/> `mo`: move<br/> `nd`: no-drop<br/> `na`: not-allowed<br/> `gr`: grab<br/> `gb`: grabbing<br/> `as`: all-scroll<br/> `colr`: col-resize<br/> `rr`: row-resize<br/> `nr`: n-resize<br/> `er`: e-resize<br/> `sr`: s-resize<br/> `wr`: w-resize<br/> `ner`: ne-resize<br/> `ser`: se-resize<br/> `swr`: sw-resize<br/> `ewr`: ew-resize<br/> `nsr`: ns-resize<br/> `nesw`: nesw-resize<br/> `nwse`: nwse-resize<br/> `zi`: zoom-in<br/> `zo`: zoom-out | `crP`<br/>*(cursor: pointer)* |
+| `crtc` | **caret-color** | _(raw values)_ | `crtcRed`<br/>*(caret-color: Red)* |
+| `csch` | **color-scheme** | _(raw values)_ | `cschRed`<br/>*(color-scheme: Red)* |
+| `ctr` | **container** | _(raw values)_ | `ctrUn`<br/>*(container: unset)* |
+| `ctrn` | **container-name** | _(raw values)_ | `ctrnUn`<br/>*(container-name: unset)* |
+| `ctrt` | **container-type** | _(raw values)_ | `ctrtUn`<br/>*(container-type: unset)* |
+| `ctt` | **content** | _(raw values)_ | `ctt[url('...')]`<br/>*(content: url('...'))* |
+| `d` | **display** | `b`: block<br/> `ib`: inline-block<br/> `i`: inline<br/> `f`: flex<br/> `if`: inline-flex<br/> `t`: table<br/> `it`: inline-table<br/> `tcp`: table-caption<br/> `tcell`: table-cell<br/> `tcol`: table-column<br/> `tcolg`: table-column-group<br/> `tfg`: table-footer-group<br/> `thg`: table-header-group<br/> `trg`: table-row-group<br/> `tr`: table-row<br/> `fr`: flow-root<br/> `g`: grid<br/> `ig`: inline-grid<br/> `c`: contents<br/> `li`: list-item | `dB`<br/>*(display: block)* |
+| `dir` | **direction** | _(raw values)_ | `dirUn`<br/>*(direction: unset)* |
+| `empc` | **empty-cells** | _(raw values)_ | `empcUn`<br/>*(empty-cells: unset)* |
+| `fca` | **forced-color-adjust** | _(raw values)_ | `fcaNone`<br/>*(forced-color-adjust: none)* |
+| `ff` | **font-family** | `a`: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'<br/> `s`: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif<br/> `m`: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace | `ffA`<br/>*(font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji')* |
+| `fl` | **float** | `is`: inline-start<br/> `ie`: inline-end<br/> `r`: right<br/> `l`: left | `flR`<br/>*(float: right)* |
+| `flt` | **filter** | _(raw values)_ | `fltUn`<br/>*(filter: unset)* |
+| `fn` | **font** | _(raw values)_ | `fnUn`<br/>*(font: unset)* |
+| `fnf` | **font-family** | _(raw values)_ | `fnf[Arial]`<br/>*(font-family: Arial)* |
+| `fnfs` | **font-feature-settings** | _(raw values)_ | `fnfsUn`<br/>*(font-feature-settings: unset)* |
+| `fnk` | **font-kerning** | _(raw values)_ | `fnkUn`<br/>*(font-kerning: unset)* |
+| `fnlo` | **font-language-override** | _(raw values)_ | `fnloUn`<br/>*(font-language-override: unset)* |
+| `fnos` | **font-optical-sizing** | _(raw values)_ | `fnosUn`<br/>*(font-optical-sizing: unset)* |
+| `fnp` | **font-palette** | _(raw values)_ | `fnpUn`<br/>*(font-palette: unset)* |
+| `fns` | **font-size** | _(raw values)_ | `fns10px`<br/>*(font-size: 10px)* |
+| `fnsa` | **font-size-adjust** | _(raw values)_ | `fnsaNone`<br/>*(font-size-adjust: none)* |
+| `fnsp` | **font-synthesis-position** | _(raw values)_ | `fnspUn`<br/>*(font-synthesis-position: unset)* |
+| `fnss` | **font-synthesis-style** | _(raw values)_ | `fnssUn`<br/>*(font-synthesis-style: unset)* |
+| `fnssc` | **font-synthesis-small-caps** | _(raw values)_ | `fnsscUn`<br/>*(font-synthesis-small-caps: unset)* |
+| `fnstr` | **font-stretch** | _(raw values)_ | `fnstrUn`<br/>*(font-stretch: unset)* |
+| `fnsty` | **font-style** | _(raw values)_ | `fnstyUn`<br/>*(font-style: unset)* |
+| `fnsw` | **font-synthesis-weight** | _(raw values)_ | `fnswUn`<br/>*(font-synthesis-weight: unset)* |
+| `fnsyn` | **font-synthesis** | _(raw values)_ | `fnsynUn`<br/>*(font-synthesis: unset)* |
+| `fnv` | **font-variant** | _(raw values)_ | `fnvUn`<br/>*(font-variant: unset)* |
+| `fnva` | **font-variant-alternates** | _(raw values)_ | `fnvaUn`<br/>*(font-variant-alternates: unset)* |
+| `fnvc` | **font-variant-caps** | _(raw values)_ | `fnvcUn`<br/>*(font-variant-caps: unset)* |
+| `fnve` | **font-variant-emoji** | _(raw values)_ | `fnveUn`<br/>*(font-variant-emoji: unset)* |
+| `fnvea` | **font-variant-east-asian** | _(raw values)_ | `fnveaUn`<br/>*(font-variant-east-asian: unset)* |
+| `fnvl` | **font-variant-ligatures** | _(raw values)_ | `fnvlUn`<br/>*(font-variant-ligatures: unset)* |
+| `fnvn` | **font-variant-numeric** | _(raw values)_ | `fnvnUn`<br/>*(font-variant-numeric: unset)* |
+| `fnvp` | **font-variant-position** | _(raw values)_ | `fnvpUn`<br/>*(font-variant-position: unset)* |
+| `fnvs` | **font-variation-settings** | _(raw values)_ | `fnvsUn`<br/>*(font-variation-settings: unset)* |
+| `fnw` | **font-weight** | _(raw values)_ | `fnwUn`<br/>*(font-weight: unset)* |
+| `fw` | **font-weight** | _(raw values)_ | `fwUn`<br/>*(font-weight: unset)* |
+| `fx` | **flex** | `i`: 0 1 auto<br/> `a`: 1 1 auto | `fxI`<br/>*(flex: 0 1 auto)* |
+| `fxb` | **flex-basis** | _(raw values)_ | `fxb10px`<br/>*(flex-basis: 10px)* |
+| `fxd` | **flex-direction** | `r`: row<br/> `rr`: row-reverse<br/> `c`: column<br/> `cr`: column-reverse | `fxdR`<br/>*(flex-direction: row)* |
+| `fxf` | **flex-flow** | _(raw values)_ | `fxfUn`<br/>*(flex-flow: unset)* |
+| `fxg` | **flex-grow** | _(raw values)_ | `fxg5`<br/>*(flex-grow: 5)* |
+| `fxs` | **flex-shrink** | _(raw values)_ | `fxs5`<br/>*(flex-shrink: 5)* |
+| `fxw` | **flex-wrap** | `w`: wrap<br/> `wr`: wrap-reverse<br/> `n`: nowrap | `fxwW`<br/>*(flex-wrap: wrap)* |
+| `g` | **grid** | _(raw values)_ | `gUn`<br/>*(grid: unset)* |
+| `ga` | **grid-area** | _(raw values)_ | `gaUn`<br/>*(grid-area: unset)* |
+| `gac` | **grid-auto-columns** | `mic`: min-content<br/> `mac`: max-content<br/> `mm`: minmax(0, 1fr) | `gacMic`<br/>*(grid-auto-columns: min-content)* |
+| `gaf` | **grid-auto-flow** | `r`: row<br/> `c`: column<br/> `d`: dense<br/> `rd`: row dense<br/> `cd`: column dense | `gafR`<br/>*(grid-auto-flow: row)* |
+| `gap` | **gap** | _(raw values)_ | `gap10px`<br/>*(gap: 10px)* |
+| `gar` | **grid-auto-rows** | `mic`: min-content<br/> `mac`: max-content<br/> `mm`: minmax(0, 1fr) | `garMic`<br/>*(grid-auto-rows: min-content)* |
+| `gc` | **grid-column** | `f`: 1 / -1 | `gcF`<br/>*(grid-column: 1 / -1)* |
+| `gce` | **grid-column-end** | _(raw values)_ | `gceUn`<br/>*(grid-column-end: unset)* |
+| `gcs` | **grid-column-start** | _(raw values)_ | `gcsUn`<br/>*(grid-column-start: unset)* |
+| `gr` | **grid-row** | `f`: 1 / -1 | `grF`<br/>*(grid-row: 1 / -1)* |
+| `gre` | **grid-row-end** | _(raw values)_ | `greUn`<br/>*(grid-row-end: unset)* |
+| `grs` | **grid-row-start** | _(raw values)_ | `grsUn`<br/>*(grid-row-start: unset)* |
+| `gt` | **grid-template** | _(raw values)_ | `gtUn`<br/>*(grid-template: unset)* |
+| `gta` | **grid-template-areas** | _(raw values)_ | `gtaUn`<br/>*(grid-template-areas: unset)* |
+| `gtc` | **grid-template-columns** | `s`: subgrid | `gtcS`<br/>*(grid-template-columns: subgrid)* |
+| `gtr` | **grid-template-rows** | `s`: subgrid | `gtrS`<br/>*(grid-template-rows: subgrid)* |
+| `h` | **height** | `mic`: min-content<br/> `mac`: max-content<br/> `fc`: fit-content | `hMic`<br/>*(height: min-content)* |
+| `hc` | **hyphenate-character** | _(raw values)_ | `hcUn`<br/>*(hyphenate-character: unset)* |
+| `hlc` | **hyphenate-limit-chars** | _(raw values)_ | `hlcUn`<br/>*(hyphenate-limit-chars: unset)* |
+| `hp` | **hanging-punctuation** | _(raw values)_ | `hpUn`<br/>*(hanging-punctuation: unset)* |
+| `hyp` | **hyphens** | `m`: manual | `hypM`<br/>*(hyphens: manual)* |
+| `i` | **inset** | _(raw values)_ | `i10px`<br/>*(inset: 10px)* |
+| `ibe` | **inset-block-end** | _(raw values)_ | `ibe10px`<br/>*(inset-block-end: 10px)* |
+| `iblk` | **inset-block** | _(raw values)_ | `iblk10px`<br/>*(inset-block: 10px)* |
+| `ibsta` | **inset-block-start** | _(raw values)_ | `ibsta10px`<br/>*(inset-block-start: 10px)* |
+| `ii` | **inset-inline** | _(raw values)_ | `ii10px`<br/>*(inset-inline: 10px)* |
+| `iie` | **inset-inline-end** | _(raw values)_ | `iie10px`<br/>*(inset-inline-end: 10px)* |
+| `iis` | **inset-inline-start** | _(raw values)_ | `iis10px`<br/>*(inset-inline-start: 10px)* |
+| `imgo` | **image-orientation** | _(raw values)_ | `imgo[url('...')]`<br/>*(image-orientation: url('...'))* |
+| `imgr` | **image-rendering** | _(raw values)_ | `imgr[url('...')]`<br/>*(image-rendering: url('...'))* |
+| `ins` | **inline-size** | _(raw values)_ | `ins10px`<br/>*(inline-size: 10px)* |
+| `is` | **isolation** | `i`: isolate | `isI`<br/>*(isolation: isolate)* |
+| `jc` | **justify-content** | `c`: center<br/> `s`: start<br/> `e`: end<br/> `fs`: flex-start<br/> `fe`: flex-end<br/> `l`: left<br/> `r`: right<br/> `n`: normal<br/> `sp`: space-between<br/> `sa`: space-around<br/> `se`: space-evenly<br/> `st`: stretch<br/> `sc`: safe center<br/> `uc`: unsafe center | `jcC`<br/>*(justify-content: center)* |
+| `ji` | **justify-items** | `c`: center<br/> `s`: start<br/> `e`: end<br/> `fs`: flex-start<br/> `fe`: flex-end<br/> `l`: left<br/> `r`: right<br/> `n`: normal<br/> `sp`: space-between<br/> `sa`: space-around<br/> `se`: space-evenly<br/> `st`: stretch<br/> `sc`: safe center<br/> `uc`: unsafe center | `jiC`<br/>*(justify-items: center)* |
+| `js` | **justify-self** | `c`: center<br/> `s`: start<br/> `e`: end<br/> `fs`: flex-start<br/> `fe`: flex-end<br/> `l`: left<br/> `r`: right<br/> `n`: normal<br/> `sp`: space-between<br/> `sa`: space-around<br/> `se`: space-evenly<br/> `st`: stretch<br/> `sc`: safe center<br/> `uc`: unsafe center | `jsC`<br/>*(justify-self: center)* |
+| `l` | **left** | _(raw values)_ | `l10px`<br/>*(left: 10px)* |
+| `lbrk` | **line-break** | _(raw values)_ | `lbrkUn`<br/>*(line-break: unset)* |
+| `lh` | **line-height** | _(raw values)_ | `lh10px`<br/>*(line-height: 10px)* |
+| `lisp` | **list-style-position** | `i`: inside<br/> `o`: outside | `lispI`<br/>*(list-style-position: inside)* |
+| `ls` | **list-style** | `i`: inside<br/> `di`: disc<br/> `c`: circle<br/> `s`: square<br/> `de`: decimal<br/> `g`: georgian<br/> `tci`: trad-chinese-informal<br/> `k`: kannada | `lsI`<br/>*(list-style: inside)* |
+| `lsi` | **list-style-image** | _(raw values)_ | `lsi[url('...')]`<br/>*(list-style-image: url('...'))* |
+| `lst` | **list-style-type** | `di`: disc<br/> `c`: circle<br/> `s`: square<br/> `de`: decimal<br/> `g`: georgian<br/> `tci`: trad-chinese-informal<br/> `k`: kannada | `lstC`<br/>*(list-style-type: circle)* |
+| `lts` | **letter-spacing** | `n`: normal | `ltsN`<br/>*(letter-spacing: normal)* |
+| `m` | **margin** | _(raw values)_ | `m10px`<br/>*(margin: 10px)* |
+| `mb` | **margin-bottom** | _(raw values)_ | `mb10px`<br/>*(margin-bottom: 10px)* |
+| `mbd` | **mix-blend-mode** | `n`: normal<br/> `m`: multiply<br/> `s`: screen<br/> `o`: overlay<br/> `d`: darken<br/> `l`: lighten<br/> `cd`: color-dodge<br/> `i`: color-burn<br/> `hl`: hard-light<br/> `sl`: soft-light<br/> `di`: difference<br/> `e`: exclusion<br/> `h`: hue<br/> `sa`: saturation<br/> `c`: color<br/> `lu`: luminosity | `mbdN`<br/>*(mix-blend-mode: normal)* |
+| `mbe` | **margin-block-end** | _(raw values)_ | `mbe10px`<br/>*(margin-block-end: 10px)* |
+| `mblk` | **margin-block** | _(raw values)_ | `mblk10px`<br/>*(margin-block: 10px)* |
+| `mbs` | **max-block-size** | _(raw values)_ | `mbs10px`<br/>*(max-block-size: 10px)* |
+| `mbsta` | **margin-block-start** | _(raw values)_ | `mbsta10px`<br/>*(margin-block-start: 10px)* |
+| `mh` | **max-height** | _(raw values)_ | `mh10px`<br/>*(max-height: 10px)* |
+| `mibs` | **min-block-size** | _(raw values)_ | `mibs10px`<br/>*(min-block-size: 10px)* |
+| `mie` | **margin-inline-end** | _(raw values)_ | `mie10px`<br/>*(margin-inline-end: 10px)* |
+| `mih` | **min-height** | `f`: 100%<br/> `mic`: min-content<br/> `mac`: max-content<br/> `fc`: fit-content | `mihF`<br/>*(min-height: 100%)* |
+| `min` | **margin-inline** | _(raw values)_ | `min10px`<br/>*(margin-inline: 10px)* |
+| `mis` | **max-inline-size** | _(raw values)_ | `mis10px`<br/>*(max-inline-size: 10px)* |
+| `mista` | **margin-inline-start** | _(raw values)_ | `mista10px`<br/>*(margin-inline-start: 10px)* |
+| `misz` | **min-inline-size** | _(raw values)_ | `misz10px`<br/>*(min-inline-size: 10px)* |
+| `miw` | **min-width** | `f`: 100%<br/> `mic`: min-content<br/> `mac`: max-content<br/> `fc`: fit-content | `miwF`<br/>*(min-width: 100%)* |
+| `ml` | **margin-left** | _(raw values)_ | `ml10px`<br/>*(margin-left: 10px)* |
+| `mr` | **margin-right** | _(raw values)_ | `mr10px`<br/>*(margin-right: 10px)* |
+| `msk` | **mask** | _(raw values)_ | `mskUn`<br/>*(mask: unset)* |
+| `mskb` | **mask-border** | _(raw values)_ | `mskbUn`<br/>*(mask-border: unset)* |
+| `mskbm` | **mask-border-mode** | _(raw values)_ | `mskbmUn`<br/>*(mask-border-mode: unset)* |
+| `mskbo` | **mask-border-outset** | _(raw values)_ | `mskboUn`<br/>*(mask-border-outset: unset)* |
+| `mskbr` | **mask-border-repeat** | _(raw values)_ | `mskbrUn`<br/>*(mask-border-repeat: unset)* |
+| `mskbs` | **mask-border-slice** | _(raw values)_ | `mskbsUn`<br/>*(mask-border-slice: unset)* |
+| `mskbsrc` | **mask-border-source** | _(raw values)_ | `mskbsrcUn`<br/>*(mask-border-source: unset)* |
+| `mskbw` | **mask-border-width** | _(raw values)_ | `mskbw10px`<br/>*(mask-border-width: 10px)* |
+| `mskc` | **mask-clip** | _(raw values)_ | `mskcUn`<br/>*(mask-clip: unset)* |
+| `mskcp` | **mask-composite** | _(raw values)_ | `mskcpUn`<br/>*(mask-composite: unset)* |
+| `mski` | **mask-image** | _(raw values)_ | `mski[url('...')]`<br/>*(mask-image: url('...'))* |
+| `mskm` | **mask-mode** | _(raw values)_ | `mskmUn`<br/>*(mask-mode: unset)* |
+| `msko` | **mask-origin** | _(raw values)_ | `mskoUn`<br/>*(mask-origin: unset)* |
+| `mskp` | **mask-position** | _(raw values)_ | `mskpUn`<br/>*(mask-position: unset)* |
+| `mskr` | **mask-repeat** | _(raw values)_ | `mskrUn`<br/>*(mask-repeat: unset)* |
+| `msks` | **mask-size** | _(raw values)_ | `msks10px`<br/>*(mask-size: 10px)* |
+| `mskt` | **mask-type** | _(raw values)_ | `msktUn`<br/>*(mask-type: unset)* |
+| `mt` | **margin-top** | _(raw values)_ | `mt10px`<br/>*(margin-top: 10px)* |
+| `mtd` | **math-depth** | _(raw values)_ | `mtdUn`<br/>*(math-depth: unset)* |
+| `mts` | **math-style** | _(raw values)_ | `mtsUn`<br/>*(math-style: unset)* |
+| `mw` | **max-width** | _(raw values)_ | `mw10px`<br/>*(max-width: 10px)* |
+| `mxw` | **max-width** | _(raw values)_ | `mxw10px`<br/>*(max-width: 10px)* |
+| `of` | **object-fit** | `c`: contain<br/> `cv`: cover<br/> `f`: fill<br/> `sd`: scale-down | `ofC`<br/>*(object-fit: contain)* |
+| `ofa` | **offset-anchor** | _(raw values)_ | `ofa10px`<br/>*(offset-anchor: 10px)* |
+| `ofd` | **offset-distance** | _(raw values)_ | `ofd10px`<br/>*(offset-distance: 10px)* |
+| `ofl` | **overflow** | _(raw values)_ | `oflUn`<br/>*(overflow: unset)* |
+| `ofla` | **overflow-anchor** | _(raw values)_ | `oflaUn`<br/>*(overflow-anchor: unset)* |
+| `oflb` | **overflow-block** | _(raw values)_ | `oflbUn`<br/>*(overflow-block: unset)* |
+| `oflcm` | **overflow-clip-margin** | _(raw values)_ | `oflcm10px`<br/>*(overflow-clip-margin: 10px)* |
+| `ofli` | **overflow-inline** | _(raw values)_ | `ofliUn`<br/>*(overflow-inline: unset)* |
+| `oflw` | **overflow-wrap** | `c`: clip<br/> `s`: scroll | `oflwNormal`<br/>*(overflow-wrap: normal)* |
+| `oflx` | **overflow-x** | `c`: clip<br/> `s`: scroll | `oflxC`<br/>*(overflow-x: clip)* |
+| `ofly` | **overflow-y** | `c`: clip<br/> `s`: scroll | `oflyC`<br/>*(overflow-y: clip)* |
+| `ofp` | **offset-path** | _(raw values)_ | `ofpNone`<br/>*(offset-path: none)* |
+| `ofpo` | **offset-position** | _(raw values)_ | `ofpo10px`<br/>*(offset-position: 10px)* |
+| `ofr` | **offset-rotate** | _(raw values)_ | `ofrAuto`<br/>*(offset-rotate: auto)* |
+| `ofs` | **offset** | _(raw values)_ | `ofs10px`<br/>*(offset: 10px)* |
+| `olc` | **outline-color** | `i`: inherit<br/> `c`: currentColor<br/> `t`: transparent | `olcI`<br/>*(outline-color: inherit)* |
+| `oli` | **outline** | _(raw values)_ | `oliUn`<br/>*(outline: unset)* |
+| `olo` | **outline-offset** | _(raw values)_ | `olo10px`<br/>*(outline-offset: 10px)* |
+| `ols` | **outline-style** | `dt`: dotted<br/> `ds`: dashed<br/> `s`: solid<br/> `db`: double<br/> `g`: groove<br/> `r`: ridge<br/> `in`: inset<br/> `out`: outset | `olsS`<br/>*(outline-style: solid)* |
+| `olw` | **outline-width** | `t`: thin<br/> `m`: medium<br/> `th`: thick | `olwT`<br/>*(outline-width: thin)* |
+| `op` | **object-position** | `b`: bottom<br/> `c`: center<br/> `l`: left<br/> `r`: right<br/> `t`: top<br/> `lb`: left bottom<br/> `lt`: left top<br/> `rb`: right bottom<br/> `rt`: right top | `opB`<br/>*(object-position: bottom)* |
+| `opc` | **opacity** | _(raw values)_ | `opc0.5`<br/>*(opacity: 0.5)* |
+| `ord` | **order** | _(raw values)_ | `ord5`<br/>*(order: 5)* |
+| `orp` | **orphans** | _(raw values)_ | `orpUn`<br/>*(orphans: unset)* |
+| `orsby` | **overscroll-behavior-y** | `c`: contain | `orsbyC`<br/>*(overscroll-behavior-y: contain)* |
+| `osrbb` | **overscroll-behavior-block** | `c`: contain | `osrbbC`<br/>*(overscroll-behavior-block: contain)* |
+| `osrbh` | **overscroll-behavior** | `c`: contain | `osrbhC`<br/>*(overscroll-behavior: contain)* |
+| `osrbi` | **overscroll-behavior-inline** | `c`: contain | `osrbiC`<br/>*(overscroll-behavior-inline: contain)* |
+| `osrbx` | **overscroll-behavior-x** | `c`: contain | `osrbxC`<br/>*(overscroll-behavior-x: contain)* |
+| `p` | **padding** | _(raw values)_ | `p10px`<br/>*(padding: 10px)* |
+| `pb` | **padding-bottom** | _(raw values)_ | `pb10px`<br/>*(padding-bottom: 10px)* |
+| `pbe` | **padding-block-end** | _(raw values)_ | `pbe10px`<br/>*(padding-block-end: 10px)* |
+| `pblk` | **padding-block** | _(raw values)_ | `pblk10px`<br/>*(padding-block: 10px)* |
+| `pbs` | **padding-block-start** | _(raw values)_ | `pbs10px`<br/>*(padding-block-start: 10px)* |
+| `pe` | **pointer-events** | _(raw values)_ | `peUn`<br/>*(pointer-events: unset)* |
+| `pg` | **page** | _(raw values)_ | `pgUn`<br/>*(page: unset)* |
+| `pgba` | **page-break-after** | _(raw values)_ | `pgbaAvoid`<br/>*(page-break-after: avoid)* |
+| `pgbb` | **page-break-before** | _(raw values)_ | `pgbbAvoid`<br/>*(page-break-before: avoid)* |
+| `pgbi` | **page-break-inside** | _(raw values)_ | `pgbiAvoid`<br/>*(page-break-inside: avoid)* |
+| `pi` | **padding-inline** | `c`: center<br/> `s`: start<br/> `e`: end<br/> `fs`: flex-start<br/> `fe`: flex-end<br/> `l`: left<br/> `r`: right<br/> `n`: normal<br/> `sp`: space-between<br/> `sa`: space-around<br/> `se`: space-evenly<br/> `st`: stretch<br/> `sc`: safe center<br/> `uc`: unsafe center | `pi0`<br/>*(padding-inline: 0)* |
+| `pie` | **padding-inline-end** | _(raw values)_ | `pie10px`<br/>*(padding-inline-end: 10px)* |
+| `pis` | **padding-inline-start** | _(raw values)_ | `pis10px`<br/>*(padding-inline-start: 10px)* |
+| `pl` | **padding-left** | _(raw values)_ | `pl10px`<br/>*(padding-left: 10px)* |
+| `plc` | **place-content** | _(raw values)_ | `plc[url('...')]`<br/>*(place-content: url('...'))* |
+| `pli` | **place-items** | _(raw values)_ | `pliUn`<br/>*(place-items: unset)* |
+| `pls` | **place-self** | _(raw values)_ | `plsUn`<br/>*(place-self: unset)* |
+| `pos` | **position** | `s`: static<br/> `f`: fixed<br/> `a`: absolute<br/> `r`: relative<br/> `st`: sticky | `posS`<br/>*(position: static)* |
+| `pr` | **padding-right** | _(raw values)_ | `pr10px`<br/>*(padding-right: 10px)* |
+| `prca` | **print-color-adjust** | _(raw values)_ | `prcaExact`<br/>*(print-color-adjust: exact)* |
+| `pso` | **perspective-origin** | _(raw values)_ | `pso10px`<br/>*(perspective-origin: 10px)* |
+| `psp` | **perspective** | _(raw values)_ | `psp10px`<br/>*(perspective: 10px)* |
+| `pt` | **padding-top** | _(raw values)_ | `pt10px`<br/>*(padding-top: 10px)* |
+| `pto` | **paint-order** | _(raw values)_ | `ptoUn`<br/>*(paint-order: unset)* |
+| `qts` | **quotes** | _(raw values)_ | `qtsUn`<br/>*(quotes: unset)* |
+| `r` | **right** | _(raw values)_ | `r10px`<br/>*(right: 10px)* |
+| `rbp` | **ruby-position** | _(raw values)_ | `rbpUn`<br/>*(ruby-position: unset)* |
+| `rgap` | **row-gap** | _(raw values)_ | `rgap10px`<br/>*(row-gap: 10px)* |
+| `rot` | **rotate** | _(raw values)_ | `rotUn`<br/>*(rotate: unset)* |
+| `rsz` | **resize** | `b`: both<br/> `h`: horizontal<br/> `v`: vertical | `rszB`<br/>*(resize: both)* |
+| `s` | **scale** | _(raw values)_ | `sUn`<br/>*(scale: unset)* |
+| `sbc` | **scrollbar-color** | _(raw values)_ | `sbcAuto`<br/>*(scrollbar-color: auto)* |
+| `sbg` | **scrollbar-gutter** | _(raw values)_ | `sbgUn`<br/>*(scrollbar-gutter: unset)* |
+| `sbw` | **scrollbar-width** | _(raw values)_ | `sbwNone`<br/>*(scrollbar-width: none)* |
+| `scrb` | **scroll-behavior** | _(raw values)_ | `scrbUn`<br/>*(scroll-behavior: unset)* |
+| `scrm` | **scroll-margin** | _(raw values)_ | `scrm10px`<br/>*(scroll-margin: 10px)* |
+| `scrmb` | **scroll-margin-bottom** | _(raw values)_ | `scrmb10px`<br/>*(scroll-margin-bottom: 10px)* |
+| `scrmbe` | **scroll-margin-block-end** | _(raw values)_ | `scrmbe10px`<br/>*(scroll-margin-block-end: 10px)* |
+| `scrmblk` | **scroll-margin-block** | _(raw values)_ | `scrmblk10px`<br/>*(scroll-margin-block: 10px)* |
+| `scrmbs` | **scroll-margin-block-start** | _(raw values)_ | `scrmbs10px`<br/>*(scroll-margin-block-start: 10px)* |
+| `scrmi` | **scroll-margin-inline** | _(raw values)_ | `scrmi10px`<br/>*(scroll-margin-inline: 10px)* |
+| `scrmie` | **scroll-margin-inline-end** | _(raw values)_ | `scrmie10px`<br/>*(scroll-margin-inline-end: 10px)* |
+| `scrmis` | **scroll-margin-inline-start** | _(raw values)_ | `scrmis10px`<br/>*(scroll-margin-inline-start: 10px)* |
+| `scrml` | **scroll-margin-left** | _(raw values)_ | `scrml10px`<br/>*(scroll-margin-left: 10px)* |
+| `scrmr` | **scroll-margin-right** | _(raw values)_ | `scrmr10px`<br/>*(scroll-margin-right: 10px)* |
+| `scrmt` | **scroll-margin-top** | _(raw values)_ | `scrmt10px`<br/>*(scroll-margin-top: 10px)* |
+| `scrp` | **scroll-padding** | _(raw values)_ | `scrp10px`<br/>*(scroll-padding: 10px)* |
+| `scrpb` | **scroll-padding-bottom** | _(raw values)_ | `scrpb10px`<br/>*(scroll-padding-bottom: 10px)* |
+| `scrpblk` | **scroll-padding-block** | _(raw values)_ | `scrpblk10px`<br/>*(scroll-padding-block: 10px)* |
+| `scrpbs` | **scroll-padding-block-start** | _(raw values)_ | `scrpbs10px`<br/>*(scroll-padding-block-start: 10px)* |
+| `scrpi` | **scroll-padding-inline** | _(raw values)_ | `scrpi10px`<br/>*(scroll-padding-inline: 10px)* |
+| `scrpie` | **scroll-padding-inline-end** | _(raw values)_ | `scrpie10px`<br/>*(scroll-padding-inline-end: 10px)* |
+| `scrpis` | **scroll-padding-inline-start** | _(raw values)_ | `scrpis10px`<br/>*(scroll-padding-inline-start: 10px)* |
+| `scrpl` | **scroll-padding-left** | _(raw values)_ | `scrpl10px`<br/>*(scroll-padding-left: 10px)* |
+| `scrpr` | **scroll-padding-right** | _(raw values)_ | `scrpr10px`<br/>*(scroll-padding-right: 10px)* |
+| `scrpt` | **scroll-padding-top** | _(raw values)_ | `scrpt10px`<br/>*(scroll-padding-top: 10px)* |
+| `scrsa` | **scroll-snap-align** | _(raw values)_ | `scrsaUn`<br/>*(scroll-snap-align: unset)* |
+| `scrss` | **scroll-snap-stop** | _(raw values)_ | `scrssAlways`<br/>*(scroll-snap-stop: always)* |
+| `scrst` | **scroll-snap-type** | _(raw values)_ | `scrstUn`<br/>*(scroll-snap-type: unset)* |
+| `shit` | **shape-image-threshold** | _(raw values)_ | `shit[url('...')]`<br/>*(shape-image-threshold: url('...'))* |
+| `shm` | **shape-margin** | _(raw values)_ | `shm10px`<br/>*(shape-margin: 10px)* |
+| `sho` | **shape-outside** | _(raw values)_ | `shoUn`<br/>*(shape-outside: unset)* |
+| `srcpbe` | **scroll-padding-block-end** | _(raw values)_ | `srcpbe10px`<br/>*(scroll-padding-block-end: 10px)* |
+| `t` | **top** | _(raw values)_ | `t10px`<br/>*(top: 10px)* |
+| `ta` | **text-align** | `s`: start<br/> `e`: end<br/> `l`: left<br/> `r`: right<br/> `c`: center<br/> `j`: justify<br/> `mp`: match-parent<br/> `mc`: -moz-center<br/> `wc`: -webkit-center | `taS`<br/>*(text-align: start)* |
+| `tal` | **text-align-last** | `s`: start<br/> `e`: end<br/> `l`: left<br/> `r`: right<br/> `c`: center<br/> `j`: justify | `talS`<br/>*(text-align-last: start)* |
+| `tbl` | **table-layout** | _(raw values)_ | `tblUn`<br/>*(table-layout: unset)* |
+| `tbs` | **tab-size** | _(raw values)_ | `tbs10px`<br/>*(tab-size: 10px)* |
+| `tcu` | **text-combine-upright** | _(raw values)_ | `tcuAll`<br/>*(text-combine-upright: all)* |
+| `td` | **text-decoration** | `u`: underline | `tdU`<br/>*(text-decoration: underline)* |
+| `tdc` | **text-decoration-color** | _(raw values)_ | `tdcRed`<br/>*(text-decoration-color: Red)* |
+| `tdl` | **text-decoration-line** | `u`: underline<br/> `o`: overline<br/> `lt`: line-through<br/> `b`: blink | `tdlU`<br/>*(text-decoration-line: underline)* |
+| `tds` | **text-decoration-style** | `db`: double<br/> `dt`: dotted<br/> `ds`: dashed<br/> `w`: wavy | `tdsW`<br/>*(text-decoration-style: wavy)* |
+| `tdsi` | **text-decoration-skip-ink** | _(raw values)_ | `tdsiUn`<br/>*(text-decoration-skip-ink: unset)* |
+| `tdt` | **text-decoration-thickness** | `ff`: from-font | `tdtFf`<br/>*(text-decoration-thickness: from-font)* |
+| `tec` | **text-emphasis-color** | _(raw values)_ | `tecRed`<br/>*(text-emphasis-color: Red)* |
+| `tep` | **text-emphasis-position** | `or`: over right<br/> `ol`: over left<br/> `ur`: under right<br/> `ul`: under left<br/> `lo`: left over<br/> `ru`: right under<br/> `lu`: left under | `tepOr`<br/>*(text-emphasis-position: over right)* |
+| `teph` | **text-emphasis** | _(raw values)_ | `tephUn`<br/>*(text-emphasis: unset)* |
+| `tes` | **text-emphasis-style** | _(raw values)_ | `tesUn`<br/>*(text-emphasis-style: unset)* |
+| `ti` | **text-indent** | _(raw values)_ | `tiUn`<br/>*(text-indent: unset)* |
+| `tj` | **text-justify** | `iw`: inter-word<br/> `ic`: inter-character<br/> `d`: distribute | `tjD`<br/>*(text-justify: distribute)* |
+| `toa` | **touch-action** | `p`: pan-x<br/> `py`: pan-y<br/> `pm`: pan-x pan-y<br/> `pi`: pinch-zoom | `toaP`<br/>*(touch-action: pan-x)* |
+| `tol` | **text-overflow** | `c`: clip<br/> `e`: ellipsis | `tolC`<br/>*(text-overflow: clip)* |
+| `tor` | **text-orientation** | `m`: mixed<br/> `u`: upright<br/> `sr`: sideways-right<br/> `sl`: sideways-left<br/> `s`: sideways<br/> `ugo`: use-glyph-orientation | `torM`<br/>*(text-orientation: mixed)* |
+| `tra` | **transform** | _(raw values)_ | `traUn`<br/>*(transform: unset)* |
+| `trab` | **transform-box** | _(raw values)_ | `trabUn`<br/>*(transform-box: unset)* |
+| `tran` | **transition** | _(raw values)_ | `tranUn`<br/>*(transition: unset)* |
+| `tranb` | **transition-behavior** | _(raw values)_ | `tranbUn`<br/>*(transition-behavior: unset)* |
+| `trand` | **transition-delay** | _(raw values)_ | `trand250ms`<br/>*(transition-delay: 250ms)* |
+| `trandur` | **transition-duration** | _(raw values)_ | `trandur250ms`<br/>*(transition-duration: 250ms)* |
+| `tranp` | **transition-property** | _(raw values)_ | `tranpUn`<br/>*(transition-property: unset)* |
+| `trantf` | **transition-timing-function** | _(raw values)_ | `trantfUn`<br/>*(transition-timing-function: unset)* |
+| `trao` | **transform-origin** | _(raw values)_ | `traoUn`<br/>*(transform-origin: unset)* |
+| `tras` | **transform-style** | _(raw values)_ | `trasUn`<br/>*(transform-style: unset)* |
+| `trd` | **text-rendering** | `op`: optimizeSpeed<br/> `ol`: optimizeLegibility<br/> `g`: geometricPrecision | `trdG`<br/>*(text-rendering: geometricPrecision)* |
+| `trl` | **translate** | _(raw values)_ | `trl10px`<br/>*(translate: 10px)* |
+| `tsh` | **text-shadow** | _(raw values)_ | `tshUn`<br/>*(text-shadow: unset)* |
+| `ttr` | **text-transform** | `c`: capitalize<br/> `u`: uppercase<br/> `l`: lowercase<br/> `fw`: full-width<br/> `fsk`: full-size-kana | `ttrC`<br/>*(text-transform: capitalize)* |
+| `tuo` | **text-underline-offset** | _(raw values)_ | `tuo10px`<br/>*(text-underline-offset: 10px)* |
+| `tup` | **text-underline-position** | `u`: under<br/> `l`: left<br/> `r`: right<br/> `ul`: under left<br/> `ru`: right under | `tupU`<br/>*(text-underline-position: under)* |
+| `tw` | **text-wrap** | `w`: wrap<br/> `n`: nowrap<br/> `b`: balance<br/> `p`: pretty | `twW`<br/>*(text-wrap: wrap)* |
+| `unib` | **unicode-bidi** | _(raw values)_ | `unibUn`<br/>*(unicode-bidi: unset)* |
+| `us` | **user-select** | `t`: text<br/> `all`: all<br/> `c`: contain | `usT`<br/>*(user-select: text)* |
+| `v` | **visibility** | `c`: collapse | `vC`<br/>*(visibility: collapse)* |
+| `va` | **vertical-align** | `bl`: baseline<br/> `t`: top<br/> `m`: middle<br/> `b`: bottom<br/> `tt`: text-top<br/> `tb`: text-bottom<br/> `sb`: sub<br/> `sp`: super | `vaT`<br/>*(vertical-align: top)* |
+| `w` | **width** | `mic`: min-content<br/> `mac`: max-content<br/> `fc`: fit-content<br/> `f`: 100% | `wF`<br/>*(width: 100%)* |
+| `wc` | **will-change** | `sp`: scroll-position<br/> `c`: contents<br/> `t`: transform | `wcC`<br/>*(will-change: contents)* |
+| `wd` | **widows** | _(raw values)_ | `wdUn`<br/>*(widows: unset)* |
+| `wlc` | **-webkit-line-clamp** | _(raw values)_ | `wlcUn`<br/>*(-webkit-line-clamp: unset)* |
+| `wrb` | **word-break** | _(raw values)_ | `wrbUn`<br/>*(word-break: unset)* |
+| `wrs` | **word-spacing** | _(raw values)_ | `wrs10px`<br/>*(word-spacing: 10px)* |
+| `wrtm` | **writing-mode** | _(raw values)_ | `wrtmUn`<br/>*(writing-mode: unset)* |
+| `ws` | **white-space** | _(raw values)_ | `wsUn`<br/>*(white-space: unset)* |
+| `wsc` | **white-space-collapse** | _(raw values)_ | `wscUn`<br/>*(white-space-collapse: unset)* |
+| `wtfc` | **-webkit-text-fill-color** | _(raw values)_ | `wtfcRed`<br/>*(-webkit-text-fill-color: Red)* |
+| `wts` | **-webkit-text-stroke** | _(raw values)_ | `wtsRed`<br/>*(-webkit-text-stroke: Red)* |
+| `wtsc` | **-webkit-text-stroke-color** | _(raw values)_ | `wtscRed`<br/>*(-webkit-text-stroke-color: Red)* |
+| `wtsw` | **-webkit-text-stroke-width** | `m`: medium<br/> `t`: thick | `wtswM`<br/>*(-webkit-text-stroke-width: medium)* |
+| `z` | **z-index** | _(raw values)_ | `z5`<br/>*(z-index: 5)* |
+| `zo` | **zoom** | _(raw values)_ | `zo5`<br/>*(zoom: 5)* |
+
+
+---
+
+<!-- spec/SPEC.md -->
+
+# PresenceStyle — Đặc Tả Chuẩn (canonical)
+
+Tài liệu này là **nguồn chân lý hình thức** cho cú pháp x-css, dùng chung cho mọi engine
+(Node `@porbit/style`, Rust `presence_style`). Mọi engine PHẢI sinh ra cùng một CSS ngữ nghĩa
+cho cùng một class, được kiểm chứng bằng [conformance.core.json](./conformance.core.json).
+
+> Tài liệu này mô tả **đúng hành vi engine Node hiện tại** (nguồn chân lý). Khi engine đổi,
+> chạy lại `node scripts/gen-spec.cjs` để cập nhật dictionary.json + conformance, rồi đồng bộ engine khác.
+
+## 1. Hình dạng class
+
+```
+[Media]:[Layer][prop][val][@Selector]
+```
+
+Thứ tự tách (bắt buộc, khớp `src/parser.ts`):
+
+1. **Selector**: ký tự `@` cuối cùng nằm NGOÀI `[]`. Phần sau `@` là selector; cắt khỏi class.
+2. **Media**: ký tự `:` đầu tiên nằm NGOÀI `[]`. Phần trước `:` là media key.
+3. **Layer**: chuỗi chữ số liên tiếp ở đầu phần còn lại.
+4. **Prop**: quét trái→phải theo bảng quyết định (mục 3).
+5. **Val**: phần còn lại sau prop.
+
+Điều kiện loại bỏ sớm (`parseClassName` trả `null`):
+
+- `class.length < 2`.
+- `[]` không cân bằng (thừa/thiếu).
+- Sau khi tách layer, ký tự đầu của phần còn lại là `&`.
+- Không có ký tự prop nào (prop rỗng).
+
+Trường hợp đặc biệt: nếu phần còn lại bắt đầu bằng `[` và có `]` đóng → prop = `[...]`
+(alias group), val = rỗng.
+
+## 2. Bảng breakpoint mặc định (theo thứ tự)
+
+| key | query |
+|-----|-------|
+| `default` | *(không bọc @media)* |
+| `xs` | `screen and (max-width: 575px)` |
+| `sm` | `screen and (min-width: 576px)` |
+| `md` | `screen and (min-width: 768px)` |
+| `lg` | `screen and (min-width: 992px)` |
+| `xl` | `screen and (min-width: 1200px)` |
+| `2xl` | `screen and (min-width: 1400px)` |
+| `sma` | `screen and (max-width: 768px)` |
+| `mda` | `screen and (max-width: 992px)` |
+| `lga` | `screen and (max-width: 1200px)` |
+| `xla` | `screen and (max-width: 1400px)` |
+
+`breakpoints` custom được nối vào sau; trùng key → khai báo sau ghi đè (last-write-wins).
+Media key không nằm trong tập hợp lệ → class bị từ chối.
+
+## 3. Bảng quyết định quét `prop`
+
+Quét từ vị trí đầu của phần còn lại; với ký tự tại `i`:
+
+| Ký tự | Điều kiện | Hành động |
+|-------|-----------|-----------|
+| `-` hoặc `.` | ký tự kế là chữ số | dừng prop (val bắt đầu) |
+| `-` | ký tự kế là `.` rồi một chữ số (`m-.5rem`) | dừng prop (val bắt đầu) |
+| `-` | gặp `--` và đã có ≥1 ký tự prop | dừng prop (val = CSS var) |
+| `--` ở đầu | prop là `--ten` rồi `[` | custom property, val là phần `[...]` (xem mục 4.1) |
+| `-` hoặc `.` | còn lại | thuộc prop, tiếp tục |
+| `a`–`z` | luôn | thuộc prop, tiếp tục |
+| khác (`A-Z`, `0-9`, `#`, `!`, `[`, `(`, `%`, …) | luôn | dừng prop (val bắt đầu) |
+
+## 4. Phân giải `prop` → tên CSS
+
+1. Nếu `prop` ∈ `SHORT_PROPERTIES` → tên CSS = giá trị map.
+2. Ngược lại → tên CSS = chính `prop` (cho phép viết đầy đủ như `color`, `margin-top`).
+
+**Gating "known property"** (khi dictionary bật): class hợp lệ chỉ khi `prop` là một trong:
+
+- (a) key trong `SHORT_PROPERTIES`;
+- (b) composite `mx my px py bdx bdy`;
+- (c) tên CSS đầy đủ là giá trị của `SHORT_PROPERTIES`;
+- (d) tên property CSS chuẩn trong `STANDARD_CSS_PROPERTIES` (`src/css-properties.ts`), ví dụ
+  `view-transition-name`, `content-visibility`, `anchor-name`, `field-sizing`;
+- (e) property có tiền tố nhà cung cấp `-webkit-`, `-moz-`, `-ms-`, `-o-`;
+- (f) custom property `--ten` — chỉ ở dạng có ngoặc vuông `--ten[gia-tri]` (xem 4.1).
+
+Không thuộc nhóm nào → từ chối. Khi `dictionaryImport: false` không áp dụng gating, mọi tên đều được nhận.
+
+### 4.1 Custom property
+
+`--ten[gia-tri]` sinh `--ten:gia-tri`. Dạng `--tenGiaTri` (không ngoặc vuông) bị từ chối vì mơ hồ với
+`prop--value` (CSS variable làm value, ví dụ `bgc--brand` → `background-color:var(--brand)`).
+Parser nhận `--ten` là property khi ký tự `[` xuất hiện sau tên chỉ gồm `[a-zA-Z0-9_-]`.
+
+## 5. Phân giải `val`
+
+Theo đúng `propToValue` (`src/core.ts`):
+
+1. `val` bắt đầu `!` → bật `important`, bỏ `!`.
+2. `val` bắt đầu `--` → `var(<val>)`.
+3. `val` dạng `[...]` → bỏ `[` `]`, rồi giải mã `_` thành khoảng trắng (`\\_` giữ dấu gạch dưới;
+   nội dung `url(...)` được giữ nguyên). `w[calc(100%_-_2rem)]` → `width:calc(100% - 2rem)`.
+4. Ngược lại — tra dictionary theo **2 lượt**, mỗi lượt specific TRƯỚC common:
+   - lượt 1 khóa = `lowercaseFirst(val)` (chỉ hạ ký tự đầu): `SPECIFIC_VALUES[prop][k] ?? exts[k]`
+   - lượt 2 khóa = `val.toLowerCase()` (hạ toàn bộ): `SPECIFIC_VALUES[prop][k] ?? exts[k]`
+   - `exts = { ...COMMON_VALUES, ...theme }` (theme ghi đè).
+   - không khớp → giữ nguyên `val`.
+5. Thay `;`/`';`: regex `(';|;)` — `';` → `;`, `;` đơn → khoảng trắng (một lượt duy nhất).
+6. Nếu rỗng → từ chối.
+7. Ghép: `<tên CSS>:<val>[ !important]`.
+
+**Composite** (sau khi có `vxx`):
+
+| prop | declarations |
+|------|--------------|
+| `mx` | `margin-left:V;margin-right:V` |
+| `my` | `margin-top:V;margin-bottom:V` |
+| `px` | `padding-left:V;padding-right:V` |
+| `py` | `padding-top:V;padding-bottom:V` |
+| `bdx`| `border-left:V;border-right:V` |
+| `bdy`| `border-top:V;border-bottom:V` |
+
+8. **Validation CSS** (chỉ trình duyệt, `typeof CSS !== 'undefined'`): mọi declaration phải
+   `CSS.supports(...)`; nếu không → từ chối. Ở SSR/Node KHÔNG áp dụng bước này
+   (⇒ conformance được sinh ở chế độ SSR để engine không-DOM như Rust có thể khớp).
+   Thay vào đó, ở SSR/Node giá trị sau khi chuẩn hóa bị từ chối nếu chứa `{`, `}`, `<`
+   hoặc chuỗi mở comment `/*`, để không thể thoát khỏi khối rule hoặc thẻ `<style>`.
+
+## 6. Selector
+
+- `selectorStr = replaceSemicolons(parsed.selector)` (cùng quy tắc mục 5.5).
+- Trình duyệt: hợp lệ khi `CSS.supports("selector(.<cls><selectorStr>)")`.
+- SSR/Node: hợp lệ theo `isLikelyValidSelectorFallback` — loại nếu chứa `{`/`}`,
+  ngoặc tròn không cân bằng, chứa `<` hoặc `/*`, hoặc là ký tự đơn `# ( ) , > + ~`.
+
+## 7. Layer & cascade
+
+- Layer mặc định `0`; engine tạo sẵn `l0`..`l23`.
+- Trình duyệt hỗ trợ `@layer`: rule bọc `@layer l<N>{ <rule> }`.
+- Không hỗ trợ `@layer`: rule không bọc (theo thứ tự chèn). *(Khác biệt trình bày, không ảnh hưởng tuple ngữ nghĩa.)*
+
+## 8. Hợp đồng conformance
+
+`conformance.core.json`: mảng `{ input, accepted, media, layer, selector, declarations }` —
+chỉ gồm tính năng cross-engine (parser + dictionary; KHÔNG aliases/theme/excludes/prefix).
+So khớp theo **tuple ngữ nghĩa**, KHÔNG so tên class (hash/escape mỗi engine khác nhau):
+
+- `accepted`: class có sinh ra rule không.
+- `media`: chuỗi query (`''` nếu default).
+- `layer`: số.
+- `selector`: đã thay `;`/`';`.
+- `declarations`: chuỗi `prop:val;...` từ engine Node (nguồn chân lý value-resolution).

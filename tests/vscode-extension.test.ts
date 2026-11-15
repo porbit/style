@@ -1,6 +1,7 @@
 import Module, { createRequire } from 'node:module'
 import { afterAll, describe, expect, it } from 'vitest'
 import * as analyze from '../src/analyze'
+import * as tailwind from '../src/tailwind'
 
 const require = createRequire(import.meta.url)
 const { createLanguageService } = require('../editors/vscode/lib.js')
@@ -81,6 +82,7 @@ describe('extension VS Code: kích hoạt với API giả lập', () => {
         ;(Module as any)._load = function (request: string, ...rest: any[]) {
             if (request === 'vscode') return fake
             if (request === '@porbit/style/analyze') return analyze
+            if (request === '@porbit/style/tailwind') return tailwind
             return originalLoad.call(this, request, ...rest)
         }
         const ext = require('../editors/vscode/extension.js')

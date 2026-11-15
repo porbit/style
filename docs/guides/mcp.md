@@ -8,6 +8,14 @@ Server không cần cài thêm thư viện nào: chỉ cần Node.js 20 trở l�
 npx -y @porbit/style mcp
 ```
 
+## Cài Một Lệnh Cho Cả Dự Án
+
+```bash
+npx -y @porbit/style init --agents --mcp
+```
+
+Tạo `presence-style.config.json`; thêm khối quy tắc viết class vào `AGENTS.md` (Codex, Cursor, Gemini CLI, Copilot, opencode đọc file này) và `CLAUDE.md` (import `@AGENTS.md`); gộp server `presence-style` vào `.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json` mà không xoá server khác. Chạy lại an toàn.
+
 ## Cài Đặt Nhanh Theo Từng Agent
 
 In lệnh cài cho mọi agent, hoặc cho một agent cụ thể:

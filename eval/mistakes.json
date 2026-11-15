@@ -1,0 +1,10 @@
+[
+  ["df", "dF"], ["dflex", "dFlex"], ["posa", "posA"], ["posr", "posR"], ["aic", "aiC"], ["jcc", "jcC"],
+  ["fz14px", "fns14px"], ["fs16px", "fns16px"], ["fw600", "fw600"], ["minh100vh", "mih100vh"], ["mnh100vh", "mih100vh"],
+  ["mah300px", "mh300px"], ["maxw600px", "mw600px"], ["zi10", "z10"], ["op0.5", "opc0.5"], ["cur-pointer", "crP"],
+  ["hover:cRed", "cRed@:hover"], ["hover:bgc#fff", "bgc#fff@:hover"], ["focus:bdc#2563eb", "bdc#2563eb@:focus"],
+  ["disabled:opc.5", "opc.5@:disabled"], ["placeholder:c#999", "c#999@::placeholder"], ["cred", "cRed"], ["bgcwhite", "bgcWhite"],
+  ["ttu", "ttrU"], ["tdn", "tdN"], ["crp", "crP"], ["oflh", "oflH"], ["bdn", "bdN"], ["fxdc", "fxdC"], ["md:df", "md:dF"],
+  ["rounded8px", "bdra8px"], ["shadow[0_1px_2px_#0002]", "bxsh[0_1px_2px_#0002]"], ["first:mt0", "mt0@:first-child"],
+  ["tac", "taC"], ["usn", "usN"], ["dib", "dIb"], ["vah", null], ["wsnowrap", "wsNowrap"]
+]

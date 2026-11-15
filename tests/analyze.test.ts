@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { analyzeClasses, findClassAttributes, findClassTokens, fixClasses, isXcssLike, sortClasses, sortClassesInSource } from '../src/analyze'
 import { runCli } from '../src/cli'
+import { setTailwindFallback, suggestClassFix } from '../src/analyze'
+import { tailwindFixFallback } from '../src/tailwind'
 
 describe('analyze', () => {
     it('tìm thuộc tính class tĩnh, bỏ qua biểu thức động', () => {
@@ -34,6 +36,34 @@ describe('analyze', () => {
         expect(a.conflicts).toHaveLength(1)
         expect(fixClasses('df ai[center]').output).toBe('dF aiC')
         expect(fixClasses('ai[center]', { compact: false }).output).toBe('ai[center]')
+    })
+})
+
+describe('suggestClassFix: các dạng lỗi khái quát', () => {
+    it('tên CSS viết liền, alias tự đoán, từ khoá có dấu gạch', () => {
+        expect(suggestClassFix('fontsize14px')).toBe('fns14px')
+        expect(suggestClassFix('boxshadow[0_1px_2px_#000]')).toBe('bxsh[0_1px_2px_#000]')
+        expect(suggestClassFix('bdf[blur(4px)]')).toBe('bkdf[blur(4px)]')
+        expect(suggestClassFix('dinlineblock')).toBe('dIb')
+        expect(suggestClassFix('cur-pointer')).toBe('crP')
+        expect(suggestClassFix('ttu')).toBe('ttrU')
+        // Không đoán bừa.
+        expect(suggestClassFix('xyz123')).toBeNull()
+        expect(suggestClassFix('vah')).toBeNull()
+        // Hợp lệ sẵn thì không sửa.
+        expect(suggestClassFix('colorRed')).toBeNull()
+    })
+
+    it('thói quen Tailwind khi bật fallback; số thiếu đơn vị không được coi là hợp lệ', () => {
+        setTailwindFallback(tailwindFixFallback)
+        try {
+            expect(suggestClassFix('w-full')).toBe('w100%')
+            expect(suggestClassFix('mt-4')).toBe('mt16px')
+            expect(suggestClassFix('text-center')).toBe('taC')
+        } finally {
+            setTailwindFallback(null)
+        }
+        expect(suggestClassFix('w-full')).toBeNull()
     })
 })
 

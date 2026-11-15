@@ -10,6 +10,7 @@ import { dirname, relative, resolve } from 'node:path'
 import { collectFiles, DEFAULT_EXTENSIONS } from './files'
 import { createPreloadManifest, extractFromClasses, extractCandidates, type ExtractOptions } from './extract'
 import { startMcpServer } from './mcp'
+import { runInit } from './init'
 import { explainClass, findClassAttributes, findClassTokens, isXcssLike, sortClassesInSource } from './analyze'
 import { findClassConflicts } from './class-tools'
 import { MCP_CLIENTS, renderMcpConfig } from './mcp-config'
@@ -22,6 +23,9 @@ Cách dùng:
                                             Báo class không sinh CSS và class xung đột
   presence-style sort <đường-dẫn...> [--write | --check]
                                             Sắp xếp class trong thuộc tính class tĩnh
+  presence-style init [--agents] [--mcp]   Tạo presence-style.config.json; --agents thêm quy tắc
+                                            vào AGENTS.md/CLAUDE.md; --mcp ghi .mcp.json,
+                                            .cursor/mcp.json, .vscode/mcp.json
   presence-style mcp [--root <thư-mục>]     Chạy MCP server qua stdio cho agent AI
   presence-style mcp-config [client]        In lệnh/cấu hình cài MCP cho từng agent
                                             (claude, claude-desktop, codex, cursor, vscode,
@@ -211,6 +215,22 @@ export const runCli = async (argv: string[]): Promise<number> => {
             return 1
         }
         process.stdout.write(renderMcpConfig(client as any))
+        return 0
+    }
+
+    if (command === 'init') {
+        const rest = argv.slice(1)
+        const unknown = rest.filter((arg) => arg !== '--agents' && arg !== '--mcp')
+        if (unknown.length) {
+            process.stderr.write(`Tham số không hợp lệ: ${unknown.join(' ')}\n`)
+            return 1
+        }
+        const result = await runInit({ cwd: process.cwd(), agents: rest.includes('--agents'), mcp: rest.includes('--mcp') })
+        const show = (label: string, files: string[]) =>
+            files.forEach((file) => process.stdout.write(`${label} ${relative(process.cwd(), file) || file}\n`))
+        show('tạo   ', result.created)
+        show('cập nhật', result.updated)
+        show('giữ nguyên', result.skipped)
         return 0
     }
 

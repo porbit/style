@@ -12,12 +12,14 @@ import { readFile, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type XCSSConfig } from './core'
+import { AGENT_RULES } from './agent-rules'
 import { findClassConflicts } from './class-tools'
 import { explainClass, fixClasses, generateCssFor, searchDictionary } from './analyze'
 import { SHORT_PROPERTIES, SPECIFIC_VALUES, COMMON_VALUES } from './dictionary'
 export { suggestClassFix } from './analyze'
 import { extractCandidates, extractFromClasses } from './extract'
-import { convertTailwindClasses, type TailwindConversionMode } from './tailwind'
+import { convertTailwindClasses, tailwindFixFallback, type TailwindConversionMode } from './tailwind'
+import { setTailwindFallback } from './analyze'
 import { collectFiles, DEFAULT_EXTENSIONS } from './files'
 import {
     COMPONENT_SNIPPETS,
@@ -28,6 +30,9 @@ import {
 } from './components'
 
 declare const __PRESENCE_STYLE_VERSION__: string
+
+// Công cụ Node (MCP, CLI) có sẵn bộ chuyển Tailwind: dùng để gợi ý sửa `w-full` -> `w100%`.
+setTailwindFallback(tailwindFixFallback)
 
 const SERVER_NAME = 'presence-style'
 const SERVER_VERSION = typeof __PRESENCE_STYLE_VERSION__ === 'string' ? __PRESENCE_STYLE_VERSION__ : '0.0.0'
@@ -424,6 +429,14 @@ const RESOURCES: ResourceDefinition[] = [
         read: async () => (await readPackageFile('docs/guides/tu-vung-mo.md')) ?? missing('docs/guides/tu-vung-mo.md'),
     },
     {
+        uri: 'presence-style://docs/agent-rules',
+        name: 'agent-rules',
+        title: 'Quy tắc viết class cho agent',
+        description: 'Bản rút gọn cú pháp, alias hay nhầm và quy trình kiểm tra (giống khối trong AGENTS.md).',
+        mimeType: 'text/markdown',
+        read: async () => AGENT_RULES,
+    },
+    {
         uri: 'presence-style://docs/components',
         name: 'components',
         title: 'Bộ component mẫu',
@@ -458,15 +471,8 @@ const PROMPTS = [
     },
 ]
 
-const buildUiPrompt = (request: string): string => `Dựng giao diện sau bằng @porbit/style (x-css): ${request}
-
-Quy tắc bắt buộc:
-1. Cú pháp class: [media:][layer]property value[@selector]. Ví dụ: md:2bgc#0a64e8@:hover.
-2. Value dạng chữ viết hoa ký tự đầu (dF, aiC, posA). Khoảng trắng trong value viết bằng ";" (p8px;16px) hoặc "_" trong [] (w[calc(100%_-_2rem)]).
-3. Trạng thái dùng hậu tố: cRed@:hover, không dùng hover:cRed. Breakpoint mobile-first: sm md lg xl 2xl; sma/mda/lga/xla là max-width.
-4. Property chưa có alias: viết tên CSS đầy đủ, ví dụ view-transition-name[hero]. Biến CSS: bgc--brand -> var(--brand).
-5. Ưu tiên recipe có sẵn (gọi list_components / get_component) và token --ps-* (get_theme). Ghi đè class của recipe bằng layer cao hơn, ví dụ 1bdra999px.
-6. Trước khi trả kết quả, gọi fix_classes cho các class tự viết; class còn trong "unresolved" thì tra lookup_dictionary hoặc viết tên CSS đầy đủ. Không để hai class cùng property cùng layer trên một phần tử.`
+const buildUiPrompt = (request: string): string =>
+    `Dựng giao diện sau bằng @porbit/style (x-css): ${request}\n\n${AGENT_RULES}\nƯu tiên recipe có sẵn (list_components / get_component) và token --ps-* (get_theme). Ghi đè class của recipe bằng layer 2 trở lên.\n`
 
 // ---------------------------------------------------------------------------
 // JSON-RPC
