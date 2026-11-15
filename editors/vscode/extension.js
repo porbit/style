@@ -7,6 +7,10 @@ const vscode = require('vscode')
 const fs = require('fs')
 const path = require('path')
 const analyze = require('@porbit/style/analyze')
+const { tailwindFixFallback } = require('@porbit/style/tailwind')
+
+// Quick fix cho class viết theo thói quen Tailwind (`w-full` -> `w100%`).
+analyze.setTailwindFallback(tailwindFixFallback)
 const { createLanguageService } = require('./lib')
 
 const LANGUAGES = ['html', 'javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue', 'svelte', 'astro', 'mdx', 'php']

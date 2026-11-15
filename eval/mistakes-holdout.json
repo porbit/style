@@ -1,0 +1,7 @@
+[
+  ["items-center", "aiC"], ["justify-between", "jcSp"], ["gap-2", "gap8px"], ["rounded-lg", "bdra8px"], ["font-bold", "fnw700"],
+  ["text-sm", "fns14px"], ["dinlineblock", "dIb"], ["posabsolute", "posAbsolute"], ["bgcolor#fff", "bgc#fff"], ["mx-auto", "mxA"],
+  ["border-radius8px", "bdra8px"], ["lineheight1.5", "lh1.5"], ["letterspacing1px", "lts1px"], ["textalignCenter", "taC"],
+  ["overflowhidden", "oflH"], ["cursorPointer", "crP"], ["focus:bgc#eee", "bgc#eee@:focus"], ["md:hidden", "md:dN"],
+  ["opacity-50", "opc0.5"], ["ttuppercase", "ttrU"]
+]

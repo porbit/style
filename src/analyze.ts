@@ -82,14 +82,140 @@ const NAMED_COLORS = new Set(
         .split(' '),
 )
 
+// Từ khoá CSS hợp lệ của các property hay dùng (ngoài alias trong dictionary), để nhận ra
+// `dflex` -> `dFlex`, `wsnowrap` -> `wsNowrap`, `cur-pointer` -> `crPointer`.
+const PROPERTY_KEYWORDS: Record<string, string[]> = {
+    display: ['flex', 'grid', 'block', 'inline', 'none', 'contents', 'table', 'inline-flex', 'inline-block', 'inline-grid', 'flow-root'],
+    'white-space': ['nowrap', 'normal', 'pre', 'pre-wrap', 'pre-line', 'break-spaces'],
+    position: ['static', 'relative', 'absolute', 'fixed', 'sticky'],
+    cursor: ['pointer', 'default', 'text', 'move', 'grab', 'grabbing', 'wait', 'help', 'crosshair', 'not-allowed', 'none'],
+    'text-transform': ['uppercase', 'lowercase', 'capitalize', 'none'],
+    'text-align': ['left', 'right', 'center', 'justify', 'start', 'end'],
+    'text-decoration': ['none', 'underline', 'overline'],
+    overflow: ['hidden', 'auto', 'scroll', 'visible', 'clip'],
+    'overflow-x': ['hidden', 'auto', 'scroll', 'visible', 'clip'],
+    'overflow-y': ['hidden', 'auto', 'scroll', 'visible', 'clip'],
+    visibility: ['hidden', 'visible', 'collapse'],
+    'pointer-events': ['none', 'auto'],
+    'user-select': ['none', 'text', 'all', 'auto'],
+    'flex-wrap': ['wrap', 'nowrap'],
+    'font-style': ['italic', 'normal'],
+    'object-fit': ['cover', 'contain', 'fill', 'none'],
+    'font-weight': ['bold', 'normal', 'lighter', 'bolder'],
+    'flex-direction': ['row', 'column'],
+}
+// Từ khoá chung chỉ hợp lệ với một số property (`hidden` không dùng được cho vertical-align).
+const COMMON_VALUE_SCOPE: Record<string, RegExp> = {
+    h: /^(overflow|visibility|backface-visibility|border.*style|outline-style|content-visibility)/,
+    vis: /^(overflow|visibility|backface-visibility|content-visibility)/,
+    col: /^(visibility|border-collapse)$/,
+    sol: /^(border|outline|text-decoration)/,
+    das: /^(border|outline|text-decoration)/,
+    dot: /^(border|outline|text-decoration)/,
+    dub: /^(border|outline|text-decoration)/,
+    tr: /color$|^(background|border|outline|fill|stroke)$/,
+    cc: /color$|^(background|border|outline|fill|stroke)$/,
+}
+
+/**
+ * Từ khoá CSS thật (có dấu gạch) ứng với phần value viết liền: `inlineblock` -> `inline-block`.
+ * Trả `null` nếu không phải từ khoá có dấu gạch.
+ */
+const hyphenatedKeyword = (alias: string, rest: string): string | null => {
+    const cssName = SHORT_PROPERTIES[alias] || alias
+    const found = PROPERTY_KEYWORDS[cssName]?.find((kw) => kw.includes('-') && kw.replace(/-/g, '') === rest)
+    return found || null
+}
+
 /** Value viết thường `rest` có phải giá trị đã biết của property `alias` không. */
 const isKnownValue = (alias: string, rest: string): boolean => {
-    const cssName = SHORT_PROPERTIES[alias] || ''
-    return (
-        SPECIFIC_VALUES[alias]?.[rest] !== undefined ||
-        COMMON_VALUES[rest] !== undefined ||
-        (/color$/.test(cssName) && NAMED_COLORS.has(rest))
-    )
+    const cssName = SHORT_PROPERTIES[alias] || alias
+    if (SPECIFIC_VALUES[alias]?.[rest] !== undefined) return true
+    if (PROPERTY_KEYWORDS[cssName]?.some((kw) => kw === rest || kw.replace(/-/g, '') === rest)) return true
+    if (/color$/.test(cssName) && NAMED_COLORS.has(rest)) return true
+    // Từ khoá chung viết tắt (`n`) hoặc viết đủ (`none`).
+    const commonKey = COMMON_VALUES[rest] !== undefined ? rest : COMMON_KEY_BY_VALUE[rest]
+    if (commonKey !== undefined) {
+        const scope = COMMON_VALUE_SCOPE[commonKey]
+        return !scope || scope.test(cssName)
+    }
+    return false
+}
+
+const COMMON_KEY_BY_VALUE: Record<string, string> = Object.fromEntries(
+    Object.entries(COMMON_VALUES).map(([key, value]) => [value.toLowerCase(), key]),
+)
+
+// Tên CSS bỏ dấu gạch -> tên CSS: `fontsize` -> font-size, `boxshadow` -> box-shadow.
+const PROPERTY_BY_COMPACT_NAME: Record<string, string> = {}
+for (const name of [...STANDARD_CSS_PROPERTIES, ...Object.values(SHORT_PROPERTIES)]) {
+    const compact = name.replace(/-/g, '')
+    if (!PROPERTY_BY_COMPACT_NAME[compact]) PROPERTY_BY_COMPACT_NAME[compact] = name
+}
+const COMPACT_NAMES_BY_LENGTH = Object.keys(PROPERTY_BY_COMPACT_NAME).sort((a, b) => b.length - a.length)
+
+// Đoán property từ chữ viết tắt tự nghĩ ra: `bdf` -> backdrop-filter, `fvn` -> font-variant-numeric,
+// `wbo` -> -webkit-box-orient. Các chữ cái phải theo thứ tự, phủ mọi đoạn của tên CSS;
+// ưu tiên tên có nhiều chữ khớp đúng đầu đoạn. Chỉ trả kết quả khi không mơ hồ.
+const ABBREVIATION_CANDIDATES = [...new Set<string>([
+    ...STANDARD_CSS_PROPERTIES,
+    ...Object.values(SHORT_PROPERTIES),
+    '-webkit-box-orient', '-webkit-line-clamp', '-webkit-text-stroke', '-webkit-font-smoothing', '-webkit-tap-highlight-color',
+])]
+const guessPropertyFromAbbreviation = (abbr: string): string | null => {
+    if (abbr.length < 2 || abbr.length > 6 || !/^[a-z]+$/.test(abbr)) return null
+    let best: string | null = null
+    let bestScore = -1
+    let tie = false
+    for (const name of ABBREVIATION_CANDIDATES) {
+        const segments = name.replace(/^-/, '').split('-')
+        if (segments.length < 2 || segments.length > abbr.length || name[0] === '-' && segments[0] !== 'webkit') continue
+        if (segments[0][0] !== abbr[0]) continue
+        // Ghép tham lam từng chữ vào đoạn, mỗi đoạn phải có ít nhất một chữ.
+        let i = 0
+        let score = 0
+        let ok = true
+        for (let seg = 0; seg < segments.length && ok; seg++) {
+            const text = segments[seg]
+            const remainingSegments = segments.length - seg - 1
+            let pos = 0
+            let matched = 0
+            while (i < abbr.length && abbr.length - i > remainingSegments) {
+                const found = text.indexOf(abbr[i], pos)
+                if (found === -1) break
+                if (matched === 0 && found === 0) score++
+                pos = found + 1
+                matched++
+                i++
+                if (remainingSegments > 0 && matched >= 1 && abbr.length - i <= remainingSegments) break
+                if (remainingSegments > 0 && segments[seg + 1][0] === abbr[i]) break
+            }
+            if (matched === 0) ok = false
+        }
+        if (!ok || i !== abbr.length) continue
+        if (score > bestScore) {
+            best = name
+            bestScore = score
+            tie = false
+        } else if (score === bestScore) {
+            tie = true
+        }
+    }
+    return best && !tie && bestScore >= 2 ? best : null
+}
+
+// Alias chính tắc khi một property có nhiều alias (xem docs/guides/thiet-ke-nhanh.md mục 8).
+const CANONICAL_ALIASES: Record<string, string> = {
+    'border-radius': 'bdra',
+    'font-weight': 'fnw',
+    'max-width': 'mw',
+    'font-family': 'ff',
+    'box-shadow': 'bxsh',
+}
+const ALIAS_BY_PROPERTY: Record<string, string> = { ...CANONICAL_ALIASES }
+for (const [alias, cssName] of Object.entries(SHORT_PROPERTIES)) {
+    if (CANONICAL_ALIASES[cssName]) continue
+    if (!ALIAS_BY_PROPERTY[cssName] || alias.length < ALIAS_BY_PROPERTY[cssName].length) ALIAS_BY_PROPERTY[cssName] = alias
 }
 
 const STATE_PREFIX = /^(hover|focus|focus-visible|focus-within|active|visited|disabled|checked|first|last|odd|even|placeholder|before|after):(.+)$/
@@ -100,8 +226,29 @@ const STATE_SELECTOR: Record<string, string> = { first: ':first-child', last: ':
  * Đề xuất bản sửa tự động cho một class không sinh CSS. Chỉ trả kết quả khi bản sửa
  * thật sự sinh được CSS; ngược lại trả `null`.
  */
+let tailwindFallback: ((token: string) => string[] | null) | null = null
+
+/**
+ * Bật gợi ý sửa theo nghĩa Tailwind (`w-full` -> `w100%`). Tách thành tuỳ chọn để
+ * `@porbit/style/analyze` không kéo bộ chuyển Tailwind vào bundle khi không cần.
+ */
+export const setTailwindFallback = (convert: ((token: string) => string[] | null) | null): void => {
+    tailwindFallback = convert
+}
+
+// Property độ dài: số khác 0 không có đơn vị (`mt-4`, `w10`) là CSS sai, nhưng ở Node
+// không có CSS.supports nên engine vẫn sinh. Coi là không hợp lệ khi tìm bản sửa.
+const LENGTH_PROPERTY = /^(margin|padding|width|height|min-width|min-height|max-width|max-height|top|right|bottom|left|inset|gap|row-gap|column-gap|border-radius|font-size|letter-spacing|border-width|outline-offset|flex-basis)/
+const hasUnitlessLength = (token: string): boolean => {
+    const parsed = parseClassName(token)
+    if (!parsed) return false
+    const cssName = SHORT_PROPERTIES[parsed.prop] || parsed.prop
+    const value = parsed.val.replace(/^!/, '')
+    return LENGTH_PROPERTY.test(cssName) && /^-?(?:\d*\.)?\d+$/.test(value) && Number(value) !== 0
+}
+
 export const suggestClassFix = (token: string, config: XCSSConfig = {}): string | null => {
-    const valid = (candidate: string) => generateCssFor([candidate], config).trim().length > 0
+    const valid = (candidate: string) => !hasUnitlessLength(candidate) && generateCssFor([candidate], config).trim().length > 0
     // `op` là object-position nên `op0.5` vẫn "hợp lệ" ở Node; gần như luôn là nhầm với opacity.
     const opacityTypo = token.match(/^((?:[\w-]+:)?\d*)op([\d.]+)(@.*)?$/)
     if (opacityTypo) return opacityTypo[1] + 'opc' + opacityTypo[2] + (opacityTypo[3] || '')
@@ -121,15 +268,67 @@ export const suggestClassFix = (token: string, config: XCSSConfig = {}): string 
                 const rest = parsed.prop.slice(i)
                 // Ở Node không có CSS.supports, value bất kỳ đều "hợp lệ": chỉ nhận điểm tách
                 // khi phần value là giá trị đã biết (alias, từ khoá chung, tên màu).
-                if (SHORT_PROPERTIES[alias] && isKnownValue(alias, rest)) candidates.push(head + alias + capitalize(rest) + tail)
+                if (SHORT_PROPERTIES[alias] && isKnownValue(alias, rest)) {
+                    // `dinlineblock`: viết liền thì `dInlineblock` sai CSS; dùng từ khoá thật rồi rút gọn (`dIb`).
+                    const keyword = hyphenatedKeyword(alias, rest)
+                    candidates.push(keyword ? compactClassToken(head + alias + '[' + keyword + ']' + tail) : head + alias + capitalize(rest) + tail)
+                }
+            }
+        }
+        // `ttu` -> `ttrU`: alias sai (tt) + value thường.
+        if (parsed.val === '') {
+            for (const [wrong, right] of Object.entries(COMMON_MISTAKES)) {
+                const rest = parsed.prop.slice(wrong.length)
+                if (rest && parsed.prop.startsWith(wrong) && isKnownValue(right, rest)) {
+                    candidates.push(head + right + capitalize(rest) + tail)
+                }
+            }
+            // `cur-pointer` -> `crP`: kiểu Tailwind `property-giá-trị`.
+            const dash = parsed.prop.lastIndexOf('-')
+            if (dash > 0) {
+                const left = parsed.prop.slice(0, dash)
+                const right = COMMON_MISTAKES[left] || (SHORT_PROPERTIES[left] ? left : '') || ALIAS_BY_PROPERTY[left] || ''
+                const rest = parsed.prop.slice(dash + 1).replace(/-/g, '')
+                if (right && rest && isKnownValue(right, rest)) {
+                    candidates.push(compactClassToken(head + right + '[' + parsed.prop.slice(dash + 1) + ']' + tail))
+                }
             }
         }
         // `fz14px` -> `fns14px`, `op0.5` -> `opc0.5`.
         const renamed = COMMON_MISTAKES[parsed.prop] || (parsed.prop === 'op' && /^[\d.]/.test(parsed.val) ? 'opc' : '')
         if (renamed) candidates.push(head + renamed + parsed.val + tail)
+        // `fontsize14px` -> `fns14px`, `colorRed` -> `cRed`: tên CSS viết liền, dính value.
+        const lowered = (parsed.prop + parsed.val).toLowerCase()
+        const compactName = COMPACT_NAMES_BY_LENGTH.find((name) => name.length >= 4 && lowered.startsWith(name) && lowered.length > name.length)
+        const rawValue = compactName ? (parsed.prop + parsed.val).slice(compactName.length) : ''
+        // Phần còn lại phải giống một value: số, `#`, `[`, chữ hoa đầu, hoặc từ khoá đã biết.
+        const valueLike = !!compactName && (/^[\d#[.!-]|^[A-Z]/.test(rawValue) || isKnownValue(PROPERTY_BY_COMPACT_NAME[compactName], rawValue))
+        if (compactName && valueLike) {
+            const cssName = PROPERTY_BY_COMPACT_NAME[compactName]
+            const alias = ALIAS_BY_PROPERTY[cssName]
+            const value = rawValue.startsWith('[') ? rawValue : /^[a-z]/.test(rawValue) ? capitalize(rawValue) : rawValue
+            if (alias) candidates.push(head + alias + value + tail)
+            else candidates.push(head + cssName + (rawValue.startsWith('[') ? rawValue : `[${rawValue}]`) + tail)
+        }
+        // `bdf[blur(4px)]` -> `bkdf[blur(4px)]`: alias tự đặt, đoán theo chữ viết tắt.
+        if (parsed.val && !SHORT_PROPERTIES[parsed.prop] && !STANDARD_PROPERTY_SET.has(parsed.prop)) {
+            const guessed = guessPropertyFromAbbreviation(parsed.prop)
+            if (guessed) {
+                const alias = ALIAS_BY_PROPERTY[guessed]
+                const value = parsed.val.startsWith('[') || alias ? parsed.val : `[${parsed.val}]`
+                candidates.push(head + (alias || guessed) + value + tail)
+            }
+        }
         // `cred` -> `cRed`.
         if (/^[a-z]/.test(parsed.val)) candidates.push(head + parsed.prop + capitalize(parsed.val) + tail)
         return candidates.find(valid) ?? null
+    }
+
+    // Thói quen Tailwind (`w-full`, `mt-4`, `hover:underline`): đổi bằng bộ chuyển Tailwind
+    // khi kết quả là đúng một token x-css sinh được CSS.
+    if (tailwindFallback) {
+        const converted = tailwindFallback(token)
+        if (converted && converted.length === 1 && valid(converted[0])) return compactClassToken(converted[0])
     }
 
     // `hover:cRed` -> `cRed@:hover` (thói quen Tailwind).

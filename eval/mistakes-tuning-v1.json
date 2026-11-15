@@ -1,0 +1,7 @@
+[
+  ["dg", "dG"], ["dnone", "dNone"], ["posfixed", "posFixed"], ["fxwrap", "fxwW"], ["fontsize14px", "fns14px"],
+  ["lh24", "lh24"], ["w-full", "w100%"], ["text-center", "taC"], ["mt-4", "mt16px"], ["hover:underline", "tdU@:hover"],
+  ["bg#fff", "bg#fff"], ["colorRed", "cRed"], ["bdrad8px", "bdra8px"], ["boxshadow[0_1px_2px_#000]", "bxsh[0_1px_2px_#000]"],
+  ["zindex10", "z10"], ["brr8px", "bdra8px"], ["focus:outline-none", "oliN@:focus"], ["ttc", "ttrC"], ["tdu", "tdU"],
+  ["fwbold", "fwBold"], ["lsnone", "lsN"]
+]

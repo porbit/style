@@ -1,0 +1,10 @@
+[
+  { "id": "01-login", "prompt": "Thẻ đăng nhập căn giữa màn hình: tiêu đề, 2 ô nhập (email, mật khẩu), nút chính full width, liên kết quên mật khẩu." },
+  { "id": "02-navbar", "prompt": "Thanh điều hướng dính đầu trang: logo trái, 3 liên kết giữa (ẩn trên mobile), nút đăng nhập phải." },
+  { "id": "03-pricing", "prompt": "Bảng giá 3 cột (1 cột trên mobile), cột giữa nổi bật có nhãn 'Phổ biến', mỗi cột có giá, danh sách tính năng, nút." },
+  { "id": "04-hero", "prompt": "Khối hero: tiêu đề lớn, mô tả, 2 nút (chính, phụ), ảnh bên phải trên desktop, xếp dọc trên mobile." },
+  { "id": "05-table", "prompt": "Bảng đơn hàng có header, hàng đổi màu khi hover, cột số tiền căn phải, nhãn trạng thái màu." },
+  { "id": "06-modal", "prompt": "Hộp thoại xác nhận xoá: lớp phủ mờ toàn màn hình, hộp giữa có tiêu đề, mô tả, 2 nút huỷ/xoá." },
+  { "id": "07-card-grid", "prompt": "Lưới thẻ bài viết: ảnh trên, nhãn danh mục, tiêu đề cắt 2 dòng, ngày đăng; thẻ nhấc lên khi hover." },
+  { "id": "08-form", "prompt": "Form hồ sơ: 2 cột trên desktop, select, textarea, checkbox, ô lỗi viền đỏ kèm thông báo, nút lưu bị vô hiệu." }
+]
