@@ -14,6 +14,9 @@ export default defineConfig({
     },
     format: ['cjs', 'esm'],
     dts: true,
+    // Một file cho mỗi entry. Đã thử splitting: bản CDN tăng 21,4 -> 24,9 KB gzip và phải tải
+    // 7 file nối tiếp, còn shim Node (path/url của mcp/vite) bị gom vào chunk dùng chung với
+    // entry trình duyệt làm Vite build lỗi. Vì vậy giữ splitting: false.
     splitting: false,
     sourcemap: true,
     clean: true,
