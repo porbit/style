@@ -246,22 +246,19 @@ export function Button({ primary, children }) {
 }
 ```
 
-## Viết Thẳng Class Tailwind (Phương Ngữ Runtime)
+## Chạy Class Tailwind v4 Như Tailwind
 
-Đã quen Tailwind (người hoặc AI)? Bật phương ngữ và viết class Tailwind như bình thường, CSS sinh lúc chạy, không cần build:
+Phương ngữ v4 được sinh từ chính compiler của Tailwind; đo trên Chromium so với Tailwind 4.3.5: khớp **23.285/23.286 class**, **680/680** tổ hợp biến thể, theme/`@utility`/`@apply` 28/28.
 
-```js
-import xcss from '@porbit/style'
-import { tailwindDialect } from '@porbit/style/tailwind'
-
-xcss.cssObserve(document, { dialects: [tailwindDialect({ darkMode: 'class' })] })
-```
+Không build (thay `@tailwindcss/browser`: 55,6 KB so với 75,3 KB gzip, tới khi có style nhanh hơn ~35%):
 
 ```html
-<div class="flex items-center gap-4 p-4 rounded-lg bg-white hover:bg-slate-50 md:grid-cols-3">…</div>
+<script type="module" src="https://unpkg.com/@porbit/style/dist/tailwind-auto.mjs"></script>
+<style type="text/tailwindcss">@theme { --color-brand: #0a64e8; }</style>
+<div class="flex items-center gap-4 p-4 rounded-lg bg-brand/90 hover:bg-brand md:grid-cols-3">…</div>
 ```
 
-Class x-css vẫn chạy song song. Phương ngữ được thử trước, nên token mơ hồ như `z-10` hiểu theo nghĩa Tailwind (`z-index: 10`). `duration-*`/`ease-*` dùng biến CSS như Tailwind v4 nên thắng mặc định của `transition-*` ở mọi thứ tự rule. Utility chưa có phép đổi (gradient, `animate-*`, `prose`...) không sinh CSS.
+Có build (0 KB JavaScript như Tailwind): `presenceStyle({ dialects: [tailwindV4Dialect({ preflight: true })] })` trong Vite. Chi tiết, số đo và phần chưa hỗ trợ: [docs/guides/tailwind.md](./docs/guides/tailwind.md).
 
 ## Static-First Và Vite
 
@@ -1087,6 +1084,7 @@ Chi tiết: [docs/operations/README.md](./docs/operations/README.md) mục 4.1.
 - Bộ component mẫu: [docs/guides/components.md](./docs/guides/components.md)
 - MCP server cho agent AI: [docs/guides/mcp.md](./docs/guides/mcp.md)
 - Static-first và plugin Vite (CSS sinh sẵn lúc build): [docs/guides/static-first.md](./docs/guides/static-first.md)
+- Dùng thay Tailwind v4 (độ khớp, hiệu năng, giới hạn): [docs/guides/tailwind.md](./docs/guides/tailwind.md)
 - Extension VS Code (gạch lỗi, quick fix, hover CSS, gợi ý, sắp xếp): [editors/vscode](./editors/vscode)
 - Đánh giá so với Tailwind và lộ trình tối ưu: [docs/strategy/danh-gia-va-dinh-huong.md](./docs/strategy/danh-gia-va-dinh-huong.md)
 - Dictionary đầy đủ: [DICTIONARY.md](./DICTIONARY.md)
