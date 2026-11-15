@@ -70,8 +70,9 @@ out += '        ' + shortKeys.map(rs).join(' | ') + '\n'
 out += '    )\n}\n\n'
 
 // is_known_full_property: name là một tên CSS đầy đủ (giá trị của SHORT_PROPERTIES).
-const fullNames = [...new Set(Object.values(SHORT_PROPERTIES))].sort()
-out += '/// True nếu `name` là tên CSS đầy đủ (giá trị trong SHORT_PROPERTIES), vd "margin-top".\n'
+const fullNames = [...new Set([...Object.values(SHORT_PROPERTIES), ...(dict.STANDARD_CSS_PROPERTIES || [])])].sort()
+out += '/// True nếu `name` là tên CSS đầy đủ: giá trị trong SHORT_PROPERTIES hoặc property CSS chuẩn\n'
+out += '/// (STANDARD_CSS_PROPERTIES), vd "margin-top", "content-visibility".\n'
 out += 'pub fn is_known_full_property(name: &str) -> bool {\n    matches!(name,\n'
 out += '        ' + fullNames.map(rs).join(' | ') + '\n'
 out += '    )\n}\n'

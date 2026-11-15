@@ -44,6 +44,14 @@
     "declarations": "-webkit-line-clamp:3"
   },
   {
+    "input": "2dF&jcC",
+    "accepted": true,
+    "media": "",
+    "layer": 2,
+    "selector": "",
+    "declarations": "display:flex;justify-content:center"
+  },
+  {
     "input": "2m10px",
     "accepted": true,
     "media": "",
@@ -5760,6 +5768,10 @@
     "declarations": "background-image:url(/a_b.png)"
   },
   {
+    "input": "bgi[url(a)/*]",
+    "accepted": false
+  },
+  {
     "input": "bgo!10px",
     "accepted": true,
     "media": "",
@@ -6964,12 +6976,28 @@
     "declarations": "color:right"
   },
   {
+    "input": "cRed@/*x",
+    "accepted": false
+  },
+  {
     "input": "cRed@::before",
     "accepted": true,
     "media": "",
     "layer": 0,
     "selector": "::before",
     "declarations": "color:Red"
+  },
+  {
+    "input": "cRed@:hover<",
+    "accepted": false
+  },
+  {
+    "input": "cRed@:hover{x}",
+    "accepted": false
+  },
+  {
+    "input": "cRed@:is(a",
+    "accepted": false
   },
   {
     "input": "cRv",
@@ -7034,6 +7062,18 @@
     "layer": 0,
     "selector": "",
     "declarations": "color:1px solid red"
+  },
+  {
+    "input": "c[red<]",
+    "accepted": false
+  },
+  {
+    "input": "c[red\\]",
+    "accepted": false
+  },
+  {
+    "input": "c[red}body{color:blue]",
+    "accepted": false
   },
   {
     "input": "caps!10px",
@@ -7976,6 +8016,10 @@
     "declarations": "content-visibility:auto"
   },
   {
+    "input": "content[\"a]",
+    "accepted": false
+  },
+  {
     "input": "content[a\\_b]",
     "accepted": true,
     "media": "",
@@ -8762,6 +8806,38 @@
     "layer": 0,
     "selector": "",
     "declarations": "display:flex"
+  },
+  {
+    "input": "dF&",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "display:F&"
+  },
+  {
+    "input": "dF&aiC",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "display:flex;align-items:center"
+  },
+  {
+    "input": "dF&aiC@:hover",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": ":hover",
+    "declarations": "display:flex;align-items:center"
+  },
+  {
+    "input": "dF&md:aiC",
+    "accepted": false
+  },
+  {
+    "input": "dF&xyz1",
+    "accepted": false
   },
   {
     "input": "dF@:hover",
@@ -13692,6 +13768,14 @@
     "declarations": "margin:10px"
   },
   {
+    "input": "m10px&p[1px_2px]",
+    "accepted": true,
+    "media": "",
+    "layer": 0,
+    "selector": "",
+    "declarations": "margin:10px;padding:1px 2px"
+  },
+  {
     "input": "m10px;16px;20px;24px",
     "accepted": true,
     "media": "",
@@ -14148,12 +14232,28 @@
     "declarations": "margin-block-start:1px solid red"
   },
   {
+    "input": "md:2dF&aiC&jcSp@:hover",
+    "accepted": true,
+    "media": "screen and (min-width: 768px)",
+    "layer": 2,
+    "selector": ":hover",
+    "declarations": "display:flex;align-items:center;justify-content:space-between"
+  },
+  {
     "input": "md:dF",
     "accepted": true,
     "media": "screen and (min-width: 768px)",
     "layer": 0,
     "selector": "",
     "declarations": "display:flex"
+  },
+  {
+    "input": "md:dF&fxdC",
+    "accepted": true,
+    "media": "screen and (min-width: 768px)",
+    "layer": 0,
+    "selector": "",
+    "declarations": "display:flex;flex-direction:column"
   },
   {
     "input": "md:m10px",
@@ -23248,6 +23348,10 @@
     "declarations": "width:min-content"
   },
   {
+    "input": "w[1px)]",
+    "accepted": false
+  },
+  {
     "input": "w[1px;solid;red]",
     "accepted": true,
     "media": "",
@@ -23274,6 +23378,10 @@
     "layer": 0,
     "selector": "",
     "declarations": "width:calc(100% - 2rem)"
+  },
+  {
+    "input": "w[calc(1px]",
+    "accepted": false
   },
   {
     "input": "w]10",
