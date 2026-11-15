@@ -1,4 +1,4 @@
-import presenceStyle from './index'
+import presenceStyle from './runtime'
 
 // Auto-init logic
 if (typeof document !== 'undefined') {
@@ -12,5 +12,5 @@ if (typeof document !== 'undefined') {
     presenceStyle.cssObserve(document)
 }
 
-export * from './index'
+export * from './runtime'
 export default presenceStyle

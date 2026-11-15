@@ -2,13 +2,14 @@ import { defineConfig } from 'tsup'
 import { version } from './package.json'
 
 export default defineConfig({
-    entry: [
-        'src/index.ts',
-        'src/index-auto.ts',
-        'src/cli-bin.ts',
-        'src/components.ts',
-        'src/mcp.ts',
-    ],
+    entry: {
+        index: 'src/index.ts',
+        'index-auto': 'src/index-auto.ts',
+        'cli-bin': 'src/cli-bin.ts',
+        components: 'src/components.ts',
+        mcp: 'src/mcp.ts',
+        tailwind: 'src/tailwind-entry.ts',
+    },
     format: ['cjs', 'esm'],
     dts: true,
     splitting: false,

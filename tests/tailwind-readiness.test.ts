@@ -34,13 +34,13 @@ describe('tailwind migration readiness', () => {
     })
 
     it('keeps approximate conversions out of auto-apply output for real-product usage', () => {
-        const report = assessTailwindMigrationReadiness('transition flex')
+        const report = assessTailwindMigrationReadiness('outline-none flex')
 
         expect(report.releaseDecision).toBe('review')
         expect(report.safeToAutoApply).toBe(false)
         expect(report.autoApplyOutput).toBe('dF')
-        expect(report.approximateConverted).toEqual(['tran0.2s'])
-        expect(report.reviewRequired).toEqual(['transition'])
+        expect(report.approximateConverted).toEqual(['oli[2px_solid_transparent]', 'olo2px'])
+        expect(report.reviewRequired).toEqual(['outline-none'])
         expect(report.blocked).toEqual([])
     })
 

@@ -21,7 +21,9 @@ describe('tailwind -> xcss converter', () => {
         expect(result.output).toContain('bdra8px')
         expect(result.output).toContain('bdw1px')
         expect(result.output).toContain('bds[solid]')
-        expect(result.output).toContain('bdcCurrentColor')
+        // `border` thêm màu currentColor ngầm; có `border-slate-200` thì màu ngầm bị bỏ
+        // để không còn hai class cùng đặt border-color.
+        expect(result.output).not.toContain('bdcCurrentColor')
         expect(result.output).toContain('bdc#e2e8f0')
         expect(result.unsupported).toEqual([])
     })
@@ -91,14 +93,18 @@ describe('tailwind -> xcss converter', () => {
         expect(result.warnings.length).toBeGreaterThan(0)
     })
 
-    it('marks transition helpers as approximate or unsupported honestly', () => {
+    it('converts transition helpers exactly', () => {
         const transition = convertTailwindToken('transition')
         const duration = convertTailwindToken('duration-200')
 
         expect(transition.status).toBe('converted')
         expect(transition.classification).toBe('tailwind')
-        expect(transition.exact).toBe(false)
-        expect(transition.outputs).toEqual(['tran0.2s'])
+        expect(transition.exact).toBe(true)
+        expect(transition.outputs).toEqual([
+            'tranp[color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,translate,scale,rotate,filter,backdrop-filter]',
+            'trandur150ms',
+            'trantf[cubic-bezier(0.4,0,0.2,1)]',
+        ])
 
         expect(duration.status).toBe('converted')
         expect(duration.exact).toBe(true)
@@ -113,7 +119,8 @@ describe('tailwind -> xcss converter', () => {
         expect(display.output).toContain('dIb')
         expect(display.output).toContain('dIg')
 
-        expect(keywords.output).toContain('bdcCurrentColor')
+        expect(convertTailwindClasses('border').output).toContain('bdcCurrentColor')
+        expect(keywords.output).not.toContain('bdcCurrentColor')
         expect(keywords.output).toContain('cTransparent')
         expect(keywords.output).toContain('bgcCurrentColor')
         expect(keywords.output).toContain('bdcTransparent')

@@ -13,6 +13,7 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { xcss, type XCSSConfig } from './core'
 import { parseClassName } from './parser'
+import { compactClassToken, findClassConflicts } from './class-tools'
 import { SHORT_PROPERTIES, SPECIFIC_VALUES, COMMON_VALUES } from './dictionary'
 import { extractCandidates, extractFromClasses } from './extract'
 import { convertTailwindClasses, type TailwindConversionMode } from './tailwind'
@@ -138,6 +139,73 @@ const generateCssFor = (classes: string[], config: XCSSConfig) => {
     return css
 }
 
+// Tên màu CSS: dùng để chọn đúng điểm tách khi value viết thường dính vào property (`cred` -> `cRed`).
+const NAMED_COLORS = new Set(
+    ('aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen transparent currentcolor')
+        .split(' '),
+)
+
+/** Value viết thường `rest` có phải giá trị đã biết của property `alias` không. */
+const isKnownValue = (alias: string, rest: string): boolean => {
+    const cssName = SHORT_PROPERTIES[alias] || ''
+    return (
+        SPECIFIC_VALUES[alias]?.[rest] !== undefined ||
+        COMMON_VALUES[rest] !== undefined ||
+        (/color$/.test(cssName) && NAMED_COLORS.has(rest))
+    )
+}
+
+const STATE_PREFIX = /^(hover|focus|focus-visible|focus-within|active|visited|disabled|checked|first|last|odd|even|placeholder|before|after):(.+)$/
+const PSEUDO_ELEMENTS = new Set(['placeholder', 'before', 'after'])
+const STATE_SELECTOR: Record<string, string> = { first: ':first-child', last: ':last-child', odd: ':nth-child(odd)', even: ':nth-child(even)' }
+
+/**
+ * Đề xuất bản sửa tự động cho một class không sinh CSS. Chỉ trả kết quả khi bản sửa
+ * thật sự sinh được CSS; ngược lại trả `null`.
+ */
+export const suggestClassFix = (token: string, config: XCSSConfig = {}): string | null => {
+    const valid = (candidate: string) => generateCssFor([candidate], config).trim().length > 0
+    // `op` là object-position nên `op0.5` vẫn "hợp lệ" ở Node; gần như luôn là nhầm với opacity.
+    const opacityTypo = token.match(/^((?:[\w-]+:)?\d*)op([\d.]+)(@.*)?$/)
+    if (opacityTypo) return opacityTypo[1] + 'opc' + opacityTypo[2] + (opacityTypo[3] || '')
+    if (valid(token)) return null
+
+    const tryFix = (input: string): string | null => {
+        if (valid(input)) return input
+        const parsed = parseClassName(input)
+        if (!parsed) return null
+        const head = (parsed.mq ? parsed.mq + ':' : '') + parsed.layer
+        const tail = parsed.selector ? '@' + parsed.selector : ''
+        const candidates: string[] = []
+        // `df` -> `dF`: value viết thường dính vào property.
+        if (parsed.val === '') {
+            for (let i = parsed.prop.length - 1; i > 0; i--) {
+                const alias = parsed.prop.slice(0, i)
+                const rest = parsed.prop.slice(i)
+                // Ở Node không có CSS.supports, value bất kỳ đều "hợp lệ": chỉ nhận điểm tách
+                // khi phần value là giá trị đã biết (alias, từ khoá chung, tên màu).
+                if (SHORT_PROPERTIES[alias] && isKnownValue(alias, rest)) candidates.push(head + alias + capitalize(rest) + tail)
+            }
+        }
+        // `fz14px` -> `fns14px`, `op0.5` -> `opc0.5`.
+        const renamed = COMMON_MISTAKES[parsed.prop] || (parsed.prop === 'op' && /^[\d.]/.test(parsed.val) ? 'opc' : '')
+        if (renamed) candidates.push(head + renamed + parsed.val + tail)
+        // `cred` -> `cRed`.
+        if (/^[a-z]/.test(parsed.val)) candidates.push(head + parsed.prop + capitalize(parsed.val) + tail)
+        return candidates.find(valid) ?? null
+    }
+
+    // `hover:cRed` -> `cRed@:hover` (thói quen Tailwind).
+    const state = token.match(STATE_PREFIX)
+    if (state) {
+        const [, name, rest] = state
+        if (rest.includes('@')) return null
+        const selector = STATE_SELECTOR[name] || (PSEUDO_ELEMENTS.has(name) ? '::' + name : ':' + name)
+        return tryFix(rest + '@' + selector)
+    }
+    return tryFix(token)
+}
+
 const explainOne = (token: string, config: XCSSConfig): JsonObject => {
     const parsed = parseClassName(token)
     const css = generateCssFor([token], config).trim()
@@ -205,6 +273,8 @@ const explainOne = (token: string, config: XCSSConfig): JsonObject => {
               }
             : null,
         css: valid ? css : '',
+        /** Bản sửa tự động (nếu có), cùng logic với tool fix_classes. */
+        suggestion: valid ? null : suggestClassFix(token, config),
         hints,
     }
 }
@@ -264,11 +334,47 @@ export const TOOLS: ToolDefinition[] = [
             const config = asConfig(args.config)
             const items = splitClasses(args.classes).slice(0, 200).map((token) => explainOne(token, config))
             const invalid = items.filter((i) => !i.valid).length
-            const summary = `${items.length} class, ${items.length - invalid} hợp lệ, ${invalid} không sinh CSS.`
+            const conflicts = findClassConflicts(items.map((i) => String(i.class)))
+            const summary =
+                `${items.length} class, ${items.length - invalid} hợp lệ, ${invalid} không sinh CSS` +
+                (conflicts.length ? `, ${conflicts.length} nhóm xung đột (cùng property, cùng layer: class thắng phụ thuộc thứ tự rule trên trang — giữ một class hoặc nâng layer).` : '.')
             return {
-                text: summary + '\n' + formatJson(items) + '\nLưu ý: kiểm tra ở Node không có CSS.supports; giá trị sai ngữ nghĩa CSS (ví dụ `w100p`) chỉ bị loại trên trình duyệt.',
-                structured: { summary, items },
+                text: summary + '\n' + formatJson({ items, conflicts }) + '\nLưu ý: kiểm tra ở Node không có CSS.supports; giá trị sai ngữ nghĩa CSS (ví dụ `w100p`) chỉ bị loại trên trình duyệt.',
+                structured: { summary, items, conflicts },
             }
+        },
+    },
+    {
+        name: 'fix_classes',
+        title: 'Tự sửa class x-css',
+        description:
+            'Nhận chuỗi class (có thể viết sai hoặc theo thói quen Tailwind như `hover:`), trả chuỗi đã sửa: `df`→`dF`, `fz14px`→`fns14px`, `hover:cRed`→`cRed@:hover`, `op0.5`→`opc0.5`. Class không sửa được giữ nguyên và được liệt kê. Gọi tool này trước khi trả code cho người dùng.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                classes: { type: 'string' },
+                compact: { type: 'boolean', description: 'Rút gọn thêm `ai[center]`→`aiC`... (mặc định true).' },
+                config: { type: 'object' },
+            },
+            required: ['classes'],
+        },
+        annotations: READ_ONLY,
+        run: (args) => {
+            const config = asConfig(args.config)
+            const tokens = String(args.classes || '').split(/\s+/).filter(Boolean).slice(0, 500)
+            const changes: Array<{ from: string; to: string }> = []
+            const unresolved: string[] = []
+            const output = tokens.map((token) => {
+                const fixed = suggestClassFix(token, config)
+                let result = fixed ?? token
+                if (!fixed && !generateCssFor([token], config).trim()) unresolved.push(token)
+                if (args.compact !== false) result = compactClassToken(result)
+                if (result !== token) changes.push({ from: token, to: result })
+                return result
+            })
+            const conflicts = findClassConflicts(output)
+            const structured = { output: output.join(' '), changes, unresolved, conflicts }
+            return { text: structured.output + '\n\n' + formatJson({ changes, unresolved, conflicts }), structured }
         },
     },
     {
@@ -392,6 +498,7 @@ export const TOOLS: ToolDefinition[] = [
                 classes: { type: 'string' },
                 mode: { type: 'string', enum: ['legacy', 'safe', 'strict'], description: 'Mặc định safe.' },
                 darkMode: { type: 'string', enum: ['media', 'class'] },
+                compact: { type: 'boolean', description: 'Rút gọn output (`aiC` thay cho `ai[center]`). Mặc định true.' },
             },
             required: ['classes'],
         },
@@ -402,6 +509,7 @@ export const TOOLS: ToolDefinition[] = [
                 mode,
                 preserveUnknown: mode === 'strict' ? false : undefined,
                 darkMode: args.darkMode === 'class' ? 'class' : 'media',
+                compact: args.compact !== false,
             })
             const structured = {
                 output: result.output,
@@ -560,7 +668,7 @@ Quy tắc bắt buộc:
 3. Trạng thái dùng hậu tố: cRed@:hover, không dùng hover:cRed. Breakpoint mobile-first: sm md lg xl 2xl; sma/mda/lga/xla là max-width.
 4. Property chưa có alias: viết tên CSS đầy đủ, ví dụ view-transition-name[hero]. Biến CSS: bgc--brand -> var(--brand).
 5. Ưu tiên recipe có sẵn (gọi list_components / get_component) và token --ps-* (get_theme). Ghi đè class của recipe bằng layer cao hơn, ví dụ 1bdra999px.
-6. Trước khi trả kết quả, gọi explain_class cho các class tự viết và sửa mọi class không hợp lệ.`
+6. Trước khi trả kết quả, gọi fix_classes cho các class tự viết; class còn trong "unresolved" thì tra lookup_dictionary hoặc viết tên CSS đầy đủ. Không để hai class cùng property cùng layer trên một phần tử.`
 
 // ---------------------------------------------------------------------------
 // JSON-RPC
@@ -583,7 +691,7 @@ export const handleRequest = async (request: JsonRpcRequest, ctx: ServerContext)
                 capabilities: { tools: {}, resources: {}, prompts: {} },
                 serverInfo: { name: SERVER_NAME, title: 'PresenceStyle', version: SERVER_VERSION },
                 instructions:
-                    'Công cụ cho @porbit/style (utility CSS x-css). Gọi explain_class để kiểm tra class trước khi dùng, lookup_dictionary để tìm alias, list_components/get_component để lấy component mẫu, generate_css/extract_css để sinh CSS tĩnh.',
+                    'Công cụ cho @porbit/style (utility CSS x-css). Gọi fix_classes để tự sửa class trước khi trả code, explain_class để hiểu từng class, lookup_dictionary để tìm alias, list_components/get_component để lấy component mẫu, generate_css/extract_css để sinh CSS tĩnh.',
             }
         }
         case 'ping':

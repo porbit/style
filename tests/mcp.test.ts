@@ -32,6 +32,23 @@ describe('MCP server', () => {
         expect(items[3].hints.join(' ')).toContain('cRed@:hover')
     })
 
+    it('fix_classes tự sửa lỗi hay gặp và báo xung đột', async () => {
+        const res = await call('fix_classes', { classes: 'df posa fz14px hover:bgc#fff focus:cred op0.5 ai[center] p10px p20px xyz123 mah10px' })
+        const out = res.structuredContent
+        expect(out.output).toBe('dF posA fns14px bgc#fff@:hover cRed@:focus opc0.5 aiC p10px p20px xyz123 mh10px')
+        expect(out.unresolved).toEqual(['xyz123'])
+        expect(out.conflicts[0].tokens).toEqual(['p10px', 'p20px'])
+        const explain = await call('explain_class', { classes: 'cred' })
+        expect(explain.structuredContent.items[0].suggestion).toBe('cRed')
+    })
+
+    it('convert_tailwind mặc định rút gọn output', async () => {
+        const res = await call('convert_tailwind', { classes: 'flex items-center h-10' })
+        expect(res.structuredContent.output).toBe('dF aiC h40px')
+        const raw = await call('convert_tailwind', { classes: 'items-center', compact: false })
+        expect(raw.structuredContent.output).toBe('ai[center]')
+    })
+
     it('generate_css và get_component', async () => {
         const css = await call('generate_css', { classes: 'm10px bogus', includeTheme: true })
         expect(css.structuredContent.css).toContain('margin:10px')

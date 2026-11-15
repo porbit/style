@@ -132,11 +132,12 @@ Khi phát triển chính repo này: `npm run build` rồi dùng `node dist/cli-b
 
 | Tool | Việc làm |
 | :--- | :--- |
-| `explain_class` | Tách class thành media/layer/property/value/selector, trả CSS sinh ra và gợi ý sửa lỗi (`df` → `dF`, `fz14px` → `fns14px`, `hover:cRed` → `cRed@:hover`). |
+| `fix_classes` | Tự sửa chuỗi class: `df` → `dF`, `fz14px` → `fns14px`, `hover:cRed` → `cRed@:hover`, `op0.5` → `opc0.5`, rút gọn `ai[center]` → `aiC`; liệt kê class không sửa được và các nhóm xung đột. Agent nên gọi trước khi trả code. |
+| `explain_class` | Tách class thành media/layer/property/value/selector, trả CSS sinh ra, bản sửa đề xuất, gợi ý và các nhóm xung đột. |
 | `generate_css` | Sinh CSS tĩnh cho danh sách class, tuỳ chọn kèm CSS theme của component. |
 | `extract_css` | Quét `source` hoặc file/thư mục trong workspace và sinh CSS. Chỉ đọc, không ghi file. |
 | `lookup_dictionary` | Tìm alias theo tên CSS hoặc alias (`font-size` → `fns`), kèm value viết tắt. |
-| `convert_tailwind` | Chuyển class Tailwind sang x-css (mặc định mode `safe`). |
+| `convert_tailwind` | Chuyển class Tailwind sang x-css (mặc định mode `safe`, output rút gọn; `compact: false` để giữ dạng chính tắc). |
 | `list_components` | Liệt kê component mẫu và variant của từng recipe. |
 | `get_component` | Lấy HTML mẫu (`name`) hoặc chuỗi class của recipe (`recipe` + `props`). |
 | `get_theme` | Sinh CSS token `--ps-*` với màu/bo góc tuỳ chỉnh. |
