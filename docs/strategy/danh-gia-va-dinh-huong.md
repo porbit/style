@@ -66,7 +66,9 @@ Hai rủi ro chính xác (không chỉ thẩm mỹ):
 
 Xếp theo thứ tự ưu tiên; mỗi mục ghi lợi ích đo được hoặc ước lượng và điều kiện chấp nhận.
 
-### Giai đoạn 1 — Sửa nhanh, rủi ro thấp (1–2 tuần)
+### Giai đoạn 1 — Sửa nhanh, rủi ro thấp — **đã làm ở 0.6.0**
+
+Kết quả: bản CDN 31,4 → 21,4 KB gzip; output bộ chuyển (chế độ `compact`) ngắn hơn Tailwind 4,6%; `transition-*` chính xác; hết xung đột `border-color`; MCP có `fix_classes` (mục 4.3 làm sớm). Mục 1.4 được làm ở dạng công cụ tĩnh (`findClassConflicts`, cảnh báo trong Tailwind helper và MCP) thay vì kiểm tra lúc chạy, để không thêm chi phí runtime. Mục tiêu −15% độ dài chưa đạt: phần chênh còn lại nằm ở `grid-cols-*` (`gtc[repeat(n,minmax(0,1fr))]`) và `transition-*` đầy đủ, hai chỗ ưu tiên đúng hành vi hơn độ ngắn.
 
 | # | Việc | Lợi ích | Điều kiện xong |
 | :--- | :--- | :--- | :--- |
@@ -99,7 +101,7 @@ Xếp theo thứ tự ưu tiên; mỗi mục ghi lợi ích đo được hoặc 
 | :--- | :--- | :--- |
 | 4.1 | Phát hành `llms.txt` và `llms-full.txt` ở trang tài liệu (cú pháp rút gọn + bảng alias + lỗi hay gặp) | Agent có web tra cứu đúng nguồn trong vài nghìn token |
 | 4.2 | Mẫu `AGENTS.md` / `CLAUDE.md` cho dự án người dùng (in bằng `presence-style init --agents`): quy tắc cú pháp, "luôn gọi `explain_class` trước khi trả lời" | Agent trong dự án tự tuân thủ, không cần người nhắc |
-| 4.3 | Tool MCP `fix_classes`: nhận chuỗi class, trả bản đã sửa tự động (`df`→`dF`, `fz`→`fns`, `hover:`→`@:`) | Agent sửa trong một lượt thay vì đọc gợi ý rồi tự sửa |
+| 4.3 | **Đã làm (0.6.0).** Tool MCP `fix_classes`: nhận chuỗi class, trả bản đã sửa tự động (`df`→`dF`, `fz`→`fns`, `hover:`→`@:`) | Agent sửa trong một lượt thay vì đọc gợi ý rồi tự sửa |
 | 4.4 | Bộ đánh giá (eval) công khai: 30 yêu cầu UI, đo % class hợp lệ khi agent viết **có** và **không** MCP, so với Tailwind | Bằng chứng số để thuyết phục; phát hiện alias nào AI hay sai để thêm alias phụ |
 | 4.5 | Nhận cú pháp Tailwind ở runtime như một "phương ngữ" (`flex items-center` sinh CSS trực tiếp, không cần chuyển đổi) | Xoá hoàn toàn rào cản AI: agent viết Tailwind quen tay vẫn chạy, có thể dần chuyển sang x-css |
 
@@ -123,9 +125,9 @@ Hướng dẫn chọn nhanh để đưa vào README:
 
 | Chỉ số | Hiện tại (0.5.0) | Mục tiêu |
 | :--- | :--- | :--- |
-| Bản CDN (gzip) | 31,4 KB | ≤ 20 KB (sau 1.1) |
+| Bản CDN (gzip) | 21,4 KB (0.6.0; 0.5.0 là 31,4 KB) | ≤ 20 KB |
 | Quét đầu, 3.000 node | 20–27 ms | < 2 ms với static-first (2.1) |
-| Độ dài class so với Tailwind (bộ chuyển) | +2,2% | −15% (sau 1.2) |
+| Độ dài class so với Tailwind (bộ chuyển, `compact`) | −4,6% (0.6.0; 0.5.0 là +2,2%) | −15% |
 | % class hợp lệ do agent viết, có MCP | chưa đo | ≥ 98% (đo bằng 4.4) |
 | % class hợp lệ do agent viết, không MCP | chưa đo | đo để làm mốc |
 | Kiểm thử đa trình duyệt cho component | Chromium | Chromium + Firefox + WebKit + mobile trong CI |

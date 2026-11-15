@@ -42,7 +42,7 @@ Option A: chủ động khởi tạo
 </script>
 ```
 
-Option B: auto observe khi import
+Option B: auto observe khi import (bản nhẹ nhất: chỉ lõi runtime, không gồm Tailwind helper)
 
 ```html
 <script type="module" src="https://unpkg.com/@porbit/style@latest/dist/index-auto.mjs"></script>
@@ -338,7 +338,7 @@ Lưu ý:
 
 `@porbit/style` có helper bán tự động để hỗ trợ migration từ chuỗi utility Tailwind sang token `x-css`.
 
-Public API:
+Public API (import từ `@porbit/style`, hoặc từ `@porbit/style/tailwind` để không kéo lõi runtime vào bundle chỉ cần migrate):
 
 ```ts
 import {
@@ -354,7 +354,11 @@ const result = convertTailwindClasses(
 );
 
 console.log(result.output);
-// dF ai[center] jc[space-between] gap16px p16px bgc#ffffff c#0f172a bdra8px bdw1px bds[solid] bdcCurrentColor bdc#e2e8f0
+// dF ai[center] jc[space-between] gap16px p16px bgc#ffffff c#0f172a bdra8px bdw1px bds[solid] bdc#e2e8f0
+
+// compact: rút gọn sang dạng x-css ngắn, CSS sinh ra không đổi
+convertTailwindClasses('flex items-center justify-between h-10 bg-white', { compact: true }).output;
+// dF aiC jcSp h40px bgc#fff
 
 console.log(classifyTailwindToken('md:fxd[row]'));
 // 'xcss'
@@ -473,7 +477,7 @@ if (report.releaseDecision === 'safe') {
 }
 
 if (report.releaseDecision === 'review') {
-  // Có output gần đúng như `transition -> tran0.2s`
+  // Có output gần đúng như `outline-none -> oli[2px_solid_transparent] olo2px`
   review(report.approximateConverted);
 }
 
@@ -504,23 +508,41 @@ Khi helper sinh token `x-css`, nên coi các output dưới đây là canonical:
 1. `inline-flex -> dIf`
 2. `inline-block -> dIb`
 3. `inline-grid -> dIg`
-4. `border -> bdw1px bds[solid] bdcCurrentColor`
+4. `border -> bdw1px bds[solid] bdcCurrentColor` (màu `currentColor` là mặc định ngầm: bị bỏ khi cùng chuỗi có màu viền rõ ràng như `border-slate-200`, để không còn hai class cùng đặt `border-color`)
 5. `text-transparent -> cTransparent`
 6. `border-transparent -> bdcTransparent`
 7. `bg-[currentColor] -> bgcCurrentColor`
 
 Không nên dựa vào việc runtime parser “vẫn hiểu được” để sinh các biến thể khác như `dIF`, `dIB`, `bdctransparent`.
 
+### Xung Đột Và Rút Gọn
+
+Hai class cùng đặt một property CSS ở cùng media, layer và selector (ví dụ `p16px p8px`) là xung đột: class thắng phụ thuộc thứ tự rule xuất hiện **trên trang**, không theo thứ tự trong thuộc tính `class`. Helper:
+1. Tự bỏ giá trị mặc định ngầm do chính nó thêm (màu viền của `border`, duration/ease của `transition-*`) khi chuỗi có giá trị chỉ định rõ.
+2. Giữ nguyên xung đột do người viết tạo ra và thêm cảnh báo vào `warnings`.
+
+Dùng trực tiếp cho chuỗi x-css bất kỳ:
+
+```ts
+import { findClassConflicts, compactClasses } from '@porbit/style';
+
+findClassConflicts('p10px m0 p20px');
+// [{ property: 'padding', media: 'default', layer: 0, selector: '', tokens: ['p10px', 'p20px'] }]
+
+compactClasses('ai[center] h[40px] bgc#ffffff');
+// 'aiC h40px bgc#fff'
+```
+
 ### Coverage Hiện Tại
 
-Nhóm utility đã đổi được. Mức hỗ trợ từng nhóm (`exact` / `partial` / `manual`) nằm trong `getTailwindCoverageMatrix()`; chỉ nhóm `exact` an toàn để áp dụng tự động, nhóm `partial` (`transition`, `translate-*`, `scale`, `rotate`, `blur`, `brightness`) cần rà soát:
+Nhóm utility đã đổi được. Mức hỗ trợ từng nhóm (`exact` / `partial` / `manual`) nằm trong `getTailwindCoverageMatrix()`; chỉ nhóm `exact` an toàn để áp dụng tự động, nhóm `partial` (`translate-*`, `scale`, `rotate`, `blur`, `brightness`) cần rà soát:
 1. display / position / flex / grid cơ bản, `grid-cols-*`, `grid-rows-*`, `col-span-*`, `col-start-*`
 2. spacing / size / fraction / width scale / `mx-auto` / `inset-*` / `top-1/2`
 3. color (`bg-*`, `text-*`, `border-*`) kể cả có độ mờ `bg-black/50`
 4. rounded / border từng cạnh (`border-t-2`, `border-x`) / shadow / `appearance-none`
 5. font-size / font-weight (đầu ra `fnw*`) / line-height / letter-spacing / `basis-*` / `order-*` / `line-clamp-*`
 6. object-fit / object-position / aspect-ratio
-7. motion: `duration-*`, `delay-*`, `ease-*`
+7. motion: `transition`, `transition-colors/opacity/shadow/transform/all/none`, `transition-[...]`, `duration-*`, `delay-*`, `ease-*`
 8. transform và filter: `scale-*`, `rotate-*`, `translate-x/y-*`, `blur-*`, `backdrop-blur-*`, `brightness-*`
 9. biến thể: `sm`/`md`/…, `hover`, `focus`, `before`, `after`, `placeholder`, `group-*`, `peer-*`, `aria-*`, `data-[...]`, `[&…]`, `dark`, `print`
 10. giá trị tuỳ ý: `w-[calc(100%_-_2rem)]`, `text-[14px]`, `z-[60]`, `bg-[url(...)]`, `[mask-type:luminance]`

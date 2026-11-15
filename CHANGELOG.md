@@ -1,5 +1,25 @@
 # Lịch Sử Thay Đổi
 
+## 0.6.0
+
+Giai đoạn 1 của lộ trình tối ưu (`docs/strategy/danh-gia-va-dinh-huong.md`).
+
+**Thêm mới**
+- Subpath `@porbit/style/tailwind` cho Tailwind migration helper. Bản CDN `index-auto` chỉ còn lõi runtime: 31,4 KB → 21,4 KB gzip (−32%). Import từ `@porbit/style` vẫn có đủ API như cũ.
+- `findClassConflicts`, `compactClassToken`, `compactClasses`: phát hiện hai class cùng đặt một property ở cùng media/layer/selector, và rút gọn token khi CSS không đổi (`ai[center]` → `aiC`, `h[40px]` → `h40px`, `bgc#ffffff` → `bgc#fff`).
+- Tuỳ chọn `compact` cho `convertTailwindClasses`. Trên 5 chuỗi mẫu, output từ dài hơn Tailwind 2,2% thành ngắn hơn 4,6%.
+- Tool MCP `fix_classes`: tự sửa `df` → `dF`, `fz14px` → `fns14px`, `hover:cRed` → `cRed@:hover`, `op0.5` → `opc0.5`, kèm danh sách class không sửa được và xung đột. `explain_class` trả thêm `suggestion` và `conflicts`; `convert_tailwind` mặc định rút gọn.
+
+**Sửa lỗi**
+- `transition`, `transition-colors/opacity/shadow/transform/all/none`, `transition-[...]`, `transition-discrete` đổi chính xác (property + 150ms + easing mặc định của Tailwind), không còn thành `transition: 0.2s` áp cho mọi property. `duration-*`/`ease-*` đứng ở vị trí bất kỳ đều thay mặc định.
+- `border` kèm màu viền (`border border-slate-200`) không còn sinh hai class cùng đặt `border-color`, vốn khiến màu viền phụ thuộc thứ tự class xuất hiện trên trang.
+
+**Thay đổi hành vi cần biết**
+- Tailwind helper: `transition` không còn nằm trong `approximateConverted`/`reviewRequired`; nhóm `motion-basic` chuyển từ `partial` sang `exact`.
+- Tailwind helper: `bdcCurrentColor` bị bỏ khi chuỗi có màu viền rõ ràng cùng media/layer/selector.
+- Xung đột do người viết tạo (`p-4 p-2`) được giữ nguyên nhưng thêm cảnh báo vào `warnings`.
+
+
 ## 0.5.0
 
 **Thêm mới**

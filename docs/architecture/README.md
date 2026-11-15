@@ -19,8 +19,11 @@ Engine hoạt động ở hai chế độ:
 | `src/css-properties.ts` | Danh sách tên property CSS chuẩn được chấp nhận khi viết đủ tên (`STANDARD_CSS_PROPERTIES`), cùng quy tắc nhận tiền tố nhà cung cấp và custom property. |
 | `src/dictionary.ts` | Ba bảng tra: `SHORT_PROPERTIES` (406 prop), `COMMON_VALUES`, `SPECIFIC_VALUES`. |
 | `src/core.ts` | Engine chính: phân giải giá trị, dựng rule CSS, quản lý stylesheet, cache `localStorage`, đồng bộ đa tab, quan sát DOM. |
-| `src/index.ts` | API công khai và shared instance dùng chung theo `globalThis`. |
-| `src/index-auto.ts` | Entry tự động gọi `cssObserve(document)` khi import; dùng cho thẻ `<script type="module">`. |
+| `src/runtime.ts` | Lõi runtime công khai: engine, shared instance dùng chung theo `globalThis`, trích xuất tĩnh, công cụ class. |
+| `src/index.ts` | Entry đầy đủ: `runtime.ts` + Tailwind helper (bundler tree-shake phần không dùng). |
+| `src/class-tools.ts` | Phát hiện xung đột (`findClassConflicts`) và rút gọn token (`compactClassToken`), thuần logic. |
+| `src/tailwind-entry.ts` | Entry `@porbit/style/tailwind`: Tailwind helper tách khỏi lõi. |
+| `src/index-auto.ts` | Entry tự động gọi `cssObserve(document)` khi import; chỉ gồm lõi runtime (21 KB gzip), dùng cho thẻ `<script type="module">`. |
 | `src/extract.ts` | Trích xuất CSS tĩnh: quét chuỗi nguồn lấy class ứng viên và sinh CSS ở chế độ SSR. |
 | `src/cli.ts`, `src/cli-bin.ts` | CLI `presence-style` cho pipeline build (`extract`, `mcp`, `mcp-config`). |
 | `src/files.ts` | Liệt kê file nguồn dùng chung cho CLI và MCP. |
