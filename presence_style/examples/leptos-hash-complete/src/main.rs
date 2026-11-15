@@ -51,11 +51,11 @@ fn App() -> impl IntoView {
     let style_prefixed = prefixed.clone();
 
     let main_class = xcss.c("dF jcC p24px bgc#f6f7fb");
-    let shell_class = xcss.c("dF fxdC g20px w100% tablet:w[960px]");
-    let footer_class = xcss.c("dF fxdC g10px p16px bdN bdra8px bgc#111827 cWhite");
+    let shell_class = xcss.c("dF fxdC gap20px w100% tablet:w[960px]");
+    let footer_class = xcss.c("dF fxdC gap10px p16px bdN bdra8px bgc#111827 cWhite");
     let footer_note_class = xcss.c("m0 fs14px opc0.8");
     let prefixed_box_class = prefixed
-        .c("fk-dF fk-aiC fk-jcSp fk-g10px fk-p10px;12px fk-bdN fk-bdra8px fk-bgcTr fk-cWhite");
+        .c("fk-dF fk-aiC fk-jcSp fk-gap10px fk-p10px;12px fk-bdN fk-bdra8px fk-bgcTr fk-cWhite");
     let prefixed_note_class = prefixed.c("fk-fs13px fk-opc0.8");
     let prefixed_strong_class = prefixed.c("fk-fs13px fk-fw700");
 
@@ -106,8 +106,8 @@ fn AppStyle(xcss: XCss, prefixed: XCss) -> impl IntoView {
 #[component]
 fn AppHeader(xcss: XCss) -> impl IntoView {
     view! {
-        <header class=xcss.c("dF fxdC g16px p22px bdN bdra8px bgcWhite bxsh[0;16px;40px;rgba(15,23,42,0.12)]")>
-            <div class=xcss.c("dF fxdC g8px")>
+        <header class=xcss.c("dF fxdC gap16px p22px bdN bdra8px bgcWhite bxsh[0;16px;40px;rgba(15,23,42,0.12)]")>
+            <div class=xcss.c("dF fxdC gap8px")>
                 <p class=xcss.c("m0 fs13px fw700 c--brand")>"HASH MODE + ROUTER"</p>
                 <h1 class=xcss.c("m0 fs28px lh1.2 c#111827")>"Leptos Router + presence-style-css"</h1>
                 <p class=xcss.c("m0 fs15px lh1.6 c#4b5563 w[calc(100%;-;24px)]")>
@@ -115,7 +115,7 @@ fn AppHeader(xcss: XCss) -> impl IntoView {
                 </p>
             </div>
 
-            <nav class=xcss.c("dF fxdC tablet:fxdR g10px")>
+            <nav class=xcss.c("dF fxdC tablet:fxdR gap10px")>
                 <A href="/" exact=true attr:class=xcss.c(r#"dF aiC jcC p10px;14px bdN bdra8px bgc#f3f4f6 bgc--brand-soft@[aria-current="page"] c#111827 c--brand@[aria-current="page"] fw700@[aria-current="page"] tran0.2s"#)>
                     "Trang chủ"
                 </A>
@@ -150,9 +150,9 @@ fn HomePage(xcss: XCss, action_class: String) -> impl IntoView {
     let style_xcss = xcss.clone();
 
     view! {
-        <section class=xcss.c("dF fxdC g16px")>
-            <div class=xcss.c("dF fxdC tablet:fxdR g16px")>
-                <article class=xcss.c("dF fxdC g14px p18px bdN bdra8px bgcWhite")>
+        <section class=xcss.c("dF fxdC gap16px")>
+            <div class=xcss.c("dF fxdC tablet:fxdR gap16px")>
+                <article class=xcss.c("dF fxdC gap14px p18px bdN bdra8px bgcWhite")>
                     <h2 class=xcss.c("m0 fs18px c#111827")>"Trang chủ"</h2>
                     <p class=xcss.c("m0 fs14px lh1.6 c#4b5563")>
                         "Route / hiển thị danh sách nội dung. Các class vẫn viết trực tiếp bằng xcss.c(...)."
@@ -160,7 +160,7 @@ fn HomePage(xcss: XCss, action_class: String) -> impl IntoView {
                     <button class=action_class>"Lưu thay đổi"</button>
                 </article>
 
-                <article class=xcss.c("dF fxdC g14px p18px bdN bdra8px bgcWhite")>
+                <article class=xcss.c("dF fxdC gap14px p18px bdN bdra8px bgcWhite")>
                     <h2 class=xcss.c("m0 fs18px c#111827")>"Selector + state"</h2>
                     <button
                         data-state="active"
@@ -174,10 +174,10 @@ fn HomePage(xcss: XCss, action_class: String) -> impl IntoView {
                 </article>
             </div>
 
-            <div class=xcss.c("dF fxdC g12px")>
+            <div class=xcss.c("dF fxdC gap12px")>
                 {items.into_iter().map(|(title, body)| {
                     view! {
-                        <article class=xcss.c("dF fxdC g6px p16px bdN bdra8px bgcWhite")>
+                        <article class=xcss.c("dF fxdC gap6px p16px bdN bdra8px bgcWhite")>
                             <h3 class=xcss.c("m0 fs16px c#111827")>{title}</h3>
                             <p class=xcss.c("m0 fs14px lh1.6 c#4b5563")>{body}</p>
                         </article>
@@ -195,13 +195,13 @@ fn LoginPage(xcss: XCss) -> impl IntoView {
 
     view! {
         <section class=xcss.c("dF jcC")>
-            <form class=xcss.c("dF fxdC g14px p22px bdN bdra8px bgcWhite w100% tablet:w[420px]")>
+            <form class=xcss.c("dF fxdC gap14px p22px bdN bdra8px bgcWhite w100% tablet:w[420px]")>
                 <h2 class=xcss.c("m0 fs22px c#111827")>"Đăng nhập"</h2>
-                <label class=xcss.c("dF fxdC g6px fs14px c#374151")>
+                <label class=xcss.c("dF fxdC gap6px fs14px c#374151")>
                     "Email"
                     <input class=xcss.c("p10px;12px bd1px;solid;#d1d5db bdra8px fs14px") type="email" placeholder="you@example.com"/>
                 </label>
-                <label class=xcss.c("dF fxdC g6px fs14px c#374151")>
+                <label class=xcss.c("dF fxdC gap6px fs14px c#374151")>
                     "Mật khẩu"
                     <input class=xcss.c("p10px;12px bd1px;solid;#d1d5db bdra8px fs14px") type="password" placeholder="••••••••"/>
                 </label>
@@ -220,13 +220,13 @@ fn RegisterPage(xcss: XCss) -> impl IntoView {
 
     view! {
         <section class=xcss.c("dF jcC")>
-            <form class=xcss.c("dF fxdC g14px p22px bdN bdra8px bgcWhite w100% tablet:w[460px]")>
+            <form class=xcss.c("dF fxdC gap14px p22px bdN bdra8px bgcWhite w100% tablet:w[460px]")>
                 <h2 class=xcss.c("m0 fs22px c#111827")>"Đăng ký"</h2>
-                <label class=xcss.c("dF fxdC g6px fs14px c#374151")>
+                <label class=xcss.c("dF fxdC gap6px fs14px c#374151")>
                     "Tên hiển thị"
                     <input class=xcss.c("p10px;12px bd1px;solid;#d1d5db bdra8px fs14px") type="text" placeholder="Nguyễn Văn A"/>
                 </label>
-                <label class=xcss.c("dF fxdC g6px fs14px c#374151")>
+                <label class=xcss.c("dF fxdC gap6px fs14px c#374151")>
                     "Email"
                     <input class=xcss.c("p10px;12px bd1px;solid;#d1d5db bdra8px fs14px") type="email" placeholder="you@example.com"/>
                 </label>
@@ -244,7 +244,7 @@ fn NotFoundPage(xcss: XCss) -> impl IntoView {
     let style_xcss = xcss.clone();
 
     view! {
-        <section class=xcss.c("dF fxdC g10px p22px bdN bdra8px bgcWhite")>
+        <section class=xcss.c("dF fxdC gap10px p22px bdN bdra8px bgcWhite")>
             <h2 class=xcss.c("m0 fs22px c#111827")>"Không tìm thấy trang"</h2>
             <A href="/" attr:class=xcss.c("dF aiC jcC p10px;16px bdN bdra8px bgc--brand cWhite")>
                 "Về trang chủ"
