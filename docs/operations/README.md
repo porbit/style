@@ -88,6 +88,20 @@ Ví dụ file cấu hình `presence-style.config.json`:
 }
 ```
 
+### Lệnh `check` và `sort`
+
+```bash
+presence-style check <đường-dẫn...> [--config <file>] [--ext <danh-sách>]
+```
+
+Báo từng class không sinh CSS (kèm bản sửa nếu có, ví dụ `fz14px → fns14px`) và từng nhóm class xung đột (cùng property, cùng layer) theo dạng `file:dòng:cột`. Class không có dạng x-css (ví dụ `btn` của thư viện khác) không bị báo. Mã thoát `1` khi có vấn đề, phù hợp cho CI.
+
+```bash
+presence-style sort <đường-dẫn...> [--write | --check]
+```
+
+Sắp xếp class trong thuộc tính class tĩnh theo thứ tự: class lạ → media → layer → nhóm property → selector. Không cờ: chỉ liệt kê file cần sắp xếp. `--write`: ghi lại file. `--check`: mã thoát `1` nếu còn file chưa sắp xếp. Thứ tự class không đổi CSS sinh ra; sắp xếp chỉ để dễ đọc và diff gọn.
+
 ### Lệnh `mcp` và `mcp-config`
 
 ```bash

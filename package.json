@@ -68,6 +68,12 @@
       "require": "./dist/vite.js",
       "default": "./dist/vite.mjs"
     },
+    "./analyze": {
+      "types": "./dist/analyze.d.ts",
+      "import": "./dist/analyze.mjs",
+      "require": "./dist/analyze.js",
+      "default": "./dist/analyze.mjs"
+    },
     "./mcp": {
       "types": "./dist/mcp.d.ts",
       "import": "./dist/mcp.mjs",

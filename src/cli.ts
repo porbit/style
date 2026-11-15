@@ -6,16 +6,22 @@
  *   npx presence-style extract index.html --out out.css --config presence-style.config.json
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { dirname, relative, resolve } from 'node:path'
 import { collectFiles, DEFAULT_EXTENSIONS } from './files'
 import { createPreloadManifest, extractFromClasses, extractCandidates, type ExtractOptions } from './extract'
 import { startMcpServer } from './mcp'
+import { explainClass, findClassAttributes, findClassTokens, isXcssLike, sortClassesInSource } from './analyze'
+import { findClassConflicts } from './class-tools'
 import { MCP_CLIENTS, renderMcpConfig } from './mcp-config'
 
 const HELP = `presence-style — trích xuất CSS tĩnh cho @porbit/style
 
 Cách dùng:
   presence-style extract <đường-dẫn...> [tuỳ chọn]
+  presence-style check <đường-dẫn...> [--config <file>]
+                                            Báo class không sinh CSS và class xung đột
+  presence-style sort <đường-dẫn...> [--write | --check]
+                                            Sắp xếp class trong thuộc tính class tĩnh
   presence-style mcp [--root <thư-mục>]     Chạy MCP server qua stdio cho agent AI
   presence-style mcp-config [client]        In lệnh/cấu hình cài MCP cho từng agent
                                             (claude, claude-desktop, codex, cursor, vscode,
@@ -86,6 +92,90 @@ const parseArgs = (argv: string[]): CliOptions => {
     return options
 }
 
+const lineColumn = (source: string, offset: number): string => {
+    const before = source.slice(0, offset)
+    const line = before.split('\n').length
+    return `${line}:${offset - before.lastIndexOf('\n')}`
+}
+
+/** `check`: báo lỗi class; `sort`: sắp xếp class (in danh sách file cần sắp, hoặc ghi với --write). */
+const runSourceCommand = async (command: 'sort' | 'check', argv: string[]): Promise<number> => {
+    const write = argv.includes('--write')
+    const checkOnly = argv.includes('--check')
+    const rest = argv.filter((arg) => arg !== '--write' && arg !== '--check')
+    let options: CliOptions
+    try {
+        options = parseArgs(rest)
+    } catch (error) {
+        process.stderr.write(`${(error as Error).message}\n\n${HELP}`)
+        return 1
+    }
+    if (options.inputs.length === 0) {
+        process.stderr.write(`Thiếu đường dẫn nguồn.\n\n${HELP}`)
+        return 1
+    }
+    let config: ExtractOptions = {}
+    if (options.config) {
+        try {
+            config = JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions
+        } catch (error) {
+            process.stderr.write(`Không đọc được file cấu hình ${options.config}: ${(error as Error).message}\n`)
+            return 1
+        }
+    }
+    const files: string[] = []
+    for (const input of options.inputs) files.push(...(await collectFiles(input, options.extensions)))
+
+    let problems = 0
+    for (const file of files) {
+        const source = await readFile(file, 'utf8').catch(() => null)
+        if (source === null) continue
+        const shown = relative(process.cwd(), file) || file
+
+        if (command === 'sort') {
+            const sorted = sortClassesInSource(source)
+            if (sorted === source) continue
+            problems++
+            if (write) await writeFile(file, sorted, 'utf8')
+            process.stdout.write(`${write ? 'đã sắp xếp' : 'cần sắp xếp'}: ${shown}\n`)
+            continue
+        }
+
+        const tokens = findClassTokens(source)
+        const cache = new Map<string, ReturnType<typeof explainClass>>()
+        for (const { start, token } of tokens) {
+            if (/[{}$`]/.test(token)) continue
+            let info = cache.get(token)
+            if (!info) {
+                info = explainClass(token, config)
+                cache.set(token, info)
+            }
+            // Class không có dạng x-css (ví dụ `btn` của thư viện khác) chỉ bị báo khi có bản sửa.
+            if (info.valid || !info.parsed) continue
+            if (!info.suggestion && !isXcssLike(token)) continue
+            problems++
+            const fix = info.suggestion ? ` → \`${info.suggestion}\`` : ''
+            process.stdout.write(`${shown}:${lineColumn(source, start)}  \`${token}\` không sinh CSS${fix}\n`)
+        }
+        for (const range of findClassAttributes(source)) {
+            for (const conflict of findClassConflicts(range.value)) {
+                problems++
+                process.stdout.write(
+                    `${shown}:${lineColumn(source, range.start)}  xung đột ${conflict.property}: ${conflict.tokens.join(' ')}\n`,
+                )
+            }
+        }
+    }
+
+    if (!options.silent) {
+        const label = command === 'sort' ? 'file cần sắp xếp' : 'vấn đề'
+        process.stderr.write(`presence-style ${command}: ${files.length} file, ${problems} ${label}.\n`)
+    }
+    if (command === 'sort' && write) return 0
+    if (command === 'sort' && !checkOnly) return 0
+    return problems > 0 ? 1 : 0
+}
+
 export const runCli = async (argv: string[]): Promise<number> => {
     const command = argv[0]
 
@@ -122,6 +212,10 @@ export const runCli = async (argv: string[]): Promise<number> => {
         }
         process.stdout.write(renderMcpConfig(client as any))
         return 0
+    }
+
+    if (command === 'sort' || command === 'check') {
+        return runSourceCommand(command, argv.slice(1))
     }
 
     let options: CliOptions

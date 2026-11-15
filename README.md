@@ -262,6 +262,18 @@ xcss.cssObserve(document, { hashClassName: false, preload: { ...manifest, skipIn
 
 Không dùng bundler: `presence-style extract src --out presence.css --manifest presence-manifest.json`. Chi tiết: [docs/guides/static-first.md](./docs/guides/static-first.md).
 
+## Kiểm Tra Và Sắp Xếp Class
+
+```bash
+npx presence-style check src          # class không sinh CSS (kèm bản sửa) và class xung đột; mã thoát 1 nếu có lỗi
+```
+
+```bash
+npx presence-style sort src --write   # sắp xếp class: media → layer → nhóm property → selector
+```
+
+Trong VS Code: cài extension ở [editors/vscode](./editors/vscode) để có gạch lỗi, quick fix, hover hiện CSS và gợi ý alias ngay khi gõ. Dùng logic này trong công cụ riêng: `import { analyzeClasses, fixClasses, sortClasses } from '@porbit/style/analyze'`.
+
 ## Bộ Component Mẫu
 
 `@porbit/style/components` có sẵn recipe cho button, badge, card, form (input, select, textarea, checkbox), alert, avatar, navbar, tabs, table, modal, progress, skeleton, spinner, breadcrumb, pagination, tooltip, container, stack, grid. Màu và bo góc đọc từ token `--ps-*`, đổi theme chỉ cần đổi biến.
@@ -1036,6 +1048,7 @@ Bộ test Playwright (Chromium/Firefox/WebKit + Pixel 5/iPhone 13) nằm trong [
 - Bộ component mẫu: [docs/guides/components.md](./docs/guides/components.md)
 - MCP server cho agent AI: [docs/guides/mcp.md](./docs/guides/mcp.md)
 - Static-first và plugin Vite (CSS sinh sẵn lúc build): [docs/guides/static-first.md](./docs/guides/static-first.md)
+- Extension VS Code (gạch lỗi, quick fix, hover CSS, gợi ý, sắp xếp): [editors/vscode](./editors/vscode)
 - Đánh giá so với Tailwind và lộ trình tối ưu: [docs/strategy/danh-gia-va-dinh-huong.md](./docs/strategy/danh-gia-va-dinh-huong.md)
 - Dictionary đầy đủ: [DICTIONARY.md](./DICTIONARY.md)
 - Đặc tả cú pháp chuẩn (đa engine): [spec/SPEC.md](./spec/SPEC.md)

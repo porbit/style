@@ -10,6 +10,7 @@ export default defineConfig({
         mcp: 'src/mcp.ts',
         tailwind: 'src/tailwind-entry.ts',
         vite: 'src/vite.ts',
+        analyze: 'src/analyze.ts',
     },
     format: ['cjs', 'esm'],
     dts: true,
