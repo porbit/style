@@ -1,3 +1,4 @@
+import { compactClassToken, findClassConflicts, getConflictKey } from './class-tools'
 import { parseClassName } from './parser'
 
 export type TailwindConversionStatus = 'converted' | 'passthrough' | 'unsupported'
@@ -41,12 +42,29 @@ export interface TailwindConversionOptions {
      * `breakpoints: [{ dark: '(prefers-color-scheme: dark)' }]`; `class` dùng tổ tiên `.dark`.
      */
     darkMode?: 'media' | 'class'
+    /**
+     * Rút gọn token sang dạng x-css ngắn tương đương (`ai[center]` → `aiC`, `h[40px]` → `h40px`).
+     * Mặc định `false` để giữ nguyên output chính tắc của các bản trước.
+     */
+    compact?: boolean
 }
 
 const DEFAULT_OPTIONS: Required<TailwindConversionOptions> = {
     preserveUnknown: true,
     mode: 'legacy',
     darkMode: 'media',
+    compact: false,
+}
+
+// Giá trị mặc định của Tailwind cho nhóm transition-*.
+const TRANSITION_EASE = 'cubic-bezier(0.4,0,0.2,1)'
+const TRANSITION_PROPERTIES: Record<string, string> = {
+    transition: 'color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,translate,scale,rotate,filter,backdrop-filter',
+    'transition-all': 'all',
+    'transition-colors': 'color,background-color,border-color,outline-color,text-decoration-color,fill,stroke',
+    'transition-opacity': 'opacity',
+    'transition-shadow': 'box-shadow',
+    'transition-transform': 'transform,translate,scale,rotate',
 }
 
 const RESPONSIVE_VARIANTS = new Set(['xs', 'sm', 'md', 'lg', 'xl', '2xl'])
@@ -1452,6 +1470,43 @@ const convertBaseToken = (token: string): TailwindBaseTokenConversion => {
         }
     }
 
+    if (token === 'transition-none') {
+        return { input: token, outputs: ['tranp[none]'], status: 'converted', exact: true, warnings }
+    }
+
+    if (token === 'transition-discrete' || token === 'transition-normal') {
+        return {
+            input: token,
+            outputs: [`tranb[${token === 'transition-discrete' ? 'allow-discrete' : 'normal'}]`],
+            status: 'converted',
+            exact: true,
+            warnings,
+        }
+    }
+
+    const arbitraryTransition = token.match(/^transition-\[(.+)\]$/)
+    if (arbitraryTransition) {
+        return {
+            input: token,
+            outputs: [`tranp[${arbitraryTransition[1]}]`, 'trandur150ms', `trantf[${TRANSITION_EASE}]`],
+            status: 'converted',
+            exact: true,
+            warnings,
+        }
+    }
+
+    if (TRANSITION_PROPERTIES[token]) {
+        // Giữ đúng property bị transition (trước đây mọi transition-* thành `transition: 0.2s`
+        // áp cho tất cả property). duration-/ease- đứng sau sẽ ghi đè trandur/trantf.
+        return {
+            input: token,
+            outputs: [`tranp[${TRANSITION_PROPERTIES[token]}]`, 'trandur150ms', `trantf[${TRANSITION_EASE}]`],
+            status: 'converted',
+            exact: true,
+            warnings,
+        }
+    }
+
     if (token.startsWith('transition')) {
         warnings.push({
             token,
@@ -1641,8 +1696,49 @@ export const convertTailwindClasses = (
 ): TailwindConversionResult => {
     const tokens = input.split(/\s+/).map((item) => item.trim()).filter(Boolean)
     const details = tokens.map((token) => convertTailwindToken(token, options))
-    const outputTokens = details.flatMap((item) => item.outputs)
+    if (options?.compact) {
+        details.forEach((item) => {
+            item.outputs = item.outputs.map(compactClassToken)
+        })
+    }
     const warnings = details.flatMap((item) => item.warnings)
+
+    // Token "mặc định ngầm" do helper tự thêm (màu viền currentColor của `border`, duration/ease
+    // của `transition-*`) bị bỏ khi chuỗi có token chỉ định rõ cùng property, media, layer,
+    // selector. Nếu giữ lại, CSS thắng phụ thuộc thứ tự rule trên trang, không theo thứ tự class.
+    const isImplicitDefault = (input: string, output: string): boolean => {
+        const base = splitVariants(input).base
+        if (TRANSITION_PROPERTIES[base] !== undefined || /^transition-\[/.test(base)) return !/^(?:[^:]*:)?\d*tranp/.test(output)
+        if (/^border(?:-[trblxy])?(?:-\d+)?$/.test(base)) {
+            const key = getConflictKey(output)
+            return !!key && key.split('|')[2].endsWith('color')
+        }
+        return false
+    }
+    const explicitKeys = new Set<string>()
+    details.forEach((item) => {
+        item.outputs.forEach((output) => {
+            if (isImplicitDefault(item.input, output)) return
+            const key = getConflictKey(output)
+            if (key) explicitKeys.add(key)
+        })
+    })
+    details.forEach((item) => {
+        item.outputs = item.outputs.filter((output) => {
+            if (!isImplicitDefault(item.input, output)) return true
+            const key = getConflictKey(output)
+            return !key || !explicitKeys.has(key)
+        })
+    })
+
+    const outputTokens = details.flatMap((item) => item.outputs)
+    // Xung đột do chính người viết tạo ra (ví dụ `p-4 p-2`): giữ nguyên, chỉ cảnh báo.
+    findClassConflicts(outputTokens).forEach((conflict) => {
+        warnings.push({
+            token: conflict.tokens.join(' '),
+            message: `Các class \`${conflict.tokens.join('`, `')}\` cùng đặt ${conflict.property}; class thắng phụ thuộc thứ tự rule trên trang. Giữ một class hoặc nâng layer (ví dụ \`1...\`).`,
+        })
+    })
 
     return {
         input,

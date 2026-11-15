@@ -82,13 +82,13 @@ export const TAILWIND_COVERAGE_MATRIX: readonly TailwindCoverageEntry[] = [
         group: 'motion',
         support: 'exact',
         examples: ['duration-300', 'delay-150', 'ease-in-out', 'ease-linear'],
-        notes: 'thời lượng, độ trễ và hàm thời gian đổi sang trandur, trand, trantf; `transition` đứng một mình vẫn chỉ gần đúng (200ms).',
+        notes: 'thời lượng, độ trễ và hàm thời gian đổi sang trandur, trand, trantf.',
     },
     {
         group: 'motion-basic',
-        support: 'partial',
-        examples: ['transition'],
-        notes: 'transition currently degrades to a generic 200ms x-css transition and should be reviewed before release.',
+        support: 'exact',
+        examples: ['transition', 'transition-colors', 'transition-opacity', 'transition-transform', 'transition-[height]', 'transition-none'],
+        notes: 'đổi sang tranp[...] + trandur150ms + trantf theo mặc định Tailwind; duration-*/ease-* viết kèm sẽ thay mặc định.',
     },
     {
         group: 'transform-effects',
@@ -132,6 +132,7 @@ const DEFAULT_READINESS_OPTIONS: Required<TailwindMigrationReadinessOptions> = {
     mode: 'safe',
     preserveUnknown: false,
     darkMode: 'media',
+    compact: false,
 }
 
 const isSafeDetailForAutoApply = (detail: TailwindTokenConversion): boolean => {
