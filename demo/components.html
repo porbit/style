@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PresenceStyle Components</title>
+</head>
+<!--
+  Chạy từ gốc repo:  npm run build && python3 -m http.server 5173
+  Mở:                http://localhost:5173/demo/components.html
+-->
+<body class="m0 bgc--ps-bg c--ps-fg ff--ps-font">
+  <header class="posSt t0 z40 dF aiC jcSp gap16px h64px p0;24px bgc--ps-surface bdb[1px_solid_var(--ps-border)]">
+    <strong class="fns18px">PresenceStyle · Components</strong>
+    <button id="toggle-theme" class="h36px p0;14px bdN bdra--ps-radius bgc--ps-muted c--ps-fg fns14px crP bgc--ps-muted-hover@:hover">Đổi sáng / tối</button>
+  </header>
+  <main id="gallery" class="w100% mw1100px m0;auto p32px;16px bxsz[border-box] dF fxdC gap32px"></main>
+
+  <script type="module">
+    import xcss from '../dist/index.mjs'
+    import { COMPONENT_SNIPPETS, createComponentTheme } from '../dist/components.mjs'
+
+    const section = 'dF fxdC gap16px p24px bgc--ps-surface bd[1px_solid_var(--ps-border)] bdra--ps-radius-lg'
+    const preview = 'dF fxw[wrap] aiC gap12px'
+    const code = 'm0 p16px oflxA bgc--ps-muted bdra--ps-radius fns12px lh1.6 ff[ui-monospace,SFMono-Regular,Menlo,monospace]'
+
+    const escape = (text) => text.replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[ch])
+
+    document.getElementById('gallery').innerHTML = COMPONENT_SNIPPETS.map((item) => `
+      <section class="${section}" id="${item.name}">
+        <div>
+          <h2 class="m0 mb4px fns20px fnw600">${item.title}</h2>
+          <p class="m0 fns14px c--ps-muted-fg">${item.description}</p>
+        </div>
+        <div class="${preview}">${item.name === 'modal' ? `<div class="posR w100% h260px oflH bdra--ps-radius">${item.html.replace('posF', 'posA')}</div>` : item.html}</div>
+        <details><summary class="crP fns13px c--ps-muted-fg">Xem HTML</summary><pre class="${code}"><code>${escape(item.html)}</code></pre></details>
+      </section>`).join('')
+
+    // darkMode 'class': thêm/bỏ class `dark` trên <html> để đổi theme.
+    xcss.cssObserve(document, { base: createComponentTheme({ darkMode: 'class' }) })
+
+    document.getElementById('toggle-theme').addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark')
+    })
+  </script>
+</body>
+</html>
