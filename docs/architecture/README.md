@@ -22,7 +22,10 @@ Engine hoạt động ở hai chế độ:
 | `src/index.ts` | API công khai và shared instance dùng chung theo `globalThis`. |
 | `src/index-auto.ts` | Entry tự động gọi `cssObserve(document)` khi import; dùng cho thẻ `<script type="module">`. |
 | `src/extract.ts` | Trích xuất CSS tĩnh: quét chuỗi nguồn lấy class ứng viên và sinh CSS ở chế độ SSR. |
-| `src/cli.ts`, `src/cli-bin.ts` | CLI `presence-style` cho pipeline build. |
+| `src/cli.ts`, `src/cli-bin.ts` | CLI `presence-style` cho pipeline build (`extract`, `mcp`, `mcp-config`). |
+| `src/files.ts` | Liệt kê file nguồn dùng chung cho CLI và MCP. |
+| `src/components.ts` | Hàm `recipe()`, theme token `--ps-*` và bộ component mẫu (`@porbit/style/components`). |
+| `src/mcp.ts`, `src/mcp-config.ts` | MCP server stdio (JSON-RPC 2.0) và mẫu cấu hình cài cho từng agent. |
 | `src/bootloader.ts` | Sinh đoạn script nhỏ nạp CSS từ cache `localStorage` trước khi bundle chính chạy. |
 | `src/tailwind.ts` | Chuyển đổi utility kiểu Tailwind sang cú pháp x-css. |
 | `src/tailwind-readiness.ts` | Đánh giá mức độ an toàn khi migrate tự động từ Tailwind. |
@@ -149,11 +152,25 @@ Bản runtime hiện tại đã áp dụng các tối ưu không làm thay đổ
 5. Khởi tạo `@layer` dùng `ownerDocument` của root, nên không phụ thuộc nhầm vào `document` toàn cục khi chạy trong iframe hoặc document khác.
 6. Khi API nhận một `Element`, stylesheet vẫn gắn vào document chứa nó nhưng observer chỉ quét và theo dõi đúng subtree của element đó.
 
+7. Memo `appliedClassKeys` theo cặp (class nguồn, tên class xuất): mỗi class chỉ đi qua `classToProp` + dựng rule một lần cho mỗi engine. Quét lần đầu (cùng class lặp ở hàng nghìn node), re-render gọi `clsx()` và burst mutation đều bỏ qua phần việc trùng.
+8. `clsx()` memo kết quả theo chuỗi đầu vào (các đối số chuỗi nối bằng khoảng trắng) và chỉ phát sự kiện cho token chưa có rule.
+9. Chỉ thăm dò `localStorage` khi bật `cache.loadOnInit`; mọi truy cập đi qua `getLocalStorageSafe()` để không ném `SecurityError`.
+
 Các thay đổi này chỉ tối ưu thực thi; tuple parser, declaration, selector, media, layer và tên class mặc định vẫn giữ nguyên. Fallback legacy có thể cập nhật style trễ đến microtask hiện tại, nhưng vẫn hoàn tất trước lượt render kế tiếp trong cùng event loop.
 
 ## 10. Hướng Mở Rộng Có Kiểm Soát
 
-Không đưa scheduler, plugin hoặc package split vào mặc định khi chưa có benchmark trình duyệt lặp lại. Bước tiếp theo được ưu tiên là:
+Không đưa scheduler, plugin hoặc package split vào mặc định khi chưa có benchmark trình duyệt lặp lại. Đề xuất tối ưu tiếp theo, xếp theo lợi ích/rủi ro:
+
+| Đề xuất | Lợi ích | Rủi ro / điều kiện |
+| :--- | :--- | :--- |
+| Static-first: build sinh CSS bằng `extract`, runtime chỉ xử lý class chưa có trong CSS tĩnh (danh sách nạp sẵn) | Gần như bằng 0 chi phí runtime khi trang đã trích xuất đủ | Cần hợp đồng giữa CLI và runtime (manifest class) |
+| Tạo stylesheet theo media khi cần (lazy) thay vì 12 sheet rỗng lúc khởi tạo | Ít `CSSStyleSheet` hơn, khởi tạo nhanh hơn trên thiết bị yếu | Phải chèn sheet đúng vị trí trong `adoptedStyleSheets` để giữ thứ tự cascade |
+| Gom `insertRule` của một batch thành một lần `replace` khi batch lớn (> vài trăm rule) | Giảm số lần invalidation style ở lần quét đầu | Cần benchmark trên Firefox/WebKit, nơi chi phí `insertRule` khác Chromium |
+| Plugin Vite/webpack gọi `extract` ở dev server | CSS có ngay khi HMR, không chờ observer | Thêm entry/peer dependency tuỳ chọn |
+| Bỏ `CSS.supports` cho declaration đã có trong dictionary dựng sẵn | Bớt một lần gọi native cho mỗi declaration mới | Mất lớp bảo vệ với value tuỳ ý; chỉ áp cho alias đã kiểm chứng |
+
+Bước tiếp theo được ưu tiên là:
 
 1. Chuẩn hóa benchmark initial scan, mutation burst, cache và CSSOM trên Chromium/Firefox/WebKit.
 2. Tách Rule IR thuần logic khỏi `core.ts`, sau đó dùng chung cho browser, SSR, CLI và engine Rust.

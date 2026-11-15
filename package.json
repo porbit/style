@@ -1,10 +1,10 @@
 {
   "name": "@porbit/style",
-  "version": "0.4.0",
-  "description": "PresenceStyle: utility CSS engine cho lập trình giao diện — parse class runtime, sinh CSS theo layer/media, và trích xuất CSS tĩnh ở build-time.",
+  "version": "0.5.0",
+  "description": "PresenceStyle: utility CSS engine mở — parse class runtime, sinh CSS theo layer/media, trích xuất CSS tĩnh, bộ component mẫu và MCP server cho agent AI.",
   "type": "commonjs",
   "license": "MIT",
-  "author": "Presence",
+  "author": "vuits24",
   "keywords": [
     "presence",
     "presence-style",
@@ -17,7 +17,11 @@
     "static-extraction",
     "ssr",
     "typescript",
-    "x-css"
+    "x-css",
+    "components",
+    "design-system",
+    "mcp",
+    "model-context-protocol"
   ],
   "homepage": "https://github.com/porbit/style#readme",
   "repository": {
@@ -45,6 +49,18 @@
       "require": "./dist/index-auto.js",
       "default": "./dist/index-auto.mjs"
     },
+    "./components": {
+      "types": "./dist/components.d.ts",
+      "import": "./dist/components.mjs",
+      "require": "./dist/components.js",
+      "default": "./dist/components.mjs"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.d.ts",
+      "import": "./dist/mcp.mjs",
+      "require": "./dist/mcp.js",
+      "default": "./dist/mcp.mjs"
+    },
     "./dictionary.json": "./spec/dictionary.json",
     "./package.json": "./package.json"
   },
@@ -60,6 +76,8 @@
     "spec/SPEC.md",
     "docs/guides/thiet-ke-nhanh.md",
     "docs/guides/tu-vung-mo.md",
+    "docs/guides/mcp.md",
+    "docs/guides/components.md",
     "README.md",
     "CHANGELOG.md",
     "DICTIONARY.md",
@@ -85,7 +103,8 @@
     "typecheck": "tsc --noEmit",
     "test:run": "vitest run",
     "extract": "node ./dist/cli-bin.js extract",
-    "verify": "npm run typecheck && npm run test:run && npm run build"
+    "verify": "npm run typecheck && npm run test:run && npm run build",
+    "mcp": "node ./dist/cli-bin.js mcp"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
