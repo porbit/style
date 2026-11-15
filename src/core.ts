@@ -856,9 +856,16 @@ const loadExternalDictionary = async (source: string): Promise<XCSSDictionaryDat
 const DICTIONARY_MODULE_ERROR =
     'XCSS: dictionary module must export plain-object SHORT_PROPERTIES, COMMON_VALUES and SPECIFIC_VALUES'
 
+// Thứ tự cascade layer: l0 thấp nhất, l23 cao nhất. PHẢI được khai báo trước mọi rule
+// `@layer lN{...}`, nếu không trình duyệt xếp layer theo lần xuất hiện đầu tiên.
+const LAYER_NAMES = Array.from({ length: 24 }, (_, i) => 'l' + i)
+export const LAYER_ORDER_STATEMENT = `@layer ${LAYER_NAMES.join(', ')};`
+
 const setupCssLayers = (docRoot: Document | ShadowRoot | null, id?: string) => {
     if (!docRoot) return
-    id = id || 'PresenceStyle'
+    // Id riêng: trước đây trùng id thẻ bootloader nên bị removeBootloaderStyle() xoá sau
+    // hai khung hình, làm thứ tự layer bị tính lại theo lần xuất hiện (layer thấp thắng cao).
+    id = (id || 'PresenceStyle') + '-layers'
     const ownerDocument =
         'ownerDocument' in docRoot && docRoot.ownerDocument
             ? docRoot.ownerDocument
@@ -1763,6 +1770,12 @@ export const xcss = (
             } catch (e) { logError('PresenceStyle: Failed to read cache', e) }
         }
 
+        // Câu khai báo thứ tự layer nằm ở đầu sheet gốc: có mặt trong CSS tĩnh (SSR/extract),
+        // trong cache/bootloader và trong adoptedStyleSheets, độc lập với thẻ <style> ở <head>.
+        const rootBaseText = supportsAtLayer
+            ? LAYER_ORDER_STATEMENT + (baseCssText ? '\n' + baseCssText : '')
+            : baseCssText
+
         // Init sheets & Finish Hydration
         if (isBrowser) {
             const rootSheet = createMediaSheet('root', '')
@@ -1790,7 +1803,7 @@ export const xcss = (
             cssStyleSheetsText[k] = []
         })
 
-        applySheetText('root', baseCssText)
+        applySheetText('root', rootBaseText)
 
         // Xóa bootloader style SAU khi adoptedStyleSheets đã paint xong
         // Dùng double requestAnimationFrame để đảm bảo trình duyệt đã render CSS mới
@@ -1826,7 +1839,7 @@ export const xcss = (
 
                 if (key === 'root') {
                     const cachedRoot = typeof data.cssText?.root === 'string' ? data.cssText.root : ''
-                    const txt = mergeRootCssText(baseCssText, cachedRoot)
+                    const txt = mergeRootCssText(rootBaseText, cachedRoot)
                     applySheetText('root', txt)
                     return
                 }
@@ -2166,7 +2179,7 @@ export const xcss = (
                     return `@media ${mediaQueryStr} {\n${css}\n}`
                 }
                 return css
-            }).join('\n')
+            }).filter(Boolean).join('\n')
         }
 
         /**

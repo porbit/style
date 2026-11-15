@@ -195,3 +195,30 @@ Giới hạn của số liệu AI: cả hai lượt viết do **một** agent đ
 | 4 | Ring/shadow ghép bằng biến như Tailwind v4 | Hết cảnh ring đè bóng đổ |
 | 5 | Cập nhật engine Rust và chạy conformance | Parity chưa kiểm từ 0.4 |
 
+## 10. Engine Rust Và Đề Xuất Tối Ưu Tiếp (0.7.2)
+
+### 10.1 Phân tích `presence_style` khi tích hợp
+
+| Hạng mục | Tình trạng khi nhận | Đã làm |
+| :--- | :--- | :--- |
+| Parity với Node | Khớp 3274 case của bộ dữ liệu trước 0.4; lệch 13/3294 với Node 0.7 (thiếu từ vựng mở, `--bien[...]`, `_`, `-.5rem`) | Khớp 3314/3314, thêm case chuỗi `&` và giá trị không an toàn |
+| Thứ tự cascade | Không bọc `@layer`; media sắp theo chuỗi query nên `sm:` đè `xl:`, `md:cRed` đè `5cBlue` | Cùng mô hình với Node; so trên Chromium: 0 khác biệt computed style |
+| An toàn khi sinh CSS ở server | Không chặn `}` `<` `/*` hay ngoặc/nháy hở trong giá trị | Chặn như Node |
+| Hiệu năng | Không memo, `css_text()` dựng lại mỗi lần | Memo + cache: lặp nhanh ~20 lần, `css_text()` ~150 lần |
+| Ví dụ framework | `g16px` (grid) dùng như gap ở 32 chỗ | Sửa thành `gap16px`; cả 5 ví dụ biên dịch được |
+
+Khi làm việc này cũng lộ ra **hai lỗi thứ tự layer ở engine Node** (runtime sau hai khung hình, và CSS tĩnh). Bộ conformance không bắt được vì nó so từng class riêng; chỉ thấy khi render nhiều class cùng lúc trên trình duyệt. Bài học: cần thêm bước so *hiển thị* bên cạnh so *tuple*.
+
+### 10.2 Đề xuất tối ưu tiếp
+
+| Ưu tiên | Đề xuất | Lợi ích | Ghi chú |
+| :--- | :--- | :--- | :--- |
+| 1 | CI GitHub Actions: `npm run verify`, `cargo test`, so hiển thị Node/Rust trên Chromium, `eval/score.cjs` | Chặn lỗi kiểu 10.1 trước khi merge | Cần quyền `workflows` cho GitHub App khi đẩy file `.github/workflows` |
+| 2 | Rust SSR + Node hydrate: `XCoreRegistry::manifest()` xuất cùng định dạng `preload` | App Leptos/Yew render CSS ở server, runtime JS (hoặc wasm) chỉ lo class động; khởi tạo ~3 ms như static-first | Hai engine đã khớp ngữ nghĩa nên ghép được |
+| 3 | Thống nhất cách đặt tên hash: Node dùng FNV-1a như Rust (`stable_class_name`) | Tên class giống nhau giữa server Rust và client Node, giữa các lần build; bỏ được registry key trong `localStorage` (phần phức tạp nhất của `core.ts`) | Tên dài hơn (~13 ký tự so với 2–4); nên là tuỳ chọn trước khi đổi mặc định |
+| 4 | `x-css` (wasm): `MutationObserver` + chỉ ghi lại `<style>` khi có rule mới | Ví dụ direct-class hiện chỉ quét DOM một lần; class đổi theo state không có CSS | Cần kiểm thử trên trình duyệt bằng wasm-bindgen trước khi phát hành |
+| 5 | Phương ngữ Tailwind cho Rust (port `tailwindDialect`) | App Rust viết class Tailwind như phía JS | Bộ chuyển ~1.700 dòng TS; nên sinh bảng ánh xạ từ TS như dictionary |
+| 6 | Publish npm 0.7.2 và crates.io 0.2.0 | Lệnh `npx`, `init`, plugin Vite, MCP dùng được | npm hiện vẫn 0.4.0 |
+
+Không đề xuất: thay engine JS bằng Rust/wasm trong trình duyệt. Engine JS đã xử lý 20.000 lần `clsx` trong ~13 ms; chi phí qua lại ranh giới JS–wasm và tải thêm file wasm lớn hơn phần có thể tiết kiệm.
+

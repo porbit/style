@@ -105,11 +105,11 @@ Registry được nạp một lần vào bộ nhớ và ghi lại gộp theo mic
 `PresenceStyle` là nguồn chân lý cho engine Rust `presence_style`:
 
 ```text
-src/dictionary.ts ──gen-spec──▶ spec/dictionary.json ──gen-rust-dict──▶ x-core/src/dictionary_generated.rs
-src/{core,parser}.ts ──gen-spec──▶ spec/conformance.core.json ──▶ x-core/tests/conformance.core.json
+src/{dictionary,css-properties}.ts ──gen-spec──▶ spec/dictionary.json ──gen-rust-dict──▶ presence_style/x-core/src/dictionary_generated.rs
+src/{core,parser}.ts ──gen-spec──▶ spec/conformance.core.json ──▶ presence_style/x-core/tests/conformance.core.json
 ```
 
-Hợp đồng conformance so khớp theo tuple ngữ nghĩa `{accepted, media, layer, selector, declarations}`, không so tên class, vì hai engine dùng thuật toán hash và escape khác nhau. Hiện có 3294 case (2698 chấp nhận, 596 từ chối). 20 case thêm ở 0.4.0 chưa được chạy trên engine Rust; parity của 0.4.0 là chưa kiểm chứng cho tới khi engine Rust được cập nhật.
+Hợp đồng conformance so khớp theo tuple ngữ nghĩa `{accepted, media, layer, selector, declarations}`, không so tên class, vì hai engine dùng thuật toán hash và escape khác nhau. Hiện có 3314 case (2705 chấp nhận, 609 từ chối) và engine Rust `presence_style/x-core` (0.2.0, nằm trong cùng repo) khớp 100%. Ngoài tuple, CSS hai engine sinh cho cùng tập class được so trên Chromium (computed style) để bắt khác biệt về thứ tự cascade mà tuple không thấy.
 
 Khi thay đổi hành vi engine một cách có chủ đích, phải chạy `npm run gen` để cập nhật lại hợp đồng.
 
@@ -121,8 +121,8 @@ Hai script sinh mã chỉ ghi ra ngoài repository khi được chỉ định đ
 | `PRESENCE_STYLE_RUST_DICT_OUT` hoặc đối số thứ nhất của `gen-rust-dict.cjs` | Đường dẫn file `dictionary_generated.rs`. |
 
 ```bash
-PRESENCE_STYLE_RUST_TESTS_DIR=../rust/x-core/tests \
-PRESENCE_STYLE_RUST_DICT_OUT=../rust/x-core/src/dictionary_generated.rs npm run gen
+PRESENCE_STYLE_RUST_TESTS_DIR=presence_style/x-core/tests \
+PRESENCE_STYLE_RUST_DICT_OUT=presence_style/x-core/src/dictionary_generated.rs npm run gen
 ```
 
 ## 7.1 Thứ Tự Ưu Tiên Cascade
@@ -136,6 +136,8 @@ md:5cRed   -> @media (min-width:768px){@layer l5{...}}                    // ghi
 ```
 
 Layer lớn hơn `23` không nằm trong khai báo `@layer l0..l23`, nên thứ tự giữa chúng theo lần xuất hiện đầu tiên.
+
+Câu khai báo `@layer l0, ..., l23;` (`LAYER_ORDER_STATEMENT`) nằm ở đầu stylesheet gốc của engine, nên có mặt trong runtime (adoptedStyleSheets), CSS tĩnh, cache và bootloader. Trước 0.7.2 câu này chỉ nằm trong một thẻ `<style>` ở `<head>` và bị xoá nhầm sau hai khung hình; CSS tĩnh thì không có.
 
 ## 8. Ràng Buộc Thiết Kế
 

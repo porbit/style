@@ -452,27 +452,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "presence-style-core"
-version = "0.1.0"
-
-[[package]]
-name = "presence-style-css"
-version = "0.1.0"
-dependencies = [
- "presence-style-core",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
-name = "presence-style-leptos-direct-class"
-version = "0.1.0"
-dependencies = [
- "presence-style-css",
- "leptos",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1028,6 +1007,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0103b1cef7ec0cf76490e969665504990193874ea05c85ff9bab8b911d0a0564"
 dependencies = [
  "zerovec",
+]
+
+[[package]]
+name = "presence-style-core"
+version = "0.2.0"
+
+[[package]]
+name = "presence-style-css"
+version = "0.2.0"
+dependencies = [
+ "presence-style-core",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "presence-style-leptos-direct-class"
+version = "0.1.0"
+dependencies = [
+ "leptos",
+ "presence-style-css",
 ]
 
 [[package]]

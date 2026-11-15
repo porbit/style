@@ -1,9 +1,14 @@
-use std::collections::BTreeMap;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 mod dictionary_generated;
 use dictionary_generated::{
     common_value, is_known_full_property, is_known_short_property, property_name, specific_value,
 };
+
+/// Khai báo thứ tự cascade layer `l0` (thấp) .. `l23` (cao). Phải đứng trước mọi rule
+/// `@layer lN{...}`, nếu không trình duyệt xếp layer theo lần xuất hiện đầu tiên.
+pub const LAYER_ORDER_STATEMENT: &str = "@layer l0, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13, l14, l15, l16, l17, l18, l19, l20, l21, l22, l23;";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedClass {
@@ -46,10 +51,19 @@ impl Default for XCoreConfig {
     }
 }
 
+/// Registry: token x-css -> tên class xuất + rule CSS.
+///
+/// - Mỗi token chỉ được phân tích một lần (memo), nên gọi `clsx` lặp ở mỗi lần render rẻ.
+/// - Rule giữ thứ tự chèn (giống engine Node) để class cùng layer, cùng độ ưu tiên
+///   cho cùng kết quả ở hai engine.
+/// - `css_text()` được cache và chỉ dựng lại khi có rule mới.
 #[derive(Debug, Clone)]
 pub struct XCoreRegistry {
     config: XCoreConfig,
-    rules: BTreeMap<String, CssRule>,
+    rules: Vec<CssRule>,
+    rule_index: HashMap<String, usize>,
+    memo: HashMap<String, String>,
+    css_cache: RefCell<Option<String>>,
 }
 
 impl Default for XCoreRegistry {
@@ -58,55 +72,63 @@ impl Default for XCoreRegistry {
     }
 }
 
+/// Kết quả phân giải một token thành rule (chưa gắn tên class).
+struct Resolved {
+    media: String,
+    layer: u8,
+    selector: String,
+    declarations: String,
+}
+
 impl XCoreRegistry {
     pub fn new(config: XCoreConfig) -> Self {
         Self {
             config,
-            rules: BTreeMap::new(),
+            rules: Vec::new(),
+            rule_index: HashMap::new(),
+            memo: HashMap::new(),
+            css_cache: RefCell::new(None),
         }
+    }
+
+    pub fn config(&self) -> &XCoreConfig {
+        &self.config
     }
 
     pub fn clsx(&mut self, input: impl AsRef<str>) -> String {
-        input
-            .as_ref()
-            .split_whitespace()
-            .map(|token| self.register_token(token))
-            .collect::<Vec<_>>()
-            .join(" ")
+        let input = input.as_ref();
+        let mut output = String::with_capacity(input.len());
+        for token in input.split_whitespace() {
+            if !output.is_empty() {
+                output.push(' ');
+            }
+            if let Some(cached) = self.memo.get(token) {
+                output.push_str(cached);
+                continue;
+            }
+            let out = self.register_uncached(token);
+            output.push_str(&out);
+            self.memo.insert(token.to_string(), out);
+        }
+        output
     }
 
     pub fn register_token(&mut self, token: &str) -> String {
-        let parse_target = match self.strip_prefix(token) {
-            Some(value) => value,
-            None => return token.to_string(),
-        };
-
-        let Some(parsed) = parse_class_name(parse_target) else {
-            return token.to_string();
-        };
-
-        if parsed.prop.starts_with('[') {
-            return token.to_string();
+        if let Some(cached) = self.memo.get(token) {
+            return cached.clone();
         }
+        let out = self.register_uncached(token);
+        self.memo.insert(token.to_string(), out.clone());
+        out
+    }
 
-        let Some(media_query) = self.resolve_media(&parsed.mq) else {
+    fn register_uncached(&mut self, token: &str) -> String {
+        let Some(parse_target) = self.strip_prefix(token) else {
             return token.to_string();
         };
-
-        // Gating "known property" (khớp isKnownPropertyKey của Node khi dictionary bật).
-        if !is_known_property(&parsed.prop) {
-            return token.to_string();
-        }
-
-        let Some(declarations) = to_declarations(&parsed.prop, &parsed.val) else {
+        let Some(resolved) = self.resolve(parse_target) else {
             return token.to_string();
         };
-
-        // Selector: thay ';'/"';" rồi validate (khớp isLikelyValidSelectorFallback ở chế độ không-DOM).
-        let selector = replace_semicolons(&parsed.selector);
-        if !is_likely_valid_selector(&selector) {
-            return token.to_string();
-        }
 
         let class_name = if self.config.hash_class_name {
             stable_class_name(parse_target)
@@ -119,55 +141,179 @@ impl XCoreRegistry {
             token.to_string()
         };
 
-        self.rules.entry(class_name.clone()).or_insert(CssRule {
-            class_name: class_name.clone(),
-            media: media_query,
-            layer: parsed.layer.parse::<u8>().unwrap_or(0),
-            selector,
-            declarations,
-        });
+        if !self.rule_index.contains_key(&class_name) {
+            self.rule_index.insert(class_name.clone(), self.rules.len());
+            self.rules.push(CssRule {
+                class_name,
+                media: resolved.media,
+                layer: resolved.layer,
+                selector: resolved.selector,
+                declarations: resolved.declarations,
+            });
+            self.css_cache.replace(None);
+        }
 
         output_class_name
     }
 
-    pub fn css_text(&self) -> String {
-        let mut direct = Vec::new();
-        let mut by_media: BTreeMap<&str, Vec<&CssRule>> = BTreeMap::new();
-
-        for rule in self.rules.values() {
-            if rule.media.is_empty() {
-                direct.push(rule);
-            } else {
-                by_media.entry(&rule.media).or_default().push(rule);
+    /// Phân giải token (đã bỏ prefix): đơn lẻ hoặc chuỗi `&` (`md:dF&aiC@:hover`).
+    fn resolve(&self, target: &str) -> Option<Resolved> {
+        if target.contains('&') && !target.starts_with('&') {
+            if let Some(resolved) = self.resolve_chain(target) {
+                return Some(resolved);
+            }
+            // Một đoạn sau khi tách: rơi xuống nhánh đơn lẻ như engine Node.
+            let (body, _) = split_selector_suffix(target);
+            if split_outside_brackets(body, b'&').iter().filter(|s| !s.trim().is_empty()).count() > 1 {
+                return None;
             }
         }
 
-        direct.sort_by_key(|rule| rule.layer);
-        let mut output = direct
-            .iter()
-            .map(|rule| rule_to_css(rule))
-            .collect::<Vec<_>>();
-
-        for (media, mut rules) in by_media {
-            rules.sort_by_key(|rule| rule.layer);
-            let body = rules
-                .iter()
-                .map(|rule| rule_to_css(rule))
-                .collect::<Vec<_>>()
-                .join("");
-            output.push(format!("@media {media}{{{body}}}"));
+        let parsed = parse_class_name(target)?;
+        let media = self.resolve_media(&parsed.mq)?;
+        if parsed.prop.starts_with('[') || !is_known_property(&parsed.prop) {
+            return None;
         }
-
-        output.join("")
+        // Custom property chỉ hợp lệ ở dạng `--ten[gia-tri]`.
+        if parsed.prop.starts_with("--") && !parsed.val.starts_with('[') {
+            return None;
+        }
+        let declarations = to_declarations(&parsed.prop, &parsed.val)?;
+        let selector = replace_semicolons(&parsed.selector);
+        if !is_likely_valid_selector(&selector) {
+            return None;
+        }
+        Some(Resolved {
+            media,
+            layer: parsed.layer.parse::<u8>().unwrap_or(0),
+            selector,
+            declarations,
+        })
     }
 
+    fn resolve_chain(&self, target: &str) -> Option<Resolved> {
+        let (body, selector) = split_selector_suffix(target);
+        let prefix = self.config.prefix.as_deref().unwrap_or("");
+        let segments: Vec<&str> = split_outside_brackets(body, b'&')
+            .into_iter()
+            .map(str::trim)
+            .filter(|seg| !seg.is_empty())
+            .map(|seg| if !prefix.is_empty() { seg.strip_prefix(prefix).unwrap_or(seg) } else { seg })
+            .collect();
+        if segments.len() < 2 {
+            return None;
+        }
+
+        let mut root_media: Option<String> = None;
+        let mut root_layer = String::new();
+        let mut declarations = Vec::with_capacity(segments.len());
+        for seg in segments {
+            let seg_class = if selector.is_empty() { seg.to_string() } else { format!("{seg}@{selector}") };
+            let mut parsed = parse_class_name(&seg_class)?;
+            self.resolve_media(&parsed.mq)?;
+            // Nhóm alias `[ten]` cần cấu hình aliases (chưa có ở engine Rust).
+            if parsed.prop.starts_with('[') || !is_known_property(&parsed.prop) {
+                return None;
+            }
+            match &root_media {
+                None => {
+                    root_media = Some(parsed.mq.clone());
+                    root_layer = parsed.layer.clone();
+                }
+                Some(media) => {
+                    if parsed.mq.is_empty() {
+                        parsed.mq = media.clone();
+                    }
+                    if parsed.layer.is_empty() {
+                        parsed.layer = root_layer.clone();
+                    }
+                }
+            }
+            if Some(&parsed.mq) != root_media.as_ref() || parsed.layer != root_layer || parsed.selector != selector {
+                return None;
+            }
+            declarations.push(to_declarations(&parsed.prop, &parsed.val)?);
+        }
+
+        let selector = replace_semicolons(selector);
+        if !is_likely_valid_selector(&selector) {
+            return None;
+        }
+        Some(Resolved {
+            media: self.resolve_media(root_media.as_deref().unwrap_or(""))?,
+            layer: root_layer.parse::<u8>().unwrap_or(0),
+            selector,
+            declarations: declarations.join(";"),
+        })
+    }
+
+    /// CSS đầy đủ: khai báo thứ tự layer, rule không media, rồi từng khối `@media` theo
+    /// thứ tự breakpoint (xs, sm, md, lg, ... rồi breakpoint tự khai báo). Mỗi rule bọc
+    /// `@layer lN{...}` nên layer cao luôn thắng, kể cả khi layer thấp nằm trong media.
+    pub fn css_text(&self) -> String {
+        if let Some(cached) = self.css_cache.borrow().as_ref() {
+            return cached.clone();
+        }
+
+        let order = self.media_order();
+        let mut groups: Vec<Vec<&CssRule>> = vec![Vec::new(); order.len() + 1];
+        let mut unknown: Vec<(&str, Vec<&CssRule>)> = Vec::new();
+        for rule in &self.rules {
+            if rule.media.is_empty() {
+                groups[0].push(rule);
+            } else if let Some(index) = order.iter().position(|query| *query == rule.media) {
+                groups[index + 1].push(rule);
+            } else if let Some(entry) = unknown.iter_mut().find(|(query, _)| *query == rule.media) {
+                entry.1.push(rule);
+            } else {
+                unknown.push((&rule.media, vec![rule]));
+            }
+        }
+
+        let mut output = String::from(LAYER_ORDER_STATEMENT);
+        for rule in &groups[0] {
+            push_rule(&mut output, rule);
+        }
+        let media_groups = order
+            .iter()
+            .zip(groups.iter().skip(1))
+            .map(|(query, rules)| (*query, rules))
+            .chain(unknown.iter().map(|(query, rules)| (*query, rules)));
+        for (query, rules) in media_groups {
+            if rules.is_empty() {
+                continue;
+            }
+            output.push_str("@media ");
+            output.push_str(query);
+            output.push('{');
+            for rule in rules {
+                push_rule(&mut output, rule);
+            }
+            output.push('}');
+        }
+
+        self.css_cache.replace(Some(output.clone()));
+        output
+    }
+
+    /// Rule theo thứ tự chèn.
     pub fn rules(&self) -> impl Iterator<Item = &CssRule> {
-        self.rules.values()
+        self.rules.iter()
+    }
+
+    /// Thứ tự media hiệu lực: mỗi key lấy khai báo SAU CÙNG và nằm ở vị trí đó (giống Node).
+    fn media_order(&self) -> Vec<&str> {
+        let list = &self.config.breakpoints;
+        list.iter()
+            .enumerate()
+            .filter(|(index, item)| !list[index + 1..].iter().any(|later| later.key == item.key))
+            .map(|(_, item)| item.query.as_str())
+            .collect()
     }
 
     fn strip_prefix<'a>(&self, token: &'a str) -> Option<&'a str> {
         match &self.config.prefix {
-            Some(prefix) => token.strip_prefix(prefix),
+            Some(prefix) => token.strip_prefix(prefix.as_str()),
             None => Some(token),
         }
     }
@@ -184,6 +330,17 @@ impl XCoreRegistry {
             .find(|item| item.key == key)
             .map(|item| item.query.clone())
     }
+}
+
+fn push_rule(output: &mut String, rule: &CssRule) {
+    output.push_str("@layer l");
+    output.push_str(&rule.layer.to_string());
+    output.push_str("{.");
+    output.push_str(&rule.class_name);
+    output.push_str(&rule.selector);
+    output.push('{');
+    output.push_str(&rule.declarations);
+    output.push_str("}}");
 }
 
 pub fn default_breakpoints() -> Vec<Breakpoint> {
@@ -212,6 +369,7 @@ pub fn parse_class_name(class_name: &str) -> Option<ParsedClass> {
     if class_name.len() < 2 || !has_balanced_square_brackets(class_name, 0, class_name.len()) {
         return None;
     }
+    let bytes = class_name.as_bytes();
 
     let mut start = 0;
     let mut end = class_name.len();
@@ -241,11 +399,11 @@ pub fn parse_class_name(class_name: &str) -> Option<ParsedClass> {
         String::new()
     };
 
-    if start >= end || class_name.as_bytes()[start] == b'&' {
+    if start >= end || bytes[start] == b'&' {
         return None;
     }
 
-    if class_name.as_bytes()[start] == b'[' {
+    if bytes[start] == b'[' {
         if let Some(close_index) = class_name[start..end].find(']') {
             let close_index = start + close_index;
             if close_index > start {
@@ -260,16 +418,35 @@ pub fn parse_class_name(class_name: &str) -> Option<ParsedClass> {
         }
     }
 
+    // Custom property `--ten[gia-tri]`: tên có thể chứa số/gạch nên dừng ở `[` đầu tiên.
+    if bytes[start] == b'-' && start + 1 < end && bytes[start + 1] == b'-' {
+        if let Some(open) = class_name[start..].find('[').map(|i| start + i) {
+            if open > start + 2 && open < end && is_custom_property_name(&class_name[start..open]) {
+                return Some(ParsedClass {
+                    mq,
+                    layer,
+                    prop: class_name[start..open].to_string(),
+                    val: class_name[open..end].to_string(),
+                    selector,
+                });
+            }
+        }
+    }
+
     let mut prop_end = start;
     while prop_end < end {
-        let byte = class_name.as_bytes()[prop_end];
+        let byte = bytes[prop_end];
         if byte == b'-' || byte == b'.' {
             if prop_end + 1 < end {
-                let next = class_name.as_bytes()[prop_end + 1];
+                let next = bytes[prop_end + 1];
                 if byte == b'-' && next == b'-' && prop_end > start {
                     break;
                 }
                 if next.is_ascii_digit() {
+                    break;
+                }
+                // `-.5rem`: dấu chấm theo sau là chữ số cũng mở đầu value.
+                if byte == b'-' && next == b'.' && prop_end + 2 < end && bytes[prop_end + 2].is_ascii_digit() {
                     break;
                 }
             }
@@ -300,35 +477,16 @@ pub fn to_declarations(prop: &str, value: &str) -> Option<String> {
     let property_name = property_name(prop);
     let value = normalize_value(prop, value)?;
 
-    let declarations = match property_name {
-        "mx" => vec![
-            format!("margin-left:{value}"),
-            format!("margin-right:{value}"),
-        ],
-        "my" => vec![
-            format!("margin-top:{value}"),
-            format!("margin-bottom:{value}"),
-        ],
-        "px" => vec![
-            format!("padding-left:{value}"),
-            format!("padding-right:{value}"),
-        ],
-        "py" => vec![
-            format!("padding-top:{value}"),
-            format!("padding-bottom:{value}"),
-        ],
-        "bdx" => vec![
-            format!("border-left:{value}"),
-            format!("border-right:{value}"),
-        ],
-        "bdy" => vec![
-            format!("border-top:{value}"),
-            format!("border-bottom:{value}"),
-        ],
-        other => vec![format!("{other}:{value}")],
-    };
-
-    Some(declarations.join(";"))
+    let pair = |a: &str, b: &str| format!("{a}:{value};{b}:{value}");
+    Some(match property_name {
+        "mx" => pair("margin-left", "margin-right"),
+        "my" => pair("margin-top", "margin-bottom"),
+        "px" => pair("padding-left", "padding-right"),
+        "py" => pair("padding-top", "padding-bottom"),
+        "bdx" => pair("border-left", "border-right"),
+        "bdy" => pair("border-top", "border-bottom"),
+        other => format!("{other}:{value}"),
+    })
 }
 
 pub fn stable_class_name(input: &str) -> String {
@@ -343,11 +501,11 @@ pub fn stable_class_name(input: &str) -> String {
 
 /// Port của CSS.escape (CSSOM) — khớp escapeCssIdentifier của Node (xử lý chữ số đầu, '-' đơn...).
 pub fn escape_css_identifier(input: &str) -> String {
-    let chars: Vec<char> = input.chars().collect();
-    let len = chars.len();
-    let first = chars.first().copied().unwrap_or('\0');
-    let mut output = String::with_capacity(input.len());
-    for (index, &ch) in chars.iter().enumerate() {
+    let mut chars = input.chars();
+    let first = chars.next().unwrap_or('\0');
+    let single = chars.next().is_none();
+    let mut output = String::with_capacity(input.len() + 4);
+    for (index, ch) in input.chars().enumerate() {
         let code = ch as u32;
         if code == 0 {
             output.push('\u{FFFD}');
@@ -355,25 +513,19 @@ pub fn escape_css_identifier(input: &str) -> String {
         }
         if (0x0001..=0x001f).contains(&code)
             || code == 0x007f
-            || (index == 0 && (0x30..=0x39).contains(&code))
-            || (index == 1 && (0x30..=0x39).contains(&code) && first == '-')
+            || (index == 0 && ch.is_ascii_digit())
+            || (index == 1 && ch.is_ascii_digit() && first == '-')
         {
             output.push('\\');
             output.push_str(&format!("{code:x} "));
             continue;
         }
-        if index == 0 && len == 1 && ch == '-' {
+        if index == 0 && single && ch == '-' {
             output.push('\\');
             output.push(ch);
             continue;
         }
-        if code >= 0x0080
-            || ch == '-'
-            || ch == '_'
-            || (0x30..=0x39).contains(&code)
-            || (0x41..=0x5a).contains(&code)
-            || (0x61..=0x7a).contains(&code)
-        {
+        if code >= 0x0080 || ch == '-' || ch == '_' || ch.is_ascii_alphanumeric() {
             output.push(ch);
             continue;
         }
@@ -394,8 +546,9 @@ fn normalize_value(prop: &str, value: &str) -> Option<String> {
 
     let mut normalized = if value.starts_with("--") {
         format!("var({value})")
-    } else if value.starts_with('[') && value.ends_with(']') {
-        value[1..value.len() - 1].to_string()
+    } else if value.len() >= 2 && value.starts_with('[') && value.ends_with(']') {
+        // Giá trị tuỳ ý: `_` là khoảng trắng (khớp decodeArbitraryUnderscore của Node).
+        decode_arbitrary_underscore(&value[1..value.len() - 1])
     } else if value.is_empty() {
         // Node: val rỗng không resolve được -> reject (KHÔNG có shorthand mặc định).
         String::new()
@@ -417,6 +570,11 @@ fn normalize_value(prop: &str, value: &str) -> Option<String> {
         return None;
     }
 
+    // Sinh CSS không có CSS.supports: chặn giá trị có thể thoát khối rule hoặc thẻ <style>.
+    if is_unsafe_text(&normalized) || !has_balanced_structure(&normalized) {
+        return None;
+    }
+
     if important {
         normalized.push_str(" !important");
     }
@@ -428,24 +586,140 @@ fn is_known_property(prop: &str) -> bool {
     is_known_short_property(prop)
         || matches!(prop, "mx" | "my" | "px" | "py" | "bdx" | "bdy")
         || is_known_full_property(prop)
+        || is_vendor_property_name(prop)
+        || is_custom_property_name(prop)
+}
+
+/// `-webkit-line-clamp`, `-moz-...`, `-ms-...`, `-o-...` (khớp VENDOR_PREFIXED của Node).
+fn is_vendor_property_name(name: &str) -> bool {
+    let rest = ["-webkit-", "-moz-", "-ms-", "-o-"].iter().find_map(|p| name.strip_prefix(p));
+    match rest {
+        Some(rest) => {
+            let mut bytes = rest.bytes();
+            matches!(bytes.next(), Some(b'a'..=b'z'))
+                && bytes.all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        }
+        None => false,
+    }
+}
+
+/// `--ten-bien` (khớp CUSTOM_PROPERTY của Node).
+fn is_custom_property_name(name: &str) -> bool {
+    name.len() > 2
+        && name.starts_with("--")
+        && name[2..].bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+/// `{`, `}`, `<`, `/*`: ký tự có thể thoát khỏi khối rule hoặc thẻ `<style>`.
+fn is_unsafe_text(text: &str) -> bool {
+    text.contains(['{', '}', '<']) || text.contains("/*")
+}
+
+/// Ngoặc `(` `[` đóng đúng, nháy đóng đủ, không có `\` ở cuối (khớp hasBalancedStructure).
+fn has_balanced_structure(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    let mut stack: Vec<char> = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let ch = chars[i];
+        if ch == '\\' {
+            if i + 1 >= chars.len() {
+                return false;
+            }
+            i += 2;
+            continue;
+        }
+        if ch == '"' || ch == '\'' {
+            let mut j = i + 1;
+            while j < chars.len() && chars[j] != ch {
+                if chars[j] == '\\' {
+                    j += 1;
+                }
+                j += 1;
+            }
+            if j >= chars.len() {
+                return false;
+            }
+            i = j + 1;
+            continue;
+        }
+        match ch {
+            '(' | '[' => stack.push(ch),
+            ')' => {
+                if stack.pop() != Some('(') {
+                    return false;
+                }
+            }
+            ']' => {
+                if stack.pop() != Some('[') {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    stack.is_empty()
+}
+
+/// `_` -> khoảng trắng trong giá trị tuỳ ý; `\_` giữ gạch dưới; chuỗi trong nháy,
+/// `url(...)` và `attr(...)` giữ nguyên (khớp decodeArbitraryUnderscore của Node).
+fn decode_arbitrary_underscore(input: &str) -> String {
+    if !input.contains('_') {
+        return input.to_string();
+    }
+    let chars: Vec<char> = input.chars().collect();
+    let mut out = String::with_capacity(input.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let ch = chars[i];
+        if ch == '\\' && chars.get(i + 1) == Some(&'_') {
+            out.push('_');
+            i += 2;
+            continue;
+        }
+        if ch == '"' || ch == '\'' {
+            let mut j = i + 1;
+            while j < chars.len() && chars[j] != ch {
+                if chars[j] == '\\' {
+                    j += 1;
+                }
+                j += 1;
+            }
+            let end = (j + 1).min(chars.len());
+            out.extend(&chars[i..end]);
+            i = end;
+            continue;
+        }
+        let head: String = chars[i..(i + 5).min(chars.len())].iter().collect::<String>().to_ascii_lowercase();
+        if head.starts_with("url(") || head.starts_with("attr(") {
+            let end = chars[i..].iter().position(|&c| c == ')').map(|p| i + p + 1).unwrap_or(chars.len());
+            out.extend(&chars[i..end]);
+            i = end;
+            continue;
+        }
+        out.push(if ch == '_' { ' ' } else { ch });
+        i += 1;
+    }
+    out
 }
 
 /// Thay ';'/"';" trong value/selector y hệt regex `(';|;)` của Node:
 /// "';" -> ';', ';' đơn -> khoảng trắng (một lượt duy nhất).
 fn replace_semicolons(input: &str) -> String {
-    let chars: Vec<char> = input.chars().collect();
+    if !input.contains(';') {
+        return input.to_string();
+    }
     let mut out = String::with_capacity(input.len());
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i] == '\'' && i + 1 < chars.len() && chars[i + 1] == ';' {
+    let mut chars = input.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\'' && chars.peek() == Some(&';') {
+            chars.next();
             out.push(';');
-            i += 2;
-        } else if chars[i] == ';' {
+        } else if ch == ';' {
             out.push(' ');
-            i += 1;
         } else {
-            out.push(chars[i]);
-            i += 1;
+            out.push(ch);
         }
     }
     out
@@ -457,7 +731,7 @@ fn is_likely_valid_selector(selector: &str) -> bool {
     if text.is_empty() {
         return true;
     }
-    if text.contains('{') || text.contains('}') {
+    if is_unsafe_text(text) || !has_balanced_structure(text) {
         return false;
     }
     if matches!(text, "#" | "(" | ")" | "," | ">" | "+" | "~") {
@@ -480,11 +754,31 @@ fn is_likely_valid_selector(selector: &str) -> bool {
     depth == 0
 }
 
-fn rule_to_css(rule: &CssRule) -> String {
-    format!(
-        ".{}{}{{{}}}",
-        rule.class_name, rule.selector, rule.declarations
-    )
+/// Tách hậu tố selector: phần sau `@` cuối cùng nằm ngoài `[]`.
+fn split_selector_suffix(input: &str) -> (&str, &str) {
+    match find_last_at_outside_brackets(input, 0, input.len()) {
+        Some(index) => (&input[..index], &input[index + 1..]),
+        None => (input, ""),
+    }
+}
+
+fn split_outside_brackets(input: &str, delimiter: u8) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0;
+    for (index, byte) in input.bytes().enumerate() {
+        match byte {
+            b'[' => depth += 1,
+            b']' => depth = depth.saturating_sub(1),
+            b if b == delimiter && depth == 0 => {
+                parts.push(&input[start..index]);
+                start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    parts.push(&input[start..]);
+    parts
 }
 
 fn find_first_colon_outside_brackets(input: &str, start: usize, end: usize) -> Option<usize> {
@@ -553,10 +847,11 @@ fn to_base36(mut value: u64) -> String {
 
     let mut out = Vec::new();
     while value > 0 {
-        out.push(DIGITS[(value % 36) as usize] as char);
+        out.push(DIGITS[(value % 36) as usize]);
         value /= 36;
     }
-    out.iter().rev().collect()
+    out.reverse();
+    String::from_utf8(out).expect("base36 là ASCII")
 }
 
 #[cfg(test)]
@@ -638,6 +933,70 @@ mod tests {
         assert!(registry
             .css_text()
             .contains("@media screen and (min-width: 900px)"));
+    }
+
+    #[test]
+    fn css_text_declares_layer_order_and_orders_media_by_breakpoint() {
+        let mut config = XCoreConfig::default();
+        config.hash_class_name = false;
+        let mut registry = XCoreRegistry::new(config);
+        registry.clsx("2cRed cBlue xl:p1px sm:p2px md:5m0");
+        let css = registry.css_text();
+
+        assert!(css.starts_with(LAYER_ORDER_STATEMENT));
+        assert!(css.contains("@layer l2{.\\32 cRed{color:Red}}"));
+        assert!(css.contains("@layer l0{.cBlue{color:Blue}}"));
+        // sm (576px) phải đứng trước md (768px) và xl (1200px), không theo bảng chữ cái.
+        let sm = css.find("min-width: 576px").unwrap();
+        let md = css.find("min-width: 768px").unwrap();
+        let xl = css.find("min-width: 1200px").unwrap();
+        assert!(sm < md && md < xl, "{css}");
+        assert!(css.contains("@media screen and (min-width: 768px){@layer l5{.md\\:5m0{margin:0}}}"));
+    }
+
+    #[test]
+    fn custom_breakpoint_override_keeps_last_position() {
+        let mut config = XCoreConfig::default();
+        config.hash_class_name = false;
+        config.breakpoints.push(bp("sm", "screen and (min-width: 600px)"));
+        let mut registry = XCoreRegistry::new(config);
+        registry.clsx("sm:p1px lg:p2px");
+        let css = registry.css_text();
+        assert!(css.find("min-width: 992px").unwrap() < css.find("min-width: 600px").unwrap());
+        assert!(!css.contains("576px"));
+    }
+
+    #[test]
+    fn memo_and_css_cache_are_consistent() {
+        let mut registry = XCoreRegistry::default();
+        let first = registry.clsx("dF aiC bogus-x");
+        let css_a = registry.css_text();
+        assert_eq!(registry.clsx("dF aiC bogus-x"), first);
+        assert_eq!(registry.css_text(), css_a);
+        registry.clsx("p4px");
+        let css_b = registry.css_text();
+        assert_ne!(css_a, css_b);
+        assert!(css_b.contains("padding:4px"));
+        assert_eq!(registry.rules().count(), 3);
+    }
+
+    #[test]
+    fn chains_open_vocabulary_and_unsafe_values() {
+        let mut config = XCoreConfig::default();
+        config.hash_class_name = false;
+        let mut registry = XCoreRegistry::new(config);
+        assert_eq!(registry.clsx("md:dF&aiC@:hover"), "md:dF&aiC@:hover");
+        assert_eq!(registry.clsx("content-visibility[auto] --brand[#fff] m-.5rem w[calc(100%_-_1rem)]").split(' ').count(), 4);
+        let css = registry.css_text();
+        assert!(css.contains("display:flex;align-items:center"));
+        assert!(css.contains("content-visibility:auto"));
+        assert!(css.contains("--brand:#fff"));
+        assert!(css.contains("margin:-.5rem"));
+        assert!(css.contains("width:calc(100% - 1rem)"));
+
+        let before = registry.css_text();
+        registry.clsx("c[red}body{color:blue] content[\"a] cRed@:is(a dF&md:aiC");
+        assert_eq!(registry.css_text(), before);
     }
 
     #[test]

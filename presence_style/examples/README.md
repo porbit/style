@@ -12,35 +12,35 @@ cargo install trunk
 ## Yew
 
 ```bash
-cd /Volumes/Demo/dev/Presence/PresenceRs/presence_style/examples/yew-basic
+cd presence_style/examples/yew-basic
 trunk serve
 ```
 
 ## Leptos
 
 ```bash
-cd /Volumes/Demo/dev/Presence/PresenceRs/presence_style/examples/leptos-basic
+cd presence_style/examples/leptos-basic
 trunk serve
 ```
 
 Direct class literal, không gọi `xcss.c(...)` trong markup:
 
 ```bash
-cd /Volumes/Demo/dev/Presence/PresenceRs/presence_style/examples/leptos-direct-class
+cd presence_style/examples/leptos-direct-class
 trunk serve
 ```
 
 Hash mode đầy đủ:
 
 ```bash
-cd /Volumes/Demo/dev/Presence/PresenceRs/presence_style/examples/leptos-hash-complete
+cd presence_style/examples/leptos-hash-complete
 trunk serve
 ```
 
 ## Sycamore
 
 ```bash
-cd /Volumes/Demo/dev/Presence/PresenceRs/presence_style/examples/sycamore-basic
+cd presence_style/examples/sycamore-basic
 trunk serve
 ```
 
