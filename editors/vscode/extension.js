@@ -7,7 +7,7 @@ const vscode = require('vscode')
 const fs = require('fs')
 const path = require('path')
 const analyze = require('@porbit/style/analyze')
-const { tailwindFixFallback } = require('@porbit/style/tailwind')
+const { tailwindFixFallback, tailwindDialect } = require('@porbit/style/tailwind')
 
 // Quick fix cho class viết theo thói quen Tailwind (`w-full` -> `w100%`).
 analyze.setTailwindFallback(tailwindFixFallback)
@@ -27,6 +27,12 @@ const loadConfig = (document) => {
     try {
         const config = JSON.parse(fs.readFileSync(file, 'utf8'))
         delete config.safelist
+        // `"dialects": ["tailwind"]`: class Tailwind hợp lệ, không bị gạch lỗi.
+        if (Array.isArray(config.dialects)) {
+            config.dialects = config.dialects.includes('tailwind')
+                ? [tailwindDialect({ darkMode: config.darkMode === 'class' ? 'class' : 'media' })]
+                : []
+        }
         return config
     } catch (_error) {
         return {}

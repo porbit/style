@@ -13,6 +13,7 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type XCSSConfig } from './core'
 import { AGENT_RULES } from './agent-rules'
+import { resolveConfigFile } from './config-file'
 import { findClassConflicts } from './class-tools'
 import { explainClass, fixClasses, generateCssFor, searchDictionary } from './analyze'
 import { SHORT_PROPERTIES, SPECIFIC_VALUES, COMMON_VALUES } from './dictionary'
@@ -103,7 +104,7 @@ const splitClasses = (input: unknown): string[] => {
 
 const asConfig = (value: unknown): XCSSConfig => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-    const config = { ...(value as XCSSConfig) }
+    const config = resolveConfigFile({ ...(value as XCSSConfig) })
     // Không cho phép nạp dictionary từ URL tuỳ ý qua MCP.
     if (typeof config.dictionaryImport === 'string') delete config.dictionaryImport
     delete (config as any).cache
