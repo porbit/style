@@ -1,0 +1,7 @@
+{
+  "xcssValid": 99.1,
+  "xcssValidAfterFix": 99.8,
+  "tailwindValid": 100,
+  "holdout": 95,
+  "tuning": 100
+}

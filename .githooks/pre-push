@@ -1,0 +1,5 @@
+#!/bin/sh
+# Cổng đầy đủ trước khi push (thay cho CI): build, ngân sách dung lượng, file sinh tự động,
+# engine Rust, kiểm tra trên Chromium, ngưỡng bộ đánh giá.
+# Bỏ qua một lần: git push --no-verify
+exec node scripts/check-all.cjs

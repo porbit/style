@@ -1,0 +1,4 @@
+#!/bin/sh
+# Cổng nhanh trước mỗi commit: typecheck + unit test (~5 giây).
+# Bỏ qua một lần: git commit --no-verify
+exec node scripts/check-all.cjs --quick

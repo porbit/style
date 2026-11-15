@@ -1,5 +1,14 @@
 # Lịch Sử Thay Đổi
 
+## 0.7.3
+
+**Công cụ phát triển**
+- Cổng kiểm tra cục bộ thay cho CI: `npm run check:all` (typecheck, unit, build, ngân sách dung lượng, file sinh tự động, engine Rust, kiểm tra trên Chromium, ngưỡng bộ đánh giá) và `check:quick`.
+- Git hook trong `.githooks` (`npm run hooks:install`): `pre-commit` chạy cổng nhanh, `pre-push` chạy cổng đầy đủ. `prepublishOnly` chạy cổng đầy đủ.
+- `scripts/browser-checks.cjs`: thứ tự layer (CSS tĩnh và runtime), class bộ component, so hiển thị CSS Node/Rust kèm trang xung đột layer/media có chủ đích.
+- `eval/score.cjs` ghi thêm `eval/results.json`; tự tìm Chromium (Playwright, `CHROMIUM_PATH`, `/opt/pw-browsers/chromium`).
+
+
 ## 0.7.2
 
 Tích hợp và tối ưu engine Rust `presence_style` (x-core 0.2.0), sửa lỗi thứ tự cascade ở cả hai engine.
