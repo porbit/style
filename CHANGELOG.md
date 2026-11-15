@@ -1,5 +1,22 @@
 # Lịch Sử Thay Đổi
 
+## 0.7.1
+
+Sửa lỗi phát hiện khi dựng thử một trang thật (Vite + phương ngữ Tailwind + component mẫu + static-first).
+
+**Sửa lỗi**
+- `preload.skipInitialScan` bỏ hẳn lần quét đầu nên class do JavaScript sinh trước khi observe (ví dụ `${button()}`) không bao giờ có CSS. Nay lượt quét được dời sang lúc trình duyệt rảnh: paint đầu vẫn nhanh (~3–4 ms với trang mẫu), class thiếu vẫn được bù.
+- `presence-style check` báo nhầm class Tailwind trong dự án bật phương ngữ: file cấu hình nhận `"dialects": ["tailwind"]`; CLI, MCP và extension VS Code đều hiểu khoá này.
+
+**Thêm mới**
+- `getComponentClasses()`; tuỳ chọn `components: true` cho plugin Vite và `--components` cho `extract`.
+- `extract`, `check`, `sort` tự đọc `presence-style.config.json` ở thư mục hiện tại khi không truyền `--config`.
+- `presence-style init --tailwind`.
+
+**Đã thử và không làm**
+- Tách chunk dùng chung cho bản ESM (`splitting`): bản CDN tăng 21,4 → 24,9 KB gzip và phải tải 7 file nối tiếp; shim Node của MCP/Vite bị gom vào chunk dùng chung làm Vite build lỗi.
+
+
 ## 0.7.0
 
 Giai đoạn 2–4 của lộ trình (`docs/strategy/danh-gia-va-dinh-huong.md`).

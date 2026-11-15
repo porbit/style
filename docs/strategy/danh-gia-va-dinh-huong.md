@@ -1,5 +1,7 @@
 # Đánh Giá Và Định Hướng: PresenceStyle So Với Tailwind Và Các Framework CSS
 
+> **Cập nhật 0.7.1:** lộ trình giai đoạn 1–4 đã làm xong. Phần [Đánh giá lại sau khi dùng thử](#9-đánh-giá-lại-sau-khi-dùng-thử-071) ở cuối tài liệu ghi số liệu đo được, các lỗi chỉ lộ ra khi dựng trang thật, và nhận định mới. Các mục 1–8 giữ nguyên để so sánh trước/sau.
+
 Tài liệu này trả lời ba câu hỏi: PresenceStyle (`@porbit/style`) hơn và kém gì so với các lựa chọn hiện có, nên tối ưu tiếp theo hướng nào, và làm sao để người dùng lẫn agent AI chọn nó thay cho Tailwind trong đúng trường hợp. Số liệu đo trên bản 0.5.0; chỗ nào là nhận định chứ không phải đo lường đều ghi rõ.
 
 ## 1. Nhận Định Thị Trường (Nói Thẳng)
@@ -131,3 +133,65 @@ Hướng dẫn chọn nhanh để đưa vào README:
 | % class hợp lệ do agent viết, có MCP | chưa đo | ≥ 98% (đo bằng 4.4) |
 | % class hợp lệ do agent viết, không MCP | chưa đo | đo để làm mốc |
 | Kiểm thử đa trình duyệt cho component | Chromium | Chromium + Firefox + WebKit + mobile trong CI |
+
+## 9. Đánh Giá Lại Sau Khi Dùng Thử (0.7.1)
+
+### 9.1 Đã làm gì
+
+| Giai đoạn | Hạng mục | Trạng thái |
+| :--- | :--- | :--- |
+| 1 | Tách Tailwind helper khỏi bản CDN; `compact`; sửa `transition-*`, xung đột `border-color`; `fix_classes` | Xong (0.6.0) |
+| 2.1 | Static-first: `preload`, `skipInitialScan`, `extract --manifest` | Xong |
+| 2.2 / 2.3 | Lazy stylesheet / gom `insertRule` | **Đo rồi không làm**: 12 sheet rỗng tốn 0,1 ms; 300 rule `insertRule` 0,6 ms so với `replaceSync` 0,5 ms |
+| 2.4 | Plugin Vite (CSS ảo, manifest, cập nhật nóng, `components`) | Xong |
+| 3.1 | Extension VS Code (diagnostic, quick fix, hover, gợi ý, sắp xếp) | Xong, **chưa chạy trong VS Code thật**: chỉ kiểm thử với API giả lập |
+| 3.2 | Alias dài dễ đọc | Thay bằng phương ngữ Tailwind (4.5): người muốn tên dễ đọc viết thẳng Tailwind |
+| 3.3 | Sắp xếp class | Làm dạng `presence-style sort` + lệnh trong extension, không làm plugin Prettier |
+| 3.4 | README tiếng Anh | Xong |
+| 4.1 | `llms.txt`, `llms-full.txt` | Xong (~1.200 token) |
+| 4.2 | `presence-style init --agents --mcp [--tailwind]` | Xong |
+| 4.3 | `fix_classes` | Xong, khái quát lại sau khi đo |
+| 4.4 | Bộ đánh giá `eval/` | Xong, có giới hạn (mục 9.3) |
+| 4.5 | Phương ngữ Tailwind ở runtime | Xong |
+
+### 9.2 Số liệu đo (Chromium)
+
+| Chỉ số | 0.5.0 | 0.7.1 |
+| :--- | :--- | :--- |
+| Bản CDN `index-auto` (gzip) | 31,4 KB | 22,0 KB |
+| Khởi tạo + quét 3.000 node, runtime thuần | 23–31 ms | 21–31 ms (không đổi, đúng kỳ vọng) |
+| Khởi tạo, static-first + `skipInitialScan` | — | **2,7–3 ms** |
+| App mẫu (Vite, core + phương ngữ Tailwind + component) | — | JS 36 KB gzip, CSS tĩnh 0,8 KB (2,9 KB khi `components: true`) |
+| Class x-css do agent viết, hợp lệ trên trình duyệt | — | 99,1% → 99,8% sau `fix_classes` |
+| Class Tailwind do agent viết, chạy qua phương ngữ | — | 98,6% → 100% sau khi bổ sung 4 nhóm utility |
+| `fix_classes` trên tập lỗi độc lập | — | 8/21 (bản đầu) → **18/20 trên tập mới** |
+
+### 9.3 Những gì chỉ lộ ra khi dùng thật
+
+Ba lỗi không test đơn vị nào bắt được, chỉ lộ ra khi dựng một trang cửa hàng bằng Vite với phương ngữ Tailwind, component mẫu và static-first:
+
+1. **`skipInitialScan` làm mất style của component.** Recipe sinh class trong JavaScript (`${button()}`) nên bước build không thấy; tuỳ chọn lại bỏ hẳn lần quét đầu, nên card và nút hiện trần. Sửa: dời lượt quét sang lúc rảnh, thêm `components: true`. Bài học: tối ưu "bỏ qua việc" phải có lối bù khi giả định sai.
+2. **`check` báo nhầm class Tailwind** trong dự án bật phương ngữ vì cấu hình JSON không chứa được hàm. Sửa: `"dialects": ["tailwind"]`.
+3. **Tách chunk ESM phá build trình duyệt** (shim Node bị gom vào chunk chung) và làm bản CDN nặng hơn. Đã thử và bỏ.
+
+Về độ chính xác của `fix_classes`: bản đầu chỉ đạt 8/21 trên tập lỗi chưa thấy. Các quy tắc ban đầu khớp đúng những ví dụ đã nghĩ ra chứ không khái quát. Sau khi viết lại theo nguyên lý (tên CSS viết liền, đoán chữ viết tắt, từ khoá có dấu gạch, thói quen Tailwind), tập độc lập mới đạt 18/20.
+
+Giới hạn của số liệu AI: cả hai lượt viết do **một** agent đã đọc toàn bộ mã nguồn thực hiện, nên 99% không đại diện cho một mô hình chưa từng thấy x-css. Xem `eval/README.md`.
+
+### 9.4 Nhận định mới
+
+1. **Rào cản AI lớn nhất đã được gỡ bằng phương ngữ, không phải bằng dạy AI cú pháp mới.** Agent viết Tailwind quen tay đạt 98,6% class sinh CSS qua phương ngữ ngay lần đầu, không cần build (100% sau khi bổ sung đúng các utility mà lượt viết này lộ ra, nên con số 100% có thiên lệch). Với x-css, agent vẫn tự đoán alias (`bdf`, `fvn`) và cần `fix_classes`/`check` để bắt. Định hướng nên đổi từ "AI dùng x-css thay Tailwind" sang **"AI viết Tailwind hoặc x-css, PresenceStyle chạy cả hai mà không cần build"**.
+2. **Ưu thế thật vẫn là không cần build và class động.** Toast thêm lúc chạy và class Tailwind ghép động đều có CSS; Tailwind build-time không làm được nếu không safelist. Static-first thu hẹp khoảng cách hiệu năng với Tailwind (3 ms khởi tạo) nhưng vẫn còn ~22–36 KB JavaScript; Tailwind là 0.
+3. **x-css có lợi thế thật về độ ngắn:** 8 màn hình viết bằng x-css dùng 3.824 ký tự class, so với 4.505 ký tự khi viết bằng Tailwind (−15%). Đây là số đo trên cùng nội dung, khác con số −4,6% ở mục 6, vốn là output của bộ chuyển tự động.
+4. **Rủi ro còn lại**: extension VS Code chưa chạy thật; phương ngữ chưa có gradient, `animate-*`, `prose`, `container`; ring dùng box-shadow nên đè `shadow-*`; `opacity-50` khi tắt phương ngữ là `opacity:-50`; parity với engine Rust chưa kiểm từ 0.4.
+
+### 9.5 Việc nên làm tiếp
+
+| Ưu tiên | Việc | Lý do |
+| :--- | :--- | :--- |
+| 1 | Publish 0.7.1 lên npm | Lệnh MCP, `init`, plugin Vite chỉ dùng được sau khi có trên npm (hiện npm vẫn là 0.4.0) |
+| 2 | Chạy `eval/` với 3–4 mô hình chưa thấy x-css, có và không có MCP | Thay số liệu "một agent" bằng số đại diện |
+| 3 | Đóng gói và thử extension trong VS Code thật | Phần duy nhất mới kiểm bằng API giả lập |
+| 4 | Ring/shadow ghép bằng biến như Tailwind v4 | Hết cảnh ring đè bóng đổ |
+| 5 | Cập nhật engine Rust và chạy conformance | Parity chưa kiểm từ 0.4 |
+

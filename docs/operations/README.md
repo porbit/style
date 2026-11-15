@@ -60,6 +60,7 @@ presence-style extract <đường-dẫn...> [tuỳ chọn]
 | `--config <file>` | File JSON `XCSSConfig`, hỗ trợ thêm khoá `safelist`. | không |
 | `--map <file>` | Ghi map class nguồn -> class rút gọn ra JSON. | không |
 | `--manifest <file>` | Ghi manifest static-first để truyền vào tuỳ chọn `preload` ở runtime ([hướng dẫn](../guides/static-first.md)). | không |
+| `--components` | Thêm mọi class của `@porbit/style/components` vào CSS tĩnh. | không |
 | `--ext <danh-sách>` | Phần mở rộng cần quét khi đường dẫn là thư mục. | `html,htm,js,jsx,ts,tsx,vue,svelte,astro,mdx` |
 | `--silent` | Không in thống kê ra stderr. | `false` |
 | `-h`, `--help` | Hiển thị trợ giúp. | — |
@@ -77,6 +78,8 @@ presence-style: 2 file, 14 class ứng viên, 10 class sinh CSS.
 ```
 
 Mã thoát: `0` khi thành công, `1` khi sai tham số, thiếu nguồn, hoặc không tìm thấy file khớp.
+
+Không truyền `--config` thì `extract`, `check`, `sort` tự đọc `presence-style.config.json` ở thư mục hiện tại nếu có. Khoá `"dialects": ["tailwind"]` bật phương ngữ Tailwind (JSON không chứa được hàm nên khai báo bằng tên).
 
 Ví dụ file cấu hình `presence-style.config.json`:
 

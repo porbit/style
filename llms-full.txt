@@ -1,6 +1,6 @@
 # PresenceStyle (@porbit/style)
 
-> Utility CSS engine mở: class viết tắt (x-css) được đổi thành CSS lúc chạy (không cần build) hoặc lúc build. Mọi property CSS viết được thành class; ưu tiên tường minh bằng layer số. Có phương ngữ Tailwind ở runtime, bộ component mẫu, plugin Vite và MCP server. Phiên bản 0.7.0.
+> Utility CSS engine mở: class viết tắt (x-css) được đổi thành CSS lúc chạy (không cần build) hoặc lúc build. Mọi property CSS viết được thành class; ưu tiên tường minh bằng layer số. Có phương ngữ Tailwind ở runtime, bộ component mẫu, plugin Vite và MCP server. Phiên bản 0.7.1.
 
 ## Viết class @porbit/style (x-css)
 
@@ -540,16 +540,23 @@ Runtime của `@porbit/style` sinh CSS cho mọi class nó thấy trong DOM. V�
 | Static-first (`preload`) | 15–19 ms |
 | Static-first + `skipInitialScan` | **2,7 ms** |
 
-Phần lớn chi phí runtime nằm ở việc duyệt DOM (khoảng 126.000 token class), không ở việc sinh CSS. Vì vậy lợi ích lớn nhất đến từ `skipInitialScan`: khi HTML ban đầu được render từ cùng lần build đã trích xuất CSS, engine không cần quét lại.
+Phần lớn chi phí runtime nằm ở việc duyệt DOM (khoảng 126.000 token class), không ở việc sinh CSS. Vì vậy lợi ích lớn nhất đến từ `skipInitialScan`: engine không quét DOM trước paint đầu mà **dời lượt quét sang lúc trình duyệt rảnh** (`requestIdleCallback`, tối đa 500 ms). Class đã có trong manifest bị bỏ qua ngay, nên lượt quét dời này rẻ; class không có trong CSS tĩnh (ví dụ do JavaScript sinh trước khi gọi `cssObserve`) vẫn có CSS, chỉ chậm hơn một nhịp.
 
 ## Với Vite
 
 ```js
 // vite.config.js
 import presenceStyle from '@porbit/style/vite'
+import { tailwindDialect } from '@porbit/style/tailwind'
 
 export default {
-  plugins: [presenceStyle({ include: ['src', 'index.html'] })],
+  plugins: [
+    presenceStyle({
+      include: ['src', 'index.html'],
+      components: true,                 // nếu dùng @porbit/style/components
+      dialects: [tailwindDialect()],    // nếu viết class Tailwind
+    }),
+  ],
 }
 ```
 
@@ -584,10 +591,14 @@ npx presence-style extract src --out public/presence.css --manifest public/prese
 
 Dùng `index.mjs` (không phải `index-auto.mjs`, vốn tự observe ngay khi import nên không kịp nhận manifest). File cấu hình nên đặt `"hashClassName": false` để class trong HTML trùng tên với CSS tĩnh. Nếu build bật hash, `manifest.classMap` mang tên rút gọn và runtime trả đúng tên đó qua `clsx()`; HTML phải được sinh qua `clsx()` của cùng cấu hình.
 
-## Khi Nào Không Nên Bật `skipInitialScan`
+## Class Không Quét Được Từ Mã Nguồn
 
-- HTML ban đầu có class không nằm trong nguồn được quét (template ở CMS, chuỗi ghép động như `'m' + size + 'px'`): các class đó sẽ không có CSS cho tới khi DOM đổi. Thêm chúng vào `safelist` hoặc tắt `skipInitialScan`.
-- Không chắc CSS tĩnh và HTML đến từ cùng một lần build.
+Bước build chỉ thấy class viết dạng chuỗi trong mã nguồn. Các class sau không có trong CSS tĩnh và sẽ hiện **không có style trong một nhịp** (tới lượt quét dời) nếu bật `skipInitialScan`:
+
+- Class do recipe component sinh trong JS (`${button()}`): bật `components: true` ở plugin Vite, hoặc `--components` ở CLI, để đưa toàn bộ 190 class của bộ component vào CSS tĩnh (+~2 KB gzip).
+- Chuỗi ghép động (`'m' + size + 'px'`), template ở CMS: thêm vào `safelist`.
+
+Phát hiện này đến từ việc dựng thử một trang thật: trước bản 0.7.1, `skipInitialScan` bỏ hẳn lần quét đầu nên card/button do recipe sinh không bao giờ có CSS.
 
 ## Các Tối Ưu Đã Đo Và Không Làm
 
