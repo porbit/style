@@ -1,5 +1,26 @@
 # Lịch Sử Thay Đổi
 
+## 0.8.0
+
+Chạy class Tailwind v4 với kết quả như Tailwind. Đo trên Chromium so với tailwindcss 4.3.5 (`npm run check:tailwind`).
+
+**Thêm mới**
+- `tailwindV4Dialect()` (`@porbit/style/tailwind`, `@porbit/style/tailwind-v4`): dữ liệu sinh từ chính compiler Tailwind (`npm run gen:tailwind`, `src/tailwind-generated.ts`). Khớp 23.285/23.286 class, 680/680 tổ hợp biến thể, 3.327/3.327 qua đường runtime, 385/403 biến thể. Breakpoint, container query, dark, hover, group/peer có tên, has/not/in, nth, rtl, supports, starting, độ mờ `/50`, `!`, giá trị tuỳ ý, `bg-(--x)`.
+- Theme tuỳ chỉnh (`theme`), `@utility` tên cố định (`utilities`), `@apply` class gốc trong CSS bổ sung (`css`); `parseTailwindStylesheet()` đọc `@theme`/`@utility`/`@apply`.
+- `dist/tailwind-auto.mjs`: thay `@tailwindcss/browser` (55,6 KB so với 75,3 KB gzip), đọc `<style type="text/tailwindcss">`, `data-preflight`, `data-dark`.
+- Engine: selector có `&` (`@:where(&;>;*)`), breakpoint có query `@...` (container/supports), media key nội tuyến `[@...]`, phương ngữ mang `breakpoints`/`baseCss`/`trusted`. Engine Rust hỗ trợ các dạng này.
+- `minify` cho CSS tĩnh (`extract`, CLI `--minify`, plugin Vite mặc định bật).
+- Bộ đo `eval/tailwind-parity.mjs`, `eval/tailwind-variants.mjs`; bước `tailwind` trong `check:all`; ngân sách `tailwind-auto` ≤ 57 KB.
+- Hướng dẫn `docs/guides/tailwind.md`; mục 11 trong `docs/strategy/danh-gia-va-dinh-huong.md`.
+
+**Hiệu năng**
+- CLI `extract`/`check`/`sort` đọc file đồng bộ: 6.200 file từ 1,3–1,5 s xuống 0,33–0,40 s (ngang Tailwind CLI).
+
+**Thay đổi hành vi cần biết**
+- Cấu hình JSON `"dialects": ["tailwind"]` nay là phương ngữ v4; bản cũ dùng `"tailwind-legacy"`. `tailwindDialect()` (bản cũ, breakpoint x-css) giữ nguyên để không phá mã đang dùng.
+- `getCssString()` có thể chứa base CSS của phương ngữ (`@property`...). `analyze.generateCssFor` trừ phần nền này.
+
+
 ## 0.7.3
 
 **Công cụ phát triển**

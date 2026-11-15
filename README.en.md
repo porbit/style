@@ -42,22 +42,19 @@ Four rules cover most cases:
 
 Any CSS property works by its full name: `view-transition-name[hero]`, `-webkit-line-clamp[3]`, `--brand[#0a64e8]`. Aliases are listed in [DICTIONARY.md](./DICTIONARY.md).
 
-## Already Know Tailwind?
+## Run Tailwind v4 Classes, Rendered Like Tailwind
 
-Enable the Tailwind dialect and keep writing Tailwind classes; they are converted at runtime, no build step:
+The v4 dialect is generated from Tailwind's own compiler. Measured in Chromium against tailwindcss 4.3.5: **23,285/23,286 classes** and **680/680** variant combinations render identically; theme, `@utility` and `@apply` 28/28.
 
-```js
-import xcss from '@porbit/style'
-import { tailwindDialect } from '@porbit/style/tailwind'
-
-xcss.cssObserve(document, { dialects: [tailwindDialect()] })
-```
+No build step (replaces `@tailwindcss/browser`: 55.6 KB vs 75.3 KB gzip, ~35% faster to first styled frame):
 
 ```html
-<div class="flex items-center gap-4 p-4 rounded-lg bg-white hover:bg-slate-50">…</div>
+<script type="module" src="https://unpkg.com/@porbit/style/dist/tailwind-auto.mjs"></script>
+<style type="text/tailwindcss">@theme { --color-brand: #0a64e8; }</style>
+<div class="flex items-center gap-4 p-4 rounded-lg bg-brand/90 hover:bg-brand md:grid-cols-3">…</div>
 ```
 
-Or migrate source code once: `convertTailwindClasses('flex items-center h-10', { compact: true }).output` → `dF aiC h40px`.
+With Vite (zero runtime JS, like Tailwind): `presenceStyle({ dialects: [tailwindV4Dialect({ preflight: true })] })`. Details and limits: [docs/guides/tailwind.md](./docs/guides/tailwind.md) (Vietnamese).
 
 ## Static-First and Vite
 

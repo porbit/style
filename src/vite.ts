@@ -51,7 +51,8 @@ export default function presenceStyle(options: PresenceStyleViteOptions = {}) {
         extractOptions.safelist = [...(extractOptions.safelist || []), ...getComponentClasses()]
     }
     // CSS tĩnh dùng tên class nguồn để khớp với HTML/JSX; người dùng có thể bật lại hash.
-    const engineOptions: ExtractOptions = { silent: true, hashClassName: false, ...extractOptions }
+    // minify mặc định bật: bỏ @property/@keyframes không dùng, gộp @layer.
+    const engineOptions: ExtractOptions = { silent: true, hashClassName: false, minify: true, ...extractOptions }
     let root = process.cwd()
     let server: MinimalServer | null = null
     const fileCandidates = new Map<string, string[]>()

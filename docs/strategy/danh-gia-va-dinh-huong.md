@@ -222,3 +222,53 @@ Khi làm việc này cũng lộ ra **hai lỗi thứ tự layer ở engine Node*
 
 Không đề xuất: thay engine JS bằng Rust/wasm trong trình duyệt. Engine JS đã xử lý 20.000 lần `clsx` trong ~13 ms; chi phí qua lại ranh giới JS–wasm và tải thêm file wasm lớn hơn phần có thể tiết kiệm.
 
+## 11. So Sánh Với Tailwind: Mục Tiêu Thay Thế Hoàn Toàn (0.8.0)
+
+### 11.1 Phát hiện ban đầu
+
+Đo bằng chính Tailwind (danh sách 23.286 class từ `getClassList()` của tailwindcss 4.3.5), bộ chuyển viết tay trước đây chỉ phủ **17,4%** class (24,8% theo họ utility), và dùng breakpoint của x-css (`lg` = 992px) thay vì của Tailwind (1024px). Con số "100%" ở mục 9 chỉ đúng trên 8 trang mẫu.
+
+### 11.2 Phương án đã làm
+
+1. **Sinh dữ liệu từ chính Tailwind** (`scripts/gen-tailwind-map.mjs`): chạy compiler trên toàn bộ danh sách class, rút về 916 mẫu khai báo theo 347 họ, thăm dò giá trị tuỳ ý theo kiểu, lấy theme, `@property`, keyframes, preflight. 136 KB thô, ~34 KB gzip.
+2. **Phương ngữ v4** (`tailwindV4Dialect`): khai báo nguyên văn của Tailwind, theme nhúng làm dự phòng, breakpoint/container/dark/hover đúng Tailwind, biến thể ghép, độ mờ `/50`, `!`, `@theme`, `@utility`, `@apply`.
+3. **Engine**: selector `&` (bọc class), at-rule ngoài `@media` (container query, `@supports`, `@starting-style`), phương ngữ tự mang breakpoint/base CSS, cờ `trusted` bỏ `CSS.supports` cho khai báo đã kiểm ở nguồn.
+4. **CSS tĩnh `minify`**: bỏ `@property`/`@keyframes` không dùng, gộp `@layer`.
+5. **CLI đọc file đồng bộ**: build 6.200 file từ 1,3–1,5 s xuống 0,33–0,40 s.
+6. **Bộ đo khớp Tailwind thật** (`eval/tailwind-parity.mjs`) đưa vào cổng `check:all`.
+
+Trong lúc đo phát hiện và sửa thêm: khi kiểm bằng `CSS.supports`, cả class `backdrop-blur-*` bị bỏ trên Chromium vì một khai báo `-webkit-backdrop-filter`; `data-preflight` không đọc được với `<script type="module">`; mẫu có `{v}` trong tên property bị giải nén sai; tên font có khoảng trắng bị mã hoá sai.
+
+### 11.3 Kết quả đo
+
+| Trục | Tailwind 4.3.5 | @porbit/style 0.8.0 | Đánh giá |
+| :--- | :--- | :--- | :--- |
+| Độ khớp class gốc | — | 23.285 / 23.286 (99,996%) | **Ngang** (khác: `container`) |
+| Độ khớp biến thể (23 kịch bản) | — | 680 / 680 | **Ngang** |
+| Độ phủ biến thể | 403 | 385 (95,5%) | Thiếu 18 tổ hợp lồng hiếm |
+| Theme, `@utility`, `@apply` | Có | 28 / 28 kịch bản; chưa có `@apply` kèm biến thể, `@utility` dạng hàm, `@custom-variant` | Gần ngang |
+| Không build (runtime) | `@tailwindcss/browser` 75,3 KB gzip, "không dùng production" | 55,6 KB gzip (−26%), tới khi có style nhanh hơn ~35% | **Vượt** |
+| Build tĩnh | Oxide (Rust) | Ngang ở 248 và 6.200 file | **Ngang** |
+| CSS tĩnh | 4,81 KB gzip | 4,70 KB gzip | **Ngang** |
+| Plugin (typography, forms, animate) | Có | Chưa | **Thua** |
+| IntelliSense/Prettier chính thức, hệ sinh thái | Rất lớn | Extension VS Code, `sort` riêng | **Thua** |
+| Cú pháp x-css ngắn, class sinh động không safelist, Shadow DOM, ưu tiên bằng layer, MCP cho AI, engine Rust | Không | Có | **Vượt** |
+
+### 11.4 Kết luận: đã thay thế được chưa?
+
+- **Phần utility class (cái người dùng viết hằng ngày): đạt.** Một trang viết bằng Tailwind v4 hiển thị như Tailwind, đo được trên 23.286 class và 680 tổ hợp biến thể, ở cả chế độ build lẫn không build.
+- **Chế độ không build: vượt trội rõ** — nhẹ hơn, nhanh hơn và dùng được cho production, trong khi bản tương ứng của Tailwind không khuyến nghị cho production.
+- **Chế độ build: ngang**, không vượt. Ưu thế không nằm ở tốc độ build mà ở việc cùng một bộ class chạy được cả có lẫn không có build, và class sinh động không cần safelist.
+- **Chưa thay thế hoàn toàn** ở phần cấu hình nâng cao và hệ sinh thái: plugin chính thức, `@custom-variant`, `@utility` dạng hàm, `@apply` kèm biến thể, IntelliSense/Prettier chính thức. Dự án phụ thuộc các phần này chưa nên chuyển.
+
+### 11.5 Tối ưu tiếp để đóng khoảng cách
+
+| Ưu tiên | Việc | Mức độ |
+| :--- | :--- | :--- |
+| 1 | `@utility` dạng hàm (`tab-*` với `--value()`) và `@custom-variant` trong `parseTailwindStylesheet` | Vừa |
+| 2 | `@apply` kèm biến thể: sinh rule lồng (`.btn:hover {...}`) | Vừa |
+| 3 | Plugin phổ biến: sinh dữ liệu cho `tailwindcss-animate` (shadcn/ui) và `@tailwindcss/forms` bằng cùng bộ sinh (chạy compiler kèm plugin) | Vừa |
+| 4 | Một class nhiều rule (`container`, `not-hover`) và ba điều kiện media trở lên: cho phương ngữ trả nhiều nhóm token | Lớn (đổi engine) |
+| 5 | Language server dùng chung cho VS Code/Neovim/Zed dựa trên `@porbit/style/analyze` | Lớn |
+| 6 | Đo trên mã thật: chạy bộ đo với các dự án mã nguồn mở viết bằng Tailwind v4 (shadcn/ui, Catalyst mẫu) | Nhỏ, nên làm sớm |
+

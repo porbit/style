@@ -68,7 +68,14 @@ export type XCSSConfig = {
  * Trả `null` khi không nhận class đó; engine sẽ xử lý class như x-css bình thường.
  * Các token trả về phải cùng media, layer và selector để gộp thành một rule.
  */
-export type XCSSDialect = (className: string) => string[] | null
+export type XCSSDialect = ((className: string) => string[] | null) & {
+    /** Breakpoint riêng của phương ngữ (ví dụ `tw-sm` = 40rem của Tailwind), nối sau breakpoint của engine. */
+    breakpoints?: Record<string, string>[]
+    /** CSS nền phương ngữ cần (ví dụ `@property` của Tailwind), đặt ngay sau câu khai báo thứ tự layer. */
+    baseCss?: string
+    /** Khai báo phương ngữ sinh ra đã được kiểm ở nguồn: bỏ qua CSS.supports (selector vẫn được kiểm). */
+    trusted?: boolean
+}
 
 export type XCSSPreloadManifest = {
     classes?: string[]
@@ -861,6 +868,17 @@ const DICTIONARY_MODULE_ERROR =
 const LAYER_NAMES = Array.from({ length: 24 }, (_, i) => 'l' + i)
 export const LAYER_ORDER_STATEMENT = `@layer ${LAYER_NAMES.join(', ')};`
 
+/**
+ * Ghép selector của class với hậu tố: thường là nối sau (`.c` + `:hover`); nếu hậu tố chứa `&`
+ * thì `&` được thay bằng class, cho phép bọc class (`:where(& > :not(:last-child))`).
+ */
+export const composeSelector = (classSelector: string, selector: string): string =>
+    selector.includes('&') ? selector.replace(/&/g, classSelector) : classSelector + selector
+
+/** Media key dạng at-rule nội tuyến `[@...]`, ví dụ `[@supports_(display:grid)]`, `[@starting-style]`. */
+export const isInlineAtRuleKey = (key: string): boolean => /^\[@[^\]]+\]$/.test(key)
+export const decodeInlineAtRule = (key: string): string => key.slice(1, -1).replace(/\\_/g, '\u0000').replace(/_/g, ' ').replace(/\u0000/g, '_')
+
 const setupCssLayers = (docRoot: Document | ShadowRoot | null, id?: string) => {
     if (!docRoot) return
     // Id riêng: trước đây trùng id thẻ bootloader nên bị removeBootloaderStyle() xoá sau
@@ -1120,6 +1138,7 @@ export const xcss = (
         dialects = [],
     } = modules || {}
     const dialectList: XCSSDialect[] = Array.isArray(dialects) ? dialects.filter((d) => typeof d === 'function') : []
+    const dialectBaseCss = dialectList.map((d) => (typeof d.baseCss === 'string' ? d.baseCss : '')).filter(Boolean).join('\n')
 
     // Logger nội bộ: tôn trọng `silent` để bundle production không phát log rác.
     const warn = (...args: unknown[]): void => {
@@ -1135,6 +1154,8 @@ export const xcss = (
             : 5000
 
     if (!Array.isArray(mediaQuery)) mediaQuery = []
+    const dialectBreakpoints = (Array.isArray(dialects) ? dialects : []).flatMap((d: any) => (d && Array.isArray(d.breakpoints) ? d.breakpoints : []))
+    if (dialectBreakpoints.length) mediaQuery = [...mediaQuery, ...dialectBreakpoints]
     if (!Array.isArray(excludeNames)) excludeNames = []
     if (!Array.isArray(excludePrefixes)) excludePrefixes = []
     if (!groupValues || typeof groupValues !== 'object') groupValues = {}
@@ -1191,7 +1212,8 @@ export const xcss = (
         .map((m) => Object.keys(m)[0])
         .filter((k): k is string => typeof k === 'string' && k.length > 0)
     const mediaKeySet = new Set<string>([...defaultMediaKeys, ...customMediaKeys])
-    const isValidMediaKey = (mq?: string): boolean => !mq || mediaKeySet.has(mq)
+    // `[@supports_(display:grid)]`: at-rule nội tuyến (không cần đăng ký), `_` là khoảng trắng.
+    const isValidMediaKey = (mq?: string): boolean => !mq || mediaKeySet.has(mq) || isInlineAtRuleKey(mq)
     const shouldEnforceKnownProperties = dictionaryImport !== false
     const compositePropertyKeys = new Set(['mx', 'my', 'px', 'py', 'bdx', 'bdy'])
     let knownFullPropertyNames = new Set<string>()
@@ -1356,6 +1378,8 @@ export const xcss = (
 
         // Tạo sheet cho 1 media key: constructable nếu hỗ trợ, ngược lại <style> element thật.
         const createMediaSheet = (mediaKey: string, media: string): CSSStyleSheet | null => {
+            // Query bắt đầu bằng `@` (`@container (...)`, `@supports (...)`): rule tự bọc at-rule, sheet không có media.
+            if (media.startsWith('@')) media = ''
             if (supportsConstructable) {
                 return media ? new CSSStyleSheet({ media }) : new CSSStyleSheet()
             }
@@ -1726,7 +1750,7 @@ export const xcss = (
                     } else {
                         const mqStr = mediaQueryByKey.get(k)
                         // Only wrap if meaningful content
-                        if (mqStr && cssText) {
+                        if (mqStr && cssText && !mqStr.startsWith('@')) {
                             cssTextForCache[k] = `@media ${mqStr} {\n${cssText}\n}`
                         } else {
                             cssTextForCache[k] = cssText
@@ -1772,9 +1796,7 @@ export const xcss = (
 
         // Câu khai báo thứ tự layer nằm ở đầu sheet gốc: có mặt trong CSS tĩnh (SSR/extract),
         // trong cache/bootloader và trong adoptedStyleSheets, độc lập với thẻ <style> ở <head>.
-        const rootBaseText = supportsAtLayer
-            ? LAYER_ORDER_STATEMENT + (baseCssText ? '\n' + baseCssText : '')
-            : baseCssText
+        const rootBaseText = [supportsAtLayer ? LAYER_ORDER_STATEMENT : '', dialectBaseCss, baseCssText].filter(Boolean).join('\n')
 
         // Init sheets & Finish Hydration
         if (isBrowser) {
@@ -1932,14 +1954,21 @@ export const xcss = (
 
             layer = Number(layer) || 0
             let cssExts = shouldHashOutputClassName ? CSS_KEYS.get(txtCls) : null
-            let cssName = cssExts
-                ? `.${cssExts}${selector}`
-                : `.${className}${selector}`
+            let cssName = composeSelector(`.${cssExts || className}`, selector)
 
             // CB4: trên thiết bị cảm ứng, chỉ áp :hover khi thiết bị thật sự hỗ trợ hover.
             let ruleBody = `${cssName}{${property}}`
             if (hoverMedia && selector && selector.indexOf(':hover') !== -1) {
                 ruleBody = `@media (hover: hover){${ruleBody}}`
+            }
+            // At-rule ngoài @media: breakpoint đăng ký với query `@...` giữ sheet riêng (giữ thứ tự),
+            // key nội tuyến `[@...]` đi vào sheet mặc định.
+            const atRuleQuery = mediaQueryByKey.get(media)
+            if (atRuleQuery && atRuleQuery.startsWith('@')) {
+                ruleBody = `${atRuleQuery}{${ruleBody}}`
+            } else if (isInlineAtRuleKey(media)) {
+                ruleBody = `${decodeInlineAtRule(media)}{${ruleBody}}`
+                media = 'default'
             }
             // CB2: bỏ bọc @layer trên trình duyệt thiếu hỗ trợ -> giữ thứ tự theo insertion order.
             var txtCss = supportsAtLayer ? `@layer l${layer}{${ruleBody}}` : ruleBody
@@ -2175,7 +2204,7 @@ export const xcss = (
                 if (media === 'root' || media === 'default') return css
                 // Wrap in media query
                 const mediaQueryStr = mediaQueryByKey.get(media)
-                if (mediaQueryStr) {
+                if (mediaQueryStr && !mediaQueryStr.startsWith('@')) {
                     return `@media ${mediaQueryStr} {\n${css}\n}`
                 }
                 return css
@@ -2268,16 +2297,16 @@ export const xcss = (
         return null
     }
 
-    function propToValue(p: string, v: string): string | null {
-        const cacheKey = p + ' ' + v
+    function propToValue(p: string, v: string, trusted = false): string | null {
+        const cacheKey = (trusted ? 't ' : '') + p + ' ' + v
         const cached = propToValueCache.get(cacheKey)
         if (cached !== undefined) return cached
-        const result = computePropToValue(p, v)
+        const result = computePropToValue(p, v, trusted)
         setBounded(propToValueCache, cacheKey, result)
         return result
     }
 
-    function computePropToValue(p: string, v: string): string | null {
+    function computePropToValue(p: string, v: string, trusted = false): string | null {
         // Step 0: Check config extensions
         let gvalue = propsValueExt(p + v)
         if (gvalue) return gvalue
@@ -2362,7 +2391,8 @@ export const xcss = (
         }
 
         const isBrowser = typeof CSS !== 'undefined'
-        if (!isBrowser || cssProp.every((x) => cssSupports(x))) {
+        // `trusted`: khai báo do phương ngữ sinh từ nguồn đã kiểm (compiler Tailwind) bỏ qua CSS.supports.
+        if (!isBrowser || trusted || cssProp.every((x) => cssSupports(x))) {
             if (autoprefix) {
                 // Chỉ thêm vendor declaration khi nó hợp lệ -> không bao giờ làm rule chuẩn bị loại.
                 const prefixed = buildWebkitPrefixes(propertyName, vxx).filter((d) => cssSupports(d))
@@ -2455,7 +2485,7 @@ export const xcss = (
     }
 
     // Gộp nhiều token x-css (cùng media/layer/selector) thành một rule cho một class nguồn.
-    function resolveTokenGroup(tokens: string[], className: string) {
+    function resolveTokenGroup(tokens: string[], className: string, trusted = false) {
         let media = ''
         let layer = ''
         let selector = ''
@@ -2473,7 +2503,7 @@ export const xcss = (
             } else if ((parsed.mq || '') !== media || (parsed.layer || '') !== layer || (parsed.selector || '') !== selector) {
                 return null
             }
-            const value = propToValue(parsed.prop, parsed.val)
+            const value = propToValue(parsed.prop, parsed.val, trusted)
             if (!value) return null
             declarations.push(value)
         }
@@ -2481,7 +2511,7 @@ export const xcss = (
         const selectorStr = selector.replace(/(';|;)/g, (v: string) => (v == "';" ? ';' : ' '))
         if (selectorStr) {
             if (typeof CSS !== 'undefined') {
-                if (!cssSupports(`selector(${className}${selectorStr})`)) return null
+                if (!cssSupports(`selector(${composeSelector('.' + className, selectorStr)})`)) return null
             } else if (!isLikelyValidSelectorFallback(selectorStr)) {
                 return null
             }
@@ -2511,7 +2541,7 @@ export const xcss = (
                     tokens = null
                 }
                 if (tokens && tokens.length) {
-                    const resolved = resolveTokenGroup(tokens, className)
+                    const resolved = resolveTokenGroup(tokens, className, dialect.trusted === true)
                     if (resolved) return resolved
                 }
             }
@@ -2563,7 +2593,7 @@ export const xcss = (
                 if (cssPropItems.length === 0) return null
 
                 const selectorStr = rootSelector.replace(/(';|;)/g, (v: string) => (v == "';" ? ';' : ' '))
-                const checkSupport = `selector(${className}${selectorStr})`
+                const checkSupport = `selector(${composeSelector('.' + className, selectorStr)})`
                 if (selectorStr) {
                     if (typeof CSS !== 'undefined') {
                         if (!cssSupports(checkSupport)) return null
@@ -2599,7 +2629,7 @@ export const xcss = (
         if (cssPropItems.length === 0) return null
 
         const selectorStr = s.replace(/(';|;)/g, (v: string) => (v == "';" ? ';' : ' '))
-        const checkSupport = `selector(${className}${selectorStr})`
+        const checkSupport = `selector(${composeSelector('.' + className, selectorStr)})`
         if (selectorStr) {
             if (typeof CSS !== 'undefined') {
                 if (!cssSupports(checkSupport)) return null

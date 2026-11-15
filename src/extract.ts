@@ -6,6 +6,7 @@
  * Nhờ đó trang có thể nạp CSS sẵn sàng, không phải chờ runtime parse ở trình duyệt.
  */
 import { xcss, type XCSSConfig } from './core'
+import { minifyCss } from './minify'
 
 export interface ExtractOptions extends XCSSConfig {
     /**
@@ -13,6 +14,8 @@ export interface ExtractOptions extends XCSSConfig {
      * bằng biểu thức). Các class này luôn được đưa vào kết quả.
      */
     safelist?: string[]
+    /** Thu gọn CSS: bỏ @property/@keyframes không dùng, gộp @layer liên tiếp, bỏ khoảng trắng. */
+    minify?: boolean
 }
 
 export interface ExtractResult {
@@ -139,7 +142,7 @@ export const extractFromClasses = async (
     classes: string[],
     options?: ExtractOptions,
 ): Promise<ExtractResult> => {
-    const { safelist = [], ...config } = options || {}
+    const { safelist = [], minify = false, ...config } = options || {}
     // Mỗi phần tử là một class; chuỗi có khoảng trắng được tách ra để `matched` đếm theo từng class.
     const candidates = [
         ...new Set(
@@ -183,7 +186,8 @@ export const extractFromClasses = async (
     // microtask để mọi handler kịp ghi vào text store trước khi đọc CSS.
     await Promise.resolve()
 
-    const css = built.getCssString()
+    const rawCss = built.getCssString()
+    const css = minify ? minifyCss(rawCss) : rawCss
     built.destroy()
 
     return { css, candidates, classMap, matched, matchedClasses }

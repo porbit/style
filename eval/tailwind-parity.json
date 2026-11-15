@@ -1,0 +1,25 @@
+{
+  "tailwind": "4.3.5",
+  "base": {
+    "checked": 23286,
+    "matched": 23285,
+    "percent": 100
+  },
+  "variants": {
+    "checked": 680,
+    "matched": 680,
+    "percent": 100
+  },
+  "theme": {
+    "checked": 28,
+    "matched": 28
+  },
+  "runtime": {
+    "checked": 3327,
+    "matched": 3327,
+    "percent": 100
+  },
+  "failingFamilies": {
+    "container": 1
+  }
+}

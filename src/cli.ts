@@ -7,7 +7,7 @@
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, relative, resolve } from 'node:path'
-import { collectFiles, DEFAULT_EXTENSIONS } from './files'
+import { collectFiles, DEFAULT_EXTENSIONS, readTextSync } from './files'
 import { createPreloadManifest, extractFromClasses, extractCandidates, type ExtractOptions } from './extract'
 import { startMcpServer } from './mcp'
 import { runInit } from './init'
@@ -43,6 +43,7 @@ Tuỳ chọn:
   --ext <danh-sách>  Phần mở rộng cần quét khi đường dẫn là thư mục.
                      Mặc định: html,htm,js,jsx,ts,tsx,vue,svelte,astro,mdx
   --components       Thêm mọi class của bộ component mẫu vào CSS tĩnh.
+  --minify           Thu gọn CSS (bỏ @property/@keyframes không dùng, gộp @layer).
   --silent           Không in thống kê ra stderr.
   -h, --help         Hiển thị trợ giúp.
 
@@ -62,6 +63,7 @@ interface CliOptions {
     extensions: string[]
     silent: boolean
     components?: boolean
+    minify?: boolean
     help: boolean
 }
 
@@ -85,6 +87,10 @@ const parseArgs = (argv: string[]): CliOptions => {
         }
         if (arg === '--components') {
             options.components = true
+            continue
+        }
+        if (arg === '--minify') {
+            options.minify = true
             continue
         }
         if (arg === '--out' || arg === '--config' || arg === '--map' || arg === '--manifest' || arg === '--ext') {
@@ -303,14 +309,13 @@ export const runCli = async (argv: string[]): Promise<number> => {
 
     const candidates = new Set<string>()
     for (const file of files) {
-        const source = await readFile(file, 'utf8').catch(() => '')
-        extractCandidates(source).forEach((candidate) => candidates.add(candidate))
+        for (const candidate of extractCandidates(readTextSync(file))) candidates.add(candidate)
     }
 
     if (options.components) {
         config = { ...config, safelist: [...(config.safelist || []), ...getComponentClasses()] }
     }
-    const result = await extractFromClasses([...candidates], { ...config, silent: true })
+    const result = await extractFromClasses([...candidates], { ...config, silent: true, minify: options.minify || config.minify })
 
     if (options.out) {
         const outPath = resolve(options.out)

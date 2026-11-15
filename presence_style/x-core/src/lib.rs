@@ -283,7 +283,10 @@ impl XCoreRegistry {
             if rules.is_empty() {
                 continue;
             }
-            output.push_str("@media ");
+            // Query bắt đầu bằng `@` (`@container (...)`, `@supports (...)`): bọc nguyên at-rule.
+            if !query.starts_with('@') {
+                output.push_str("@media ");
+            }
             output.push_str(query);
             output.push('{');
             for rule in rules {
@@ -322,6 +325,12 @@ impl XCoreRegistry {
         if key.is_empty() {
             return Some(String::new());
         }
+        // `[@supports_(display:grid)]`: at-rule nội tuyến, `_` là khoảng trắng (khớp Node).
+        if let Some(inner) = key.strip_prefix("[@").and_then(|k| k.strip_suffix(']')) {
+            if !inner.is_empty() && !inner.contains(']') {
+                return Some(format!("@{}", decode_arbitrary_underscore(inner)));
+            }
+        }
 
         self.config
             .breakpoints
@@ -335,12 +344,21 @@ impl XCoreRegistry {
 fn push_rule(output: &mut String, rule: &CssRule) {
     output.push_str("@layer l");
     output.push_str(&rule.layer.to_string());
-    output.push_str("{.");
-    output.push_str(&rule.class_name);
-    output.push_str(&rule.selector);
+    output.push('{');
+    output.push_str(&compose_selector(&format!(".{}", rule.class_name), &rule.selector));
     output.push('{');
     output.push_str(&rule.declarations);
     output.push_str("}}");
+}
+
+/// Ghép selector class với hậu tố; hậu tố chứa `&` thì `&` được thay bằng class
+/// (`:where(& > :not(:last-child))`), khớp `composeSelector` của engine Node.
+pub fn compose_selector(class_selector: &str, selector: &str) -> String {
+    if selector.contains('&') {
+        selector.replace('&', class_selector)
+    } else {
+        format!("{class_selector}{selector}")
+    }
 }
 
 pub fn default_breakpoints() -> Vec<Breakpoint> {
@@ -997,6 +1015,30 @@ mod tests {
         let before = registry.css_text();
         registry.clsx("c[red}body{color:blue] content[\"a] cRed@:is(a dF&md:aiC");
         assert_eq!(registry.css_text(), before);
+    }
+
+    #[test]
+    fn ampersand_selector_wraps_class() {
+        let mut config = XCoreConfig::default();
+        config.hash_class_name = false;
+        let mut registry = XCoreRegistry::new(config);
+        registry.clsx("ml4px@:where(&;>;:not(:last-child))");
+        assert!(registry
+            .css_text()
+            .contains(":where(.ml4px\\@\\:where\\(\\&\\;\\>\\;\\:not\\(\\:last-child\\)\\) > :not(:last-child)){margin-left:4px}"));
+    }
+
+    #[test]
+    fn at_rule_breakpoints_and_inline_keys() {
+        let mut config = XCoreConfig::default();
+        config.hash_class_name = false;
+        config.breakpoints.push(bp("cq-md", "@container (width >= 28rem)"));
+        let mut registry = XCoreRegistry::new(config);
+        registry.clsx("cq-md:p4px [@supports_(display:grid)]:dG");
+        let css = registry.css_text();
+        assert!(css.contains("@container (width >= 28rem){@layer l0{.cq-md\\:p4px{padding:4px}}}"), "{css}");
+        assert!(css.contains("@supports (display:grid){@layer l0{"), "{css}");
+        assert!(!css.contains("@media @"));
     }
 
     #[test]

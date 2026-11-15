@@ -67,14 +67,27 @@ export const COMMON_MISTAKES: Record<string, string> = {
 
 export const capitalize = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1)
 
+// CSS nền theo cấu hình (câu khai báo layer, base, @property của phương ngữ): cache theo đối tượng cấu hình.
+const baselineCache = new WeakMap<object, string>()
+const baselineCss = (config: XCSSConfig): string => {
+    const cached = baselineCache.get(config)
+    if (cached !== undefined) return cached
+    const built = xcss({ silent: true, ...config, hashClassName: false }).buildCss(undefined)
+    const css = built.getCssString()
+    built.destroy()
+    baselineCache.set(config, css)
+    return css
+}
+
+/** CSS mà các class sinh thêm (đã bỏ phần nền luôn có: khai báo layer, base, @property của phương ngữ). */
 export const generateCssFor = (classes: string[], config: XCSSConfig = {}): string => {
     const engine = xcss({ silent: true, ...config, hashClassName: false })
     const built = engine.buildCss(undefined)
     built.clsx(classes.join(' '))
-    // Bỏ câu khai báo thứ tự layer (luôn có) để phép thử "có sinh CSS không" vẫn đúng.
-    const css = built.getCssString().replace(LAYER_ORDER_STATEMENT, '')
+    const css = built.getCssString()
     built.destroy()
-    return css
+    const base = baselineCss(config)
+    return css.startsWith(base) ? css.slice(base.length) : css.replace(LAYER_ORDER_STATEMENT, '')
 }
 
 // Tên màu CSS: dùng để chọn đúng điểm tách khi value viết thường dính vào property (`cred` -> `cRed`).

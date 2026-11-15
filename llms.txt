@@ -1,6 +1,6 @@
 # PresenceStyle (@porbit/style)
 
-> Utility CSS engine mở: class viết tắt (x-css) được đổi thành CSS lúc chạy (không cần build) hoặc lúc build. Mọi property CSS viết được thành class; ưu tiên tường minh bằng layer số. Có phương ngữ Tailwind ở runtime, bộ component mẫu, plugin Vite và MCP server. Phiên bản 0.7.3.
+> Utility CSS engine mở: class viết tắt (x-css) được đổi thành CSS lúc chạy (không cần build) hoặc lúc build. Mọi property CSS viết được thành class; ưu tiên tường minh bằng layer số. Có phương ngữ Tailwind ở runtime, bộ component mẫu, plugin Vite và MCP server. Phiên bản 0.8.0.
 
 ## Viết class @porbit/style (x-css)
 
@@ -18,7 +18,7 @@ Alias hay nhầm: font-size `fns` (không phải `fz`/`fs`), font-weight `fnw`, 
 
 Hay dùng: `dF dG dN dB dIF` · `fxdC fxw[wrap] fx1` · `aiC jcC jcSp gap16px` · `gtc[repeat(3,minmax(0,1fr))]` · `w100% mw1200px h40px mih100vh` · `m0;auto p16px px16px py8px` · `posR posA t0 l0 i0 z10` · `c#0f172a bgc#fff bd[1px_solid_#e2e8f0] bdra8px` · `fns14px fnw600 lh1.5 taC` · `bxsh[...] opc.8 tran[all_.15s] crP oflH`.
 
-Nếu dự án bật phương ngữ Tailwind (`dialects: [tailwindDialect()]`), class Tailwind như `flex items-center p-4 hover:bg-slate-50` cũng chạy.
+Nếu dự án bật phương ngữ Tailwind (`dialects: [tailwindV4Dialect()]` từ `@porbit/style/tailwind`), class Tailwind như `flex items-center p-4 hover:bg-slate-50` cũng chạy.
 
 Có MCP server `presence-style`: gọi `fix_classes` cho mọi chuỗi class tự viết trước khi trả code; tra alias bằng `lookup_dictionary`; lấy component mẫu bằng `get_component`. Không có MCP: chạy `npx presence-style check <thư-mục>` để soát lỗi.
 
@@ -29,6 +29,7 @@ Có MCP server `presence-style`: gọi `fix_classes` cho mọi chuỗi class t�
 - [docs/guides/tu-vung-mo.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/tu-vung-mo.md): Từ vựng mở: viết mọi property/giá trị CSS khi chưa có alias
 - [docs/guides/components.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/components.md): Bộ component mẫu: recipe, theme --ps-*, ghi đè bằng layer
 - [docs/guides/static-first.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/static-first.md): Static-first và plugin Vite
+- [docs/guides/tailwind.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/tailwind.md): Dùng thay Tailwind v4: độ khớp đo được, hiệu năng, giới hạn
 - [docs/guides/mcp.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/mcp.md): MCP server: cài cho từng agent, danh sách tool
 - [DICTIONARY.md](https://raw.githubusercontent.com/porbit/style/main/DICTIONARY.md): Toàn bộ alias property và value
 - [spec/SPEC.md](https://raw.githubusercontent.com/porbit/style/main/spec/SPEC.md): Đặc tả cú pháp chuẩn
