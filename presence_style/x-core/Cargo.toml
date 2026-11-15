@@ -1,0 +1,18 @@
+[package]
+name = "presence-style-core"
+version = "0.1.0"
+description = "Rust core parser and CSS generator for PresenceStyle."
+edition.workspace = true
+license = "MIT"
+repository = "file:///Volumes/Demo/dev/Presence"
+homepage = "file:///Volumes/Demo/dev/Presence/PresenceRs/presence_style#readme"
+rust-version = "1.74"
+
+[lib]
+name = "presence_style_core"
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+serde_json = "1"

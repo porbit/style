@@ -1,0 +1,33 @@
+[package]
+name = "presence-style-css"
+version = "0.1.0"
+description = "Framework-facing Rust facade for PresenceStyle."
+edition.workspace = true
+license = "MIT"
+repository = "file:///Volumes/Demo/dev/Presence"
+homepage = "file:///Volumes/Demo/dev/Presence/PresenceRs/presence_style#readme"
+rust-version = "1.74"
+
+[lib]
+name = "presence_style_css"
+path = "src/lib.rs"
+
+[features]
+default = []
+dom = ["dep:wasm-bindgen", "dep:web-sys"]
+yew = []
+leptos = []
+sycamore = []
+
+[dependencies]
+presence-style-core = { path = "../x-core", version = "0.1.0" }
+wasm-bindgen = { version = "0.2", optional = true }
+web-sys = { version = "0.3", optional = true, features = [
+    "Document",
+    "Element",
+    "HtmlCollection",
+    "HtmlElement",
+    "Node",
+    "NodeList",
+    "Window",
+] }

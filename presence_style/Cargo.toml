@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = [
+    "x-core",
+    "x-css",
+]
+
+[workspace.package]
+edition = "2021"
