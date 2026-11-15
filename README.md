@@ -995,6 +995,7 @@ Bộ test Playwright (Chromium/Firefox/WebKit + Pixel 5/iPhone 13) nằm trong [
 - Từ vựng mở, viết mọi CSS: [docs/guides/tu-vung-mo.md](./docs/guides/tu-vung-mo.md)
 - Bộ component mẫu: [docs/guides/components.md](./docs/guides/components.md)
 - MCP server cho agent AI: [docs/guides/mcp.md](./docs/guides/mcp.md)
+- Đánh giá so với Tailwind và lộ trình tối ưu: [docs/strategy/danh-gia-va-dinh-huong.md](./docs/strategy/danh-gia-va-dinh-huong.md)
 - Dictionary đầy đủ: [DICTIONARY.md](./DICTIONARY.md)
 - Đặc tả cú pháp chuẩn (đa engine): [spec/SPEC.md](./spec/SPEC.md)
 - Kiến trúc và luồng runtime: [docs/architecture/README.md](./docs/architecture/README.md)
