@@ -15,5 +15,8 @@ target/
 target-*/
 presence-style-rs/target/
 presence-style-rs/examples/*/target/
+presence_style/target/
+presence_style/examples/*/target/
+presence_style/examples/*/dist/
 test-results/
 playwright-report/

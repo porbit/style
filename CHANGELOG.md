@@ -1,5 +1,28 @@
 # Lịch Sử Thay Đổi
 
+## 0.7.2
+
+Tích hợp và tối ưu engine Rust `presence_style` (x-core 0.2.0), sửa lỗi thứ tự cascade ở cả hai engine.
+
+**Sửa lỗi (engine Node)**
+- Runtime trình duyệt, cấu hình mặc định: thẻ `<style>` khai báo thứ tự layer trùng id với thẻ bootloader nên bị `removeBootloaderStyle()` xoá sau hai khung hình; từ đó layer được xếp theo lần xuất hiện và layer thấp có thể thắng layer cao (`7cGreen 3cOrange` ra màu cam). Nay câu `@layer l0, ..., l23;` nằm ở đầu stylesheet gốc của engine và thẻ khai báo có id riêng (`<styleId>-layers`).
+- CSS tĩnh (`extract`, CLI, plugin Vite, static-first) không khai báo thứ tự layer, nên `2cRed cBlue` ra màu xanh. Nay CSS tĩnh luôn bắt đầu bằng `LAYER_ORDER_STATEMENT`.
+- Bỏ dòng trống thừa trong CSS tĩnh.
+- `check`/`fix_classes`/extension: nhận ra `g16px` (`grid: 16px`, trình duyệt bỏ qua) và gợi ý `gap16px`.
+
+**Engine Rust (x-core / x-css 0.2.0)**
+- Parity với Node 0.7: tên CSS đầy đủ (586 tên), `-webkit-*`, `--bien[...]`, `_` trong `[...]`, `-.5rem`, chuỗi `&`, chặn giá trị/selector có thể thoát khối rule. Conformance 3314/3314 case; so hiển thị trên Chromium: 0 khác biệt.
+- `css_text()` khai báo thứ tự layer, bọc `@layer lN{}`, sắp media theo thứ tự breakpoint (trước đây theo bảng chữ cái nên `sm:` đè `xl:`).
+- Ghi nhớ kết quả từng token và cache `css_text()`: `clsx` lặp ~20 lần nhanh hơn, `css_text()` ~150 lần nhanh hơn.
+- Rule giữ thứ tự chèn (giống Node); `rules()` trả theo thứ tự này.
+- Ví dụ Yew/Leptos/Sycamore dùng `g<N>px` (grid) thay vì `gap<N>px`: đã sửa 32 chỗ.
+- `Cargo.toml` trỏ `repository`/`homepage` về GitHub thay vì đường dẫn máy cục bộ.
+
+**Bộ dữ liệu**
+- `spec/dictionary.json` có thêm khoá `STANDARD_CSS_PROPERTIES`.
+- Conformance thêm case chuỗi `&` và giá trị/selector không an toàn (3294 → 3314).
+
+
 ## 0.7.1
 
 Sửa lỗi phát hiện khi dựng thử một trang thật (Vite + phương ngữ Tailwind + component mẫu + static-first).
