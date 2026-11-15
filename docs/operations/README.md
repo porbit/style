@@ -42,7 +42,10 @@ Kết quả build nằm trong `dist/`:
 | `npm run gen:spec` | Sinh lại `spec/dictionary.json` và `spec/conformance.core.json`. |
 | `npm run gen:rust` | Sinh `dictionary_generated.rs` cho engine Rust; bỏ qua nếu chưa đặt `PRESENCE_STYLE_RUST_DICT_OUT` hoặc đối số đường dẫn. |
 | `npm run gen` | Chạy cả `gen:spec` và `gen:rust`. |
-| `npm run verify` | Cổng kiểm chứng: `typecheck` + `test:run` + `build`. |
+| `npm run verify` | Kiểm chứng tối thiểu: `typecheck` + `test:run` + `build`. |
+| `npm run check:all` | Cổng đầy đủ thay CI (xem mục 4.1). |
+| `npm run check:quick` | Cổng nhanh: typecheck + unit test. |
+| `npm run hooks:install` | Bật `pre-commit`/`pre-push` trong `.githooks`. |
 | `npm run extract` | Gọi CLI trích xuất từ bản build trong `dist/`. |
 | `npm run mcp` | Chạy MCP server từ bản build trong `dist/` (stdio). |
 
@@ -124,6 +127,41 @@ Kiểm tra nhanh server sau khi build:
 ```bash
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/cli-bin.js mcp
 ```
+
+## 4.1 Cổng Kiểm Tra Cục Bộ (Thay Cho CI)
+
+Repo không phụ thuộc GitHub Actions. Mọi kiểm chứng chạy trên máy phát triển bằng một lệnh:
+
+```bash
+npm run check:all
+```
+
+| Bước | Kiểm tra | Thiếu công cụ thì |
+| :--- | :--- | :--- |
+| `typecheck` | `tsc --noEmit` | — |
+| `unit` | Toàn bộ Vitest | — |
+| `build` | `tsup` | — |
+| `size` | Ngân sách gzip: `index-auto` ≤ 23 KB, `index` ≤ 36 KB, `components` ≤ 8 KB | — |
+| `generated` | Sinh lại dictionary/conformance cho Rust và `llms.txt`; lỗi nếu khác bản đã commit | — |
+| `rust` | Build và `cargo test --workspace` trong `presence_style/` | Bỏ qua nếu không có `cargo` |
+| `browser` | Trên Chromium: thứ tự layer (CSS tĩnh, runtime sau nhiều khung hình), class của bộ component, so hiển thị CSS Node với CSS Rust ở 3 độ rộng | Bỏ qua nếu không mở được Chromium |
+| `eval` | Ngưỡng bộ đánh giá: x-css sau sửa ≥ 99%, Tailwind ≥ 98%, tập lỗi độc lập ≥ 85% | Bỏ qua nếu không có Chromium |
+
+Bước bị bỏ qua vẫn được báo `BỎ QUA`; thêm `--strict` để coi là lỗi. Chạy một phần: `node scripts/check-all.cjs --only=rust,browser`. Toàn bộ mất khoảng 30–40 giây.
+
+Bật git hook (một lần cho mỗi bản clone, chạy trên máy của bạn):
+
+```bash
+npm run hooks:install
+```
+
+- `pre-commit`: `check:quick` (typecheck + unit test, ~5 giây).
+- `pre-push`: `check:all`. Bỏ qua một lần bằng `git push --no-verify` khi thật cần.
+- `prepublishOnly` cũng chạy `check:all`, nên không publish được bản không qua cổng.
+
+Chromium: dùng bản Playwright đã cài (`npx playwright install chromium`), hoặc chỉ định `CHROMIUM_PATH=/đường/dẫn/chrome`.
+
+Cổng đã được thử bằng cách cố ý đưa lại hai lỗi cũ: bỏ câu khai báo thứ tự layer (bước `browser` báo `2cRed cBlue -> rgb(0, 0, 255)`), và sắp media Rust theo bảng chữ cái (test Rust lỗi; bước so hiển thị báo lệch 1/95 phần tử ở 1300px).
 
 ## 5. Quy Trình Phát Hành npm
 

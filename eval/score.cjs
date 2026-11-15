@@ -45,7 +45,15 @@ const pct = (a, b) => (b ? ((100 * a) / b).toFixed(1) + '%' : '—')
 
 ;(async () => {
     // CHROMIUM_PATH: dùng khi bản Chromium đi kèm @playwright/test của dự án chưa được tải.
-    const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {})
+    let browser = null
+    for (const executablePath of [process.env.CHROMIUM_PATH, undefined, '/opt/pw-browsers/chromium']) {
+        try {
+            browser = await chromium.launch(executablePath ? { executablePath } : {})
+            break
+        } catch (error) {
+            if (executablePath === '/opt/pw-browsers/chromium') throw error
+        }
+    }
     const page = await browser.newPage()
     await page.route('http://eval.local/**', (route) => {
         const url = new URL(route.request().url())
@@ -145,6 +153,20 @@ const pct = (a, b) => (b ? ((100 * a) / b).toFixed(1) + '%' : '—')
         '',
     ]
     fs.writeFileSync(path.join(__dirname, 'RESULTS.md'), lines.join('\n'))
+    // Số liệu dạng máy đọc cho cổng kiểm tra (scripts/check-all.cjs).
+    const num = (text) => (typeof text === 'string' && text.endsWith('%') ? Number(text.slice(0, -1)) : null)
+    const xcssRow = rows.find((r) => !r.run.startsWith('tailwind'))
+    const tailwindRow = rows.find((r) => r.run.startsWith('tailwind'))
+    fs.writeFileSync(
+        path.join(__dirname, 'results.json'),
+        JSON.stringify({
+            xcssValid: num(xcssRow?.valid),
+            xcssValidAfterFix: num(xcssRow?.validAfterFix),
+            tailwindValid: num(tailwindRow?.valid),
+            holdout: Number(((100 * holdoutOk) / holdoutResults.length).toFixed(1)),
+            tuning: Number(((100 * mistakeOk) / mistakeResults.length).toFixed(1)),
+        }, null, 2) + '\n',
+    )
     console.log(lines.slice(4, 4 + rows.length + 8).join('\n'))
 })().catch((error) => {
     console.error(error)

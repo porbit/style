@@ -1068,6 +1068,18 @@ Mặc định `5000`. Đặt `0` để bỏ giới hạn. Việc xoá cache ch�
 
 Bộ test Playwright (Chromium/Firefox/WebKit + Pixel 5/iPhone 13) nằm trong [e2e/](./e2e/). Chạy: `npm run test:e2e` (xem [e2e/README.md](./e2e/README.md)).
 
+## Phát Triển
+
+```bash
+npm run hooks:install   # bật pre-commit (cổng nhanh) và pre-push (cổng đầy đủ)
+```
+
+```bash
+npm run check:all       # thay CI: test JS + Rust, build, dung lượng, kiểm tra trên Chromium, bộ đánh giá
+```
+
+Chi tiết: [docs/operations/README.md](./docs/operations/README.md) mục 4.1.
+
 ## Tài Liệu Liên Quan
 
 - Thiết kế nhanh một giao diện: [docs/guides/thiet-ke-nhanh.md](./docs/guides/thiet-ke-nhanh.md)
