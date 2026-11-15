@@ -11,10 +11,11 @@
 import { readFile, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { xcss, type XCSSConfig } from './core'
-import { parseClassName } from './parser'
-import { compactClassToken, findClassConflicts } from './class-tools'
+import { type XCSSConfig } from './core'
+import { findClassConflicts } from './class-tools'
+import { explainClass, fixClasses, generateCssFor, searchDictionary } from './analyze'
 import { SHORT_PROPERTIES, SPECIFIC_VALUES, COMMON_VALUES } from './dictionary'
+export { suggestClassFix } from './analyze'
 import { extractCandidates, extractFromClasses } from './extract'
 import { convertTailwindClasses, type TailwindConversionMode } from './tailwind'
 import { collectFiles, DEFAULT_EXTENSIONS } from './files'
@@ -113,198 +114,6 @@ const resolveInsideRoot = (root: string, target: string): string => {
     return absolute
 }
 
-const PROPERTY_BY_CSS_NAME = (() => {
-    const map: Record<string, string[]> = {}
-    for (const [alias, name] of Object.entries(SHORT_PROPERTIES)) {
-        ;(map[name] ||= []).push(alias)
-    }
-    return map
-})()
-
-// Lỗi hay gặp: alias sai -> alias đúng (theo docs/guides/thiet-ke-nhanh.md).
-const COMMON_MISTAKES: Record<string, string> = {
-    fz: 'fns', fs: 'fns', minh: 'mih', mnh: 'mih', mah: 'mh', maxh: 'mh', maxw: 'mw', zi: 'z',
-    ou: 'oli', out: 'oli', cur: 'cr', tt: 'ttr', bgcolor: 'bgc', col: 'c', color: 'c',
-    rounded: 'bdra', radius: 'bdra', shadow: 'bxsh', bs: 'bxsh', fd: 'fxd', items: 'ai', justify: 'jc',
-}
-
-const capitalize = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1)
-
-const generateCssFor = (classes: string[], config: XCSSConfig) => {
-    const engine = xcss({ silent: true, ...config, hashClassName: false })
-    const built = engine.buildCss(undefined)
-    built.clsx(classes.join(' '))
-    const css = built.getCssString()
-    built.destroy()
-    return css
-}
-
-// Tên màu CSS: dùng để chọn đúng điểm tách khi value viết thường dính vào property (`cred` -> `cRed`).
-const NAMED_COLORS = new Set(
-    ('aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen transparent currentcolor')
-        .split(' '),
-)
-
-/** Value viết thường `rest` có phải giá trị đã biết của property `alias` không. */
-const isKnownValue = (alias: string, rest: string): boolean => {
-    const cssName = SHORT_PROPERTIES[alias] || ''
-    return (
-        SPECIFIC_VALUES[alias]?.[rest] !== undefined ||
-        COMMON_VALUES[rest] !== undefined ||
-        (/color$/.test(cssName) && NAMED_COLORS.has(rest))
-    )
-}
-
-const STATE_PREFIX = /^(hover|focus|focus-visible|focus-within|active|visited|disabled|checked|first|last|odd|even|placeholder|before|after):(.+)$/
-const PSEUDO_ELEMENTS = new Set(['placeholder', 'before', 'after'])
-const STATE_SELECTOR: Record<string, string> = { first: ':first-child', last: ':last-child', odd: ':nth-child(odd)', even: ':nth-child(even)' }
-
-/**
- * Đề xuất bản sửa tự động cho một class không sinh CSS. Chỉ trả kết quả khi bản sửa
- * thật sự sinh được CSS; ngược lại trả `null`.
- */
-export const suggestClassFix = (token: string, config: XCSSConfig = {}): string | null => {
-    const valid = (candidate: string) => generateCssFor([candidate], config).trim().length > 0
-    // `op` là object-position nên `op0.5` vẫn "hợp lệ" ở Node; gần như luôn là nhầm với opacity.
-    const opacityTypo = token.match(/^((?:[\w-]+:)?\d*)op([\d.]+)(@.*)?$/)
-    if (opacityTypo) return opacityTypo[1] + 'opc' + opacityTypo[2] + (opacityTypo[3] || '')
-    if (valid(token)) return null
-
-    const tryFix = (input: string): string | null => {
-        if (valid(input)) return input
-        const parsed = parseClassName(input)
-        if (!parsed) return null
-        const head = (parsed.mq ? parsed.mq + ':' : '') + parsed.layer
-        const tail = parsed.selector ? '@' + parsed.selector : ''
-        const candidates: string[] = []
-        // `df` -> `dF`: value viết thường dính vào property.
-        if (parsed.val === '') {
-            for (let i = parsed.prop.length - 1; i > 0; i--) {
-                const alias = parsed.prop.slice(0, i)
-                const rest = parsed.prop.slice(i)
-                // Ở Node không có CSS.supports, value bất kỳ đều "hợp lệ": chỉ nhận điểm tách
-                // khi phần value là giá trị đã biết (alias, từ khoá chung, tên màu).
-                if (SHORT_PROPERTIES[alias] && isKnownValue(alias, rest)) candidates.push(head + alias + capitalize(rest) + tail)
-            }
-        }
-        // `fz14px` -> `fns14px`, `op0.5` -> `opc0.5`.
-        const renamed = COMMON_MISTAKES[parsed.prop] || (parsed.prop === 'op' && /^[\d.]/.test(parsed.val) ? 'opc' : '')
-        if (renamed) candidates.push(head + renamed + parsed.val + tail)
-        // `cred` -> `cRed`.
-        if (/^[a-z]/.test(parsed.val)) candidates.push(head + parsed.prop + capitalize(parsed.val) + tail)
-        return candidates.find(valid) ?? null
-    }
-
-    // `hover:cRed` -> `cRed@:hover` (thói quen Tailwind).
-    const state = token.match(STATE_PREFIX)
-    if (state) {
-        const [, name, rest] = state
-        if (rest.includes('@')) return null
-        const selector = STATE_SELECTOR[name] || (PSEUDO_ELEMENTS.has(name) ? '::' + name : ':' + name)
-        return tryFix(rest + '@' + selector)
-    }
-    return tryFix(token)
-}
-
-const explainOne = (token: string, config: XCSSConfig): JsonObject => {
-    const parsed = parseClassName(token)
-    const css = generateCssFor([token], config).trim()
-    const valid = css.length > 0
-    const hints: string[] = []
-
-    if (!valid) {
-        if (/^(hover|focus|active|disabled|group-hover|first|last|odd|even):/.test(token)) {
-            const [state, rest] = token.split(/:(.*)/s)
-            hints.push(`Selector đặt ở hậu tố "@": viết \`${rest}@:${state}\` thay cho \`${token}\`.`)
-        }
-        if (parsed) {
-            const prop = parsed.prop
-            const known =
-                !!SHORT_PROPERTIES[prop] || !!PROPERTY_BY_CSS_NAME[prop] || prop.startsWith('--') || prop.startsWith('[')
-            // `df` -> `dF`, `posa` -> `posA`: value viết thường bị dính vào property.
-            const split = !known && parsed.val === ''
-                ? [...Array(prop.length).keys()].slice(1).map((i) => [prop.slice(0, i), prop.slice(i)]).find(([a]) => SHORT_PROPERTIES[a])
-                : undefined
-            if (split) {
-                hints.push(`Value chữ phải viết hoa ký tự đầu: \`${split[0]}${capitalize(split[1])}\` (${SHORT_PROPERTIES[split[0]]}).`)
-            } else if (!known) {
-                const fix = COMMON_MISTAKES[prop]
-                if (fix) {
-                    hints.push(`Property \`${prop}\` không tồn tại; dùng \`${fix}\` (${SHORT_PROPERTIES[fix]}).`)
-                } else {
-                    const near = Object.keys(SHORT_PROPERTIES).filter((a) => a.startsWith(prop.slice(0, 2))).slice(0, 6)
-                    hints.push(
-                        `Property \`${prop}\` không có trong dictionary và không phải tên CSS chuẩn.` +
-                            (near.length ? ` Alias gần giống: ${near.map((a) => `\`${a}\`=${SHORT_PROPERTIES[a]}`).join(', ')}.` : '') +
-                            ' Có thể viết tên CSS đầy đủ với giá trị trong ngoặc vuông, ví dụ `view-transition-name[hero]`.',
-                    )
-                }
-            }
-            if (!split && parsed.val === '' && !prop.startsWith('[')) {
-                hints.push(
-                    'Thiếu value. Value dạng chữ phải viết hoa ký tự đầu để tách khỏi property: `dF` (không phải `df`), `posA` (không phải `posa`).',
-                )
-            }
-            if (/^[a-z]/.test(parsed.val)) {
-                hints.push(`Value chữ nên viết hoa ký tự đầu: \`${parsed.prop}${capitalize(parsed.val)}\`.`)
-            }
-            if (prop === 'op' && /^[0-9.]/.test(parsed.val)) {
-                hints.push('`op` là object-position; opacity là `opc`, ví dụ `opc0.8`.')
-            }
-            if (/^[a-z]+\(/.test(parsed.val) || /calc\(/.test(parsed.val)) {
-                hints.push('Giá trị có hàm/khoảng trắng nên bọc `[]` và dùng `_` cho khoảng trắng: `w[calc(100%_-_10px)]`.')
-            }
-        } else {
-            hints.push('Không tách được class. Cú pháp: `[media:][layer]property value[@selector]`, ví dụ `md:2bgc#0a64e8@:hover`.')
-        }
-    }
-
-    return {
-        class: token,
-        valid,
-        parsed: parsed
-            ? {
-                  media: parsed.mq || 'default',
-                  layer: parsed.layer || '0',
-                  property: parsed.prop,
-                  cssProperty: SHORT_PROPERTIES[parsed.prop] || parsed.prop,
-                  value: parsed.val,
-                  selector: parsed.selector || '',
-              }
-            : null,
-        css: valid ? css : '',
-        /** Bản sửa tự động (nếu có), cùng logic với tool fix_classes. */
-        suggestion: valid ? null : suggestClassFix(token, config),
-        hints,
-    }
-}
-
-const searchDictionary = (query: string, limit: number): JsonObject[] => {
-    const q = query.trim().toLowerCase()
-    if (!q) return []
-    const results: Array<{ score: number; item: JsonObject }> = []
-    for (const [alias, cssName] of Object.entries(SHORT_PROPERTIES)) {
-        let score = 0
-        if (alias === q) score = 100
-        else if (cssName === q) score = 95
-        else if (cssName.startsWith(q)) score = 70
-        else if (alias.startsWith(q)) score = 60
-        else if (cssName.includes(q)) score = 40
-        if (!score) continue
-        const values = SPECIFIC_VALUES[alias] || {}
-        results.push({
-            score,
-            item: {
-                alias,
-                property: cssName,
-                values: Object.fromEntries(Object.entries(values).map(([k, v]) => [alias + capitalize(k), v])),
-            },
-        })
-    }
-    results.sort((a, b) => b.score - a.score || String(a.item.alias).length - String(b.item.alias).length)
-    return results.slice(0, limit).map((r) => r.item)
-}
-
 const formatJson = (value: unknown): string => JSON.stringify(value, null, 2)
 
 // ---------------------------------------------------------------------------
@@ -332,7 +141,7 @@ export const TOOLS: ToolDefinition[] = [
         annotations: READ_ONLY,
         run: (args) => {
             const config = asConfig(args.config)
-            const items = splitClasses(args.classes).slice(0, 200).map((token) => explainOne(token, config))
+            const items = splitClasses(args.classes).slice(0, 200).map((token) => explainClass(token, config))
             const invalid = items.filter((i) => !i.valid).length
             const conflicts = findClassConflicts(items.map((i) => String(i.class)))
             const summary =
@@ -360,20 +169,9 @@ export const TOOLS: ToolDefinition[] = [
         },
         annotations: READ_ONLY,
         run: (args) => {
-            const config = asConfig(args.config)
-            const tokens = String(args.classes || '').split(/\s+/).filter(Boolean).slice(0, 500)
-            const changes: Array<{ from: string; to: string }> = []
-            const unresolved: string[] = []
-            const output = tokens.map((token) => {
-                const fixed = suggestClassFix(token, config)
-                let result = fixed ?? token
-                if (!fixed && !generateCssFor([token], config).trim()) unresolved.push(token)
-                if (args.compact !== false) result = compactClassToken(result)
-                if (result !== token) changes.push({ from: token, to: result })
-                return result
-            })
-            const conflicts = findClassConflicts(output)
-            const structured = { output: output.join(' '), changes, unresolved, conflicts }
+            const input = String(args.classes || '').split(/\s+/).filter(Boolean).slice(0, 500).join(' ')
+            const structured = fixClasses(input, { compact: args.compact !== false, config: asConfig(args.config) })
+            const { changes, unresolved, conflicts } = structured
             return { text: structured.output + '\n\n' + formatJson({ changes, unresolved, conflicts }), structured }
         },
     },
@@ -479,7 +277,7 @@ export const TOOLS: ToolDefinition[] = [
         run: (args) => {
             const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50)
             const items = searchDictionary(String(args.query || ''), limit)
-            const commonValues = Object.fromEntries(Object.entries(COMMON_VALUES).map(([k, v]) => [capitalize(k), v]))
+            const commonValues = Object.fromEntries(Object.entries(COMMON_VALUES).map(([k, v]) => [k.charAt(0).toUpperCase() + k.slice(1), v]))
             return {
                 text: items.length
                     ? formatJson({ results: items, commonValues })
