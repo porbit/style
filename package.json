@@ -21,7 +21,8 @@
     "components",
     "design-system",
     "mcp",
-    "model-context-protocol"
+    "model-context-protocol",
+    "vite-plugin"
   ],
   "homepage": "https://github.com/porbit/style#readme",
   "repository": {
@@ -61,6 +62,12 @@
       "require": "./dist/tailwind.js",
       "default": "./dist/tailwind.mjs"
     },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.mjs",
+      "require": "./dist/vite.js",
+      "default": "./dist/vite.mjs"
+    },
     "./mcp": {
       "types": "./dist/mcp.d.ts",
       "import": "./dist/mcp.mjs",
@@ -84,6 +91,7 @@
     "docs/guides/tu-vung-mo.md",
     "docs/guides/mcp.md",
     "docs/guides/components.md",
+    "docs/guides/static-first.md",
     "README.md",
     "CHANGELOG.md",
     "DICTIONARY.md",

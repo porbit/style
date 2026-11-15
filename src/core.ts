@@ -41,6 +41,13 @@ export type XCSSConfig = {
      * Mặc định 5000. Đặt 0 để bỏ giới hạn.
      */
     maxCacheEntries?: number
+    /**
+     * Static-first: danh sách class đã có CSS từ bước build (`presence-style extract --manifest`).
+     * Engine coi các class này là đã xử lý nên không parse, không dựng rule ở runtime.
+     * `classMap` (class nguồn -> tên rút gọn) bắt buộc khi build bật `hashClassName`
+     * để runtime trả đúng tên class đã dùng trong CSS tĩnh.
+     */
+    preload?: XCSSPreloadManifest
     cache?: {
         styleId?: string
         version?: string
@@ -49,6 +56,17 @@ export type XCSSConfig = {
         sizeLast?: number
         loadOnInit?: boolean
     }
+}
+
+export type XCSSPreloadManifest = {
+    classes?: string[]
+    classMap?: Record<string, string>
+    /**
+     * Bỏ qua lần quét DOM đầu tiên vì HTML ban đầu đã được trích xuất đủ ở bước build
+     * (SSR/SSG cùng một lần build). Observer vẫn xử lý mọi node và class thêm sau đó.
+     * Chỉ bật khi chắc chắn CSS tĩnh phủ hết HTML ban đầu.
+     */
+    skipInitialScan?: boolean
 }
 
 type CssPropertyMap = Record<string, string>
@@ -1942,6 +1960,24 @@ export const xcss = (
             return out ? sourceClassName + ' ' + out : sourceClassName
         }
 
+        // Static-first: đánh dấu class đã có CSS tĩnh để observer/clsx bỏ qua hoàn toàn.
+        const preload = modules?.preload
+        if (preload && typeof preload === 'object') {
+            const classMap = preload.classMap && typeof preload.classMap === 'object' ? preload.classMap : {}
+            if (shouldHashOutputClassName) {
+                for (const source in classMap) {
+                    const key = classMap[source]
+                    if (typeof key !== 'string' || !key || CSS_KEYS.has(source) || CSS_VALUES.has(key)) continue
+                    registerCssKey(source, key)
+                }
+            }
+            const preloadClasses = Array.isArray(preload.classes) ? preload.classes : Object.keys(classMap)
+            for (let index = 0; index < preloadClasses.length; index++) {
+                const source = preloadClasses[index]
+                if (typeof source === 'string' && source) appliedClassKeys.add(appliedKeyOf(source))
+            }
+        }
+
         const applyObservedItems = (items: string[]) => {
             for (let index = 0; index < items.length; index++) {
                 const sourceClassName = resolveSourceClassName(items[index])
@@ -2093,13 +2129,14 @@ export const xcss = (
             if (!isBrowser || !observeTarget || !docRoot) return
             if (disconnectObserver) return
             // Lần đầu: xử lý đồng bộ để CSS apply trước first paint
+            const skipInitial = modules?.preload?.skipInitialScan === true
             disconnectObserver = observeDom(observeTarget, (items) => {
                 if (isFirstRenderBatch) {
                     applyObservedItems(items)
                 } else {
                     processObservedItems(items)
                 }
-            })
+            }, skipInitial)
             // Sau lần quét đầu tiên, chuyển sang async để không block UI
             isFirstRenderBatch = false
         }
@@ -2617,6 +2654,7 @@ export const xcss = (
     const observeDom = (
         dom: Document | Element | ShadowRoot,
         cb: (items: string[]) => void,
+        skipInitialScan = false,
     ): (() => void) | undefined => {
         if (typeof cb != 'function') {
             throw new Error('Callback is not a function')
@@ -2635,7 +2673,9 @@ export const xcss = (
 
         if (!docx) return undefined
 
-        if (docx instanceof Element) {
+        if (skipInitialScan) {
+            // Static-first: HTML ban đầu đã có CSS tĩnh, chỉ theo dõi thay đổi sau này.
+        } else if (docx instanceof Element) {
             cb(getClassAttrs(docx))
         } else {
             // ShadowRoot không phải Element nên nhánh cũ bỏ qua hoàn toàn lần quét
