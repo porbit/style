@@ -38,7 +38,7 @@ const V3_FIXTURES = [
     ...['prefix', 'important', 'important-selector', 'core-plugins', 'ts', 'css-flags', 'presets', 'plugins'].map((name) => [`v3-${name}`, `eval/fixtures/v3-config/${name}/app.css`, `eval/fixtures/v3-config/${name}`]),
 ]
 // Dự án mã nguồn mở khác: chưa khớp 100% nên dùng "bánh cóc" — không được tụt dưới mốc đã ghi.
-const PROJECT_FIXTURES = ['hyperui', 'magicui', 'coss-ui']
+const PROJECT_FIXTURES = ['hyperui', 'magicui', 'coss-ui', 'daisyui', 'tailadmin']
 const EVAL_MIN = { xcssValidAfterFix: 99, tailwindValid: 98, holdout: 85 }
 
 const hasCommand = (cmd) => spawnSync(process.platform === 'win32' ? 'where' : 'which', [cmd], { stdio: 'ignore' }).status === 0

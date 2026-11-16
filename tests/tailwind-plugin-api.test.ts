@@ -66,6 +66,28 @@ describe('tailwind-plugin-api: addUtilities / addComponents', () => {
         const { css } = await cssOf(plugin, ['md:prose'])
         expect(css).toContain('.md\\:prose :where(.md\\:prose > :last-child){margin-bottom:0}')
     })
+
+    it('component kiểu daisyUI: @layer con của utility, @supports, @scope (&); nền dưới component', async () => {
+        const plugin = ({ addBase, addComponents, addUtilities }: TailwindPluginApi) => {
+            addBase({ ':root': { '--color-base-100': '#fff' } })
+            addComponents({
+                '.btn': {
+                    '@layer daisyui.l1.l2.l3': { paddingInline: '1rem', '@supports (color: color-mix(in lab, red, red))': { color: 'blue' } },
+                    '&:hover': { '@layer daisyui.l1': { color: 'red' } },
+                },
+            })
+            addUtilities({ '.join': { display: 'inline-flex', '@scope (&)': { ':where(:scope > :first-child)': { '--join-ss': '0' } } } })
+        }
+        const { css, output } = await cssOf(plugin, ['btn', 'join'])
+        expect(output.unsupported).toEqual([])
+        expect(css).toContain('@layer daisyui.l1.l2.l3{.btn{padding-inline:1rem}}')
+        expect(css).toContain('@layer daisyui.l1.l2.l3{@supports (color: color-mix(in lab, red, red)){.btn{color:blue}}}')
+        expect(css).toContain('@layer daisyui.l1{.btn:hover{color:red}}')
+        expect(css).toContain(':where(.join > :first-child){--join-ss:0}')
+        // addBase -> layer con `base` của l0, khai báo trước mọi layer con của component (thấp hơn).
+        expect(css.indexOf('@layer theme, base, components;')).toBeLessThan(css.indexOf('@layer daisyui'))
+        expect(css).toContain('@layer base{:root{--color-base-100: #fff;}}')
+    })
 })
 
 describe('tailwind-plugin-api: matchUtilities', () => {

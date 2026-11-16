@@ -54,7 +54,14 @@ node eval/real-project.mjs                    # shadcn/ui v4 -> REAL-PROJECT.md,
 node eval/real-project.mjs --fixture=hyperui  # fixtures/<tên>/fixture.json -> REAL-PROJECT-<tên>.md/.json
 node eval/real-project.mjs --all              # mọi fixture + hai fixture v3, rồi tổng hợp REAL-PROJECTS.md
 node eval/real-project.mjs --summary          # chỉ dựng lại REAL-PROJECTS.md từ các file JSON
+node eval/real-project.mjs --fixture=daisyui --browser=firefox  # firefox/webkit (cần `npx playwright install <tên>`)
 ```
+
+`--browser=chromium|firefox|webkit` (mặc định chromium): trình duyệt chưa cài thì dừng và báo lệnh cài. Lượt ép
+`:hover`/`:focus`... dùng CDP nên chỉ chạy trên Chromium; kết quả trình duyệt khác ghi file riêng
+(`real-project-<tên>.firefox.json`, `REAL-PROJECT-<tên>.firefox.md`, `REAL-PROJECTS.firefox.md`), không đụng mốc của
+`check:all`. Trên Chromium, dòng thời gian animation được đóng băng (CDP `Animation.setPlaybackRate` 0) trước khi nạp
+trang để animation ngắn không kịp chạy xong trước lúc đo.
 
 | Fixture | Nguồn | Giấy phép |
 | :--- | :--- | :--- |
@@ -62,8 +69,12 @@ node eval/real-project.mjs --summary          # chỉ dựng lại REAL-PROJECTS
 | `fixtures/hyperui` | HyperUI `public/examples/{application,neobrutalism}` (HTML) | MIT |
 | `fixtures/magicui` | Magic UI `apps/www/registry/magicui` | MIT |
 | `fixtures/coss-ui` | coss ui / Origin UI `packages/ui/src/components` (Base UI) | MIT |
+| `fixtures/daisyui` | trang HTML tự viết theo tài liệu daisyUI 5, `@plugin "daisyui"` (`daisyui@5.8.1`) | MIT (daisyUI) |
+| `fixtures/tailadmin` | TailAdmin Vue (dashboard) qua npm `@dynamia-tools/tailadmin-vue` `src/components` + `theme.css` | MIT |
 | `fixtures/v3-config` | cấu hình `tailwind.config.js` kiểu v3 (tự viết) | — |
 
 Thêm dự án: tạo `fixtures/<tên>/` với file CSS, thư mục nguồn và `fixture.json`
-(`{ "label", "source", "license", "css", "src", "imports": { "gói": "đường/dẫn/tương/đối.css" } }`).
+(`{ "label", "source", "license", "css", "src", "imports": { "gói": "đường/dẫn/tương/đối.css" }, "dark": "data-theme=\"dark\"" }`;
+`dark` tuỳ chọn: thuộc tính đặt trên `<html>` ở lượt tối thay cho `class="dark"`). Plugin JS chưa đóng gói sẵn
+(`@plugin "daisyui"`) chạy qua API giả lập ở cả hai chế độ.
 Kết quả tổng hợp: [REAL-PROJECTS.md](./REAL-PROJECTS.md).

@@ -1,0 +1,9 @@
+{
+  "label": "daisyUI 5",
+  "source": "Trang mẫu tự viết theo ví dụ trong tài liệu [daisyUI](https://daisyui.com) 5 (`daisyui@5.8.1`, plugin `@plugin \"daisyui\"`)",
+  "license": "daisyUI: MIT, © Pouya Saadeghi",
+  "css": "app.css",
+  "src": "pages",
+  "imports": {},
+  "dark": "data-theme=\"dark\""
+}

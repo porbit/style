@@ -1,0 +1,8 @@
+{
+  "label": "TailAdmin Vue",
+  "source": "[TailAdmin Vue](https://github.com/TailAdmin/vue-tailwind-admin-dashboard) qua gói npm [`@dynamia-tools/tailadmin-vue`](https://www.npmjs.com/package/@dynamia-tools/tailadmin-vue)@26.9.7 `src/components` (bỏ `ext/`) + `src/assets/theme.css`",
+  "license": "MIT, © TailAdmin",
+  "css": "app.css",
+  "src": "components",
+  "imports": {}
+}

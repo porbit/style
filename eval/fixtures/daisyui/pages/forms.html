@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="vi" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Biểu mẫu</title>
+    <link rel="stylesheet" href="../app.css" />
+  </head>
+  <body class="bg-base-200 p-6">
+    <form class="mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
+      <fieldset class="fieldset bg-base-100 border-base-300 rounded-box border p-4">
+        <legend class="fieldset-legend">Thông tin cá nhân</legend>
+
+        <label class="label" for="name">Họ tên</label>
+        <input id="name" type="text" class="input w-full" placeholder="Nguyễn Văn A" />
+
+        <label class="label">Email</label>
+        <input type="email" class="input input-primary validator w-full" required placeholder="ban@site.com" />
+        <p class="validator-hint">Nhập địa chỉ email hợp lệ</p>
+
+        <label class="label">Mật khẩu</label>
+        <label class="input input-error w-full">
+          <span class="label">🔒</span>
+          <input type="password" placeholder="••••••" />
+        </label>
+
+        <label class="floating-label">
+          <span>Số điện thoại</span>
+          <input type="tel" placeholder="Số điện thoại" class="input input-md" />
+        </label>
+
+        <label class="label">Ghi chú</label>
+        <textarea class="textarea textarea-secondary h-24 w-full" placeholder="Viết gì đó"></textarea>
+
+        <label class="label">Ảnh</label>
+        <input type="file" class="file-input file-input-ghost w-full" />
+        <input type="file" class="file-input file-input-primary file-input-sm w-full" />
+        <p class="label">Tối đa 2 MB</p>
+      </fieldset>
+
+      <fieldset class="fieldset bg-base-100 border-base-300 rounded-box border p-4">
+        <legend class="fieldset-legend">Tuỳ chọn</legend>
+
+        <label class="label">Tỉnh/thành</label>
+        <select class="select select-accent w-full">
+          <option disabled selected>Chọn</option>
+          <option>Hà Nội</option>
+          <option>Đà Nẵng</option>
+        </select>
+        <select class="select select-ghost select-sm w-full">
+          <option>Nhỏ</option>
+        </select>
+
+        <label class="label cursor-pointer gap-2">
+          <input type="checkbox" checked="checked" class="checkbox" />
+          Ghi nhớ đăng nhập
+        </label>
+        <div class="flex flex-wrap gap-2">
+          <input type="checkbox" class="checkbox checkbox-secondary" checked />
+          <input type="checkbox" class="checkbox checkbox-accent checkbox-lg" />
+          <input type="checkbox" class="checkbox checkbox-success checkbox-xs" checked />
+          <input type="checkbox" class="checkbox checkbox-error" disabled />
+        </div>
+
+        <label class="label gap-2">
+          <input type="checkbox" class="toggle" checked />
+          Nhận thông báo
+        </label>
+        <div class="flex flex-wrap gap-2">
+          <input type="checkbox" class="toggle toggle-primary" checked />
+          <input type="checkbox" class="toggle toggle-secondary toggle-sm" />
+          <input type="checkbox" class="toggle toggle-success toggle-lg" checked />
+          <input type="checkbox" class="toggle toggle-warning" disabled />
+        </div>
+
+        <div class="flex flex-wrap gap-4">
+          <input type="radio" name="plan" class="radio" checked />
+          <input type="radio" name="plan" class="radio radio-primary" />
+          <input type="radio" name="plan" class="radio radio-info radio-sm" />
+          <input type="radio" name="plan" class="radio radio-error radio-xl" />
+        </div>
+
+        <label class="label">Âm lượng</label>
+        <input type="range" min="0" max="100" value="40" class="range range-primary" />
+        <input type="range" min="0" max="100" value="25" class="range range-accent range-xs" step="25" />
+        <div class="flex justify-between px-2.5 mt-2 text-xs">
+          <span>|</span><span>|</span><span>|</span>
+        </div>
+
+        <div class="filter">
+          <input class="btn filter-reset" type="radio" name="metaframeworks" aria-label="Tất cả" />
+          <input class="btn" type="radio" name="metaframeworks" aria-label="Svelte" />
+          <input class="btn" type="radio" name="metaframeworks" aria-label="Vue" />
+        </div>
+
+        <div class="join">
+          <input class="join-item btn" type="radio" name="options" aria-label="Ngày" />
+          <input class="join-item btn" type="radio" name="options" aria-label="Tuần" checked />
+          <input class="join-item btn" type="radio" name="options" aria-label="Tháng" />
+        </div>
+
+        <div class="join w-full">
+          <input class="input join-item w-full" placeholder="Mã giảm giá" />
+          <button class="btn join-item btn-secondary rounded-r-full">Áp dụng</button>
+        </div>
+      </fieldset>
+
+      <div class="flex justify-end gap-2 md:col-span-2">
+        <button type="reset" class="btn btn-ghost">Huỷ</button>
+        <button type="submit" class="btn btn-primary hover:btn-secondary focus:btn-accent">Lưu</button>
+      </div>
+    </form>
+
+    <div class="mx-auto mt-8 max-w-4xl overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <table class="table table-xs table-pin-rows table-pin-cols">
+        <thead>
+          <tr><th></th><td>Tên</td><td>Công việc</td><td>Màu</td><th></th></tr>
+        </thead>
+        <tbody>
+          <tr class="row-hover"><th>1</th><td>Cy Ganderton</td><td>Kỹ sư</td><td>Xanh</td><th>1</th></tr>
+          <tr><th>2</th><td>Hart Hagerty</td><td>Thiết kế</td><td>Tím</td><th>2</th></tr>
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>

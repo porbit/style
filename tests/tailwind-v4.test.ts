@@ -118,7 +118,7 @@ describe('phương ngữ Tailwind v4 (sinh từ chính Tailwind)', () => {
             preflight: false,
             css: '@layer base { * { @apply border-red-500 outline-red-500/50; } } .btn { @apply px-4 hover:underline md:py-2 !font-bold; }',
         })
-        expect(out).toContain('@layer l0{*{border-color:var(--color-red-500')
+        expect(out).toContain('@layer l0{@layer base{*{border-color:var(--color-red-500')
         expect(out).toContain('outline-color:color-mix(in oklab, var(--color-red-500')
         expect(out).toContain('.btn{padding-inline:calc(var(--spacing, 0.25rem) * 4);--tw-font-weight:var(--font-weight-bold, 700) !important;font-weight:var(--font-weight-bold, 700) !important;}')
         expect(out).toMatch(/@media \(hover: hover\)\{\.btn:hover\{text-decoration-line:underline;\}\}/)
@@ -293,6 +293,35 @@ describe('phương ngữ Tailwind v4: giá trị như Tailwind trên dự án th
         expect(tokens[0]).toContain('color-mix(in_oklab,_var(--color-red-500')
         expect(tokens).toContain('opacity[50]')
     })
+
+    it('at-rule lồng trong @utility (daisyUI): @layer/@supports/@media giữ đúng chỗ, khai báo sau khối lồng là rule mới', () => {
+        const utilities = {
+            card: '@layer daisyui.l1.l2 { display: flex; @media (hover: hover) { &:hover { color: red; } } } @supports (color: color-mix(in lab, red, red)) { color: blue; } padding: 1px;',
+        }
+        const out = css('card md:card', { utilities })
+        expect(out).toContain('@layer l0{@layer daisyui.l1.l2{.card{display:flex}}}')
+        expect(out).toContain('@layer l0{@layer daisyui.l1.l2{@media (hover: hover){.card:hover{color:red}}}}')
+        expect(out).toContain('@layer l0{@supports (color: color-mix(in lab, red, red)){.card{color:blue}}}')
+        // `padding` đứng sau khối `@supports`: rule riêng, sau rule đó (thứ tự cascade như CSS lồng).
+        expect(out.indexOf('.card{padding:1px}')).toBeGreaterThan(out.indexOf('.card{color:blue}'))
+        // Biến thể bọc ngoài chuỗi at-rule của utility.
+        expect(out).toContain('@media (width >= 48rem){@layer daisyui.l1.l2{.md\\:card{display:flex}}}')
+    })
+
+    it('dấu `;` trong giá trị (data URL của daisyUI) giữ nguyên; biến theme tự tham chiếu không thành dự phòng', () => {
+        const utilities = { spin: `mask-image: url("data:image/svg+xml,%3Canimate values='0;1' keyTimes='0;1'/%3E");` }
+        expect(css('spin', { utilities })).toContain("values='0;1'\\000020keyTimes='0;1'")
+        const out = css('bg-primary', { theme: { '--color-primary': 'var(--color-primary)' } })
+        expect(out).toContain('.bg-primary{background-color:var(--color-primary)}')
+        const base = tailwindV4Dialect({ theme: { '--color-primary': 'var(--color-primary)' }, css: 'body { color: var(--color-primary); }' }).baseCss as string
+        expect(base).not.toContain('--color-primary:var(--color-primary)')
+    })
+
+    it('`--font-*: initial` giữ `--font-weight-*` như Tailwind (TailAdmin)', () => {
+        const theme = { '--font-*': 'initial', '--font-outfit': 'Outfit, sans-serif' }
+        expect(css('font-medium font-outfit', { theme })).toContain('font-weight:var(--font-weight-medium, 500)')
+        expect(tailwindV4Dialect({ theme })('font-sans')).toBeNull()
+    })
 })
 
 describe('minify CSS tĩnh', () => {
@@ -325,7 +354,7 @@ describe('biến theme ở :root và hàm theme trong CSS của dự án (như T
             @layer base { * { @apply border-border; } }
             .x { color: var(--color-brand); }`)
         const base = tailwindV4Dialect({ theme: sheet.theme, css: sheet.css }).baseCss as string
-        const root = base.match(/@layer l0\{:root,:host\{([^}]*)\}\}/)
+        const root = base.match(/@layer l0\{@layer theme\{:root,:host\{([^}]*)\}\}\}/)
         expect(root).not.toBeNull()
         const decls = root![1]
         expect(decls).toContain('--color-black:#000;')
@@ -339,8 +368,8 @@ describe('biến theme ở :root và hàm theme trong CSS của dự án (như T
         // Khai triển `--alpha()` ngoài `@theme`.
         expect(base).toContain('--border: color-mix(in oklab, var(--color-black) 8%, transparent)')
         expect(base).not.toContain('--alpha(')
-        // Khối theme đứng trước CSS nền của dự án (thứ tự trong cùng layer).
-        expect(base.indexOf(':root,:host{')).toBeLessThan(base.indexOf('@layer l0{*{'))
+        // Khối theme đứng trước CSS nền của dự án (layer con `theme` khai báo trước `base`).
+        expect(base.indexOf(':root,:host{')).toBeLessThan(base.indexOf('@layer l0{@layer base{*{'))
     })
 
     it('--spacing(), --theme() (inline, /alpha, dự phòng, trong @media), theme() cũ, @theme static', () => {
@@ -361,12 +390,12 @@ describe('biến theme ở :root và hàm theme trong CSS của dự án (như T
         expect(sheet.css).toContain('@media (width >= 48rem)')
         expect(sheet.css.startsWith('@layer theme{:root,:host{--color-st:var(--color-orange-500);}}')).toBe(true)
         const base = tailwindV4Dialect({ theme: sheet.theme, css: sheet.css }).baseCss as string
-        const decls = base.match(/@layer l0\{:root,:host\{([^}]*)\}\}/)![1]
+        const decls = base.match(/@layer l0\{@layer theme\{:root,:host\{([^}]*)\}\}\}/)![1]
         expect(decls).toContain('--spacing:0.25rem;')
         expect(decls).toContain('--spacing-x:calc(var(--spacing) * 3);')
         expect(decls).toContain('--color-orange-500:oklch(')
         expect(decls).toContain('--color-green-500:oklch(')
-        expect(base).toContain('@layer l0{:root,:host{--color-st:var(--color-orange-500);}}')
+        expect(base).toContain('@layer l0{@layer theme{:root,:host{--color-st:var(--color-orange-500);}}}')
     })
 
     it('không có CSS của dự án: không thêm khối theme', () => {

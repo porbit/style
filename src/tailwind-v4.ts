@@ -12,8 +12,11 @@ declare const __XCSS_EDITOR__: boolean | undefined
 const EDITOR_BUILD = typeof __XCSS_EDITOR__ === 'undefined' || __XCSS_EDITOR__
 import { TW_DATA, TW_ORDER, TW_PREFLIGHT_CSS } from './tailwind-generated'
 
-/** Một rule: selector (`&` là phần tử), khai báo; `query` là điều kiện media riêng (`container`); `more` là rule kèm theo. */
-type Rule = { sel: string; decls: Array<[string, string]>; query?: string; more?: Rule[] }
+/**
+ * Một rule: selector (`&` là phần tử), khai báo; `query` là điều kiện media riêng (`container`); `at` là các at-rule
+ * khác bọc rule (`@layer x`, `@supports (...)` trong utility của plugin như daisyUI), ngoài vào trong; `more` là rule kèm theo.
+ */
+type Rule = { sel: string; decls: Array<[string, string]>; query?: string; at?: string[]; more?: Rule[] }
 
 export interface TailwindV4DialectOptions {
     /**
@@ -99,6 +102,17 @@ const templatePrefixes = (templateIndex: number): string[] => {
 }
 /** Namespace theme bị thay hẳn trong dialect đang hoạt động. */
 let RESET_NAMESPACES: string[] = []
+// Namespace con không bị xoá theo namespace cha (`ignoredThemeKeyMap` của Tailwind): `--font-*: initial` giữ
+// `--font-weight-*` (TailAdmin: `font-medium` vẫn là 500).
+const KEPT_SUB_NAMESPACES: Record<string, string[]> = {
+    '--font-': ['--font-weight-', '--font-size-'],
+    '--inset-': ['--inset-shadow-', '--inset-ring-'],
+    '--text-': ['--text-color-', '--text-decoration-color-', '--text-decoration-thickness-', '--text-indent-', '--text-shadow-', '--text-underline-offset-'],
+    '--grid-column-': ['--grid-column-start-', '--grid-column-end-'],
+    '--grid-row-': ['--grid-row-start-', '--grid-row-end-'],
+}
+/** Biến theme `key` có bị `--ns-*: initial` (một trong `namespaces`) xoá không. */
+const clearedBy = (namespaces: string[], key: string) => namespaces.some((ns) => key.startsWith(ns) && !KEPT_SUB_NAMESPACES[ns]?.some((sub) => key.startsWith(sub)))
 
 // ---------------------------------------------------------------------------
 // Giải mã dữ liệu nén (định dạng: bước nén cuối scripts/gen-tailwind-map.mjs)
@@ -528,7 +542,7 @@ const resolveBase = (name: string, modifier: string | null = null): Rule | null 
             // Namespace bị thay (`--color-*: initial`): giá trị mặc định không còn (`bg-red-500`).
             if (accepted && RESET_NAMESPACES.length) {
                 const prefixes = templatePrefixes(templateIndex)
-                if (prefixes.some((prefix) => RESET_NAMESPACES.some((ns) => prefix.startsWith(ns)) && theme[prefix + value] === undefined)) accepted = false
+                if (prefixes.some((prefix) => clearedBy(RESET_NAMESPACES, prefix) && theme[prefix + value] === undefined)) accepted = false
             }
             if (accepted) return done(unpack(templates[templateIndex], (t) => fill(t, value)))
         }
@@ -1007,7 +1021,8 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
 const withThemeFallback = (value: string, depth = 0): string =>
     value.replace(/var\((--[\w.-]+)\)/g, (match, name: string) => {
         const fallback = theme[name]
-        if (fallback === undefined || depth > 2) return match
+        // `--color-primary: var(--color-primary)` (theme cấu hình của daisyUI): dự phòng là chính nó, bỏ.
+        if (fallback === undefined || depth > 2 || fallback.trim() === match) return match
         return `var(${name}, ${withThemeFallback(fallback, depth + 1)})`
     })
 
@@ -1059,6 +1074,8 @@ const encodeValue = (value: string) =>
         .replace(/"[^"]*"|'[^']*'/g, (quoted) => quoted.replace(/ /g, '\\000020'))
         .replace(/_/g, '\\_')
         .replace(/\s+/g, '_')
+        // Engine đọc `;` trong giá trị là khoảng trắng, `';` là dấu `;` thật (`values='0;0.475;1'` trong data URL của daisyUI).
+        .replace(/;/g, "';")
 
 const splitVariants = (name: string): string[] => {
     const parts: string[] = []
@@ -1165,8 +1182,8 @@ const nestSelector = (parent: string, child: string) => {
 /** Cây khối của một `@utility` -> danh sách rule (rule đầu là khai báo cấp ngoài). */
 const utilityRules = (body: string): Rule[] => {
     const rules: Rule[] = []
-    const walk = (text: string, sel: string, query: string | undefined) => {
-        const rule: Rule = { sel, decls: [], query }
+    const walk = (text: string, sel: string, query: string | undefined, at: string[] | undefined) => {
+        let rule: Rule = { sel, decls: [], query, at }
         rules.push(rule)
         for (const item of parseCssItems(text)) {
             if ('decl' in item) rule.decls.push(item.decl)
@@ -1174,14 +1191,19 @@ const utilityRules = (body: string): Rule[] => {
             else if ('at' in item && /^@apply\s/.test(item.at)) rule.decls.push(['@apply', item.at.slice(7).trim()])
             else if ('head' in item) {
                 const media = item.head.match(/^@media\s+(.+)$/)
-                if (media) walk(item.body, sel, query ? `${query} and ${media[1]}` : media[1])
+                // Media lồng trong at-rule khác giữ đúng chỗ (`@layer x { @media y {...} }`).
+                if (media && !at) walk(item.body, sel, query ? `${query} and ${media[1]}` : media[1], at)
+                else if (media || /^@(layer|supports|container|starting-style)\b/.test(item.head)) walk(item.body, sel, query, [...(at || []), item.head.replace(/\s+/g, ' ')])
                 else if (!item.head.startsWith('@')) {
-                    for (const part of splitTopLevel(item.head)) walk(item.body, nestSelector(sel, part), query)
-                }
+                    for (const part of splitTopLevel(item.head)) walk(item.body, nestSelector(sel, part), query, at)
+                } else continue
+                // Khai báo sau khối lồng (`a: 1; @supports (...) { a: 2 } b: 3;`) là rule mới để giữ thứ tự cascade.
+                rule = { sel, decls: [], query, at }
+                rules.push(rule)
             }
         }
     }
-    walk(body, '&', undefined)
+    walk(body, '&', undefined, undefined)
     return rules
 }
 
@@ -1296,7 +1318,7 @@ const evaluateUtility = (utility: UserUtility, value: string | null, modifier: s
             // Cùng thuộc tính khai báo nhiều lần: giữ cả hai như Tailwind (khai báo sau thắng khi hợp lệ).
             decls.push([prop, next])
         }
-        if (decls.length) rules.push({ sel: rule.sel, query: rule.query, decls })
+        if (decls.length) rules.push({ sel: rule.sel, query: rule.query, at: rule.at, decls })
         rules.push(...extra)
     }
     return matched && rules.length ? rules : null
@@ -1553,7 +1575,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     const removedKeys = new Set(Object.entries(options.theme || {}).filter(([k, v]) => !k.endsWith('*') && v.trim() === 'initial').map(([k]) => k))
     const ownTheme = options.theme && Object.keys(options.theme).length
         ? Object.fromEntries([
-            ...Object.entries(defaultTheme).filter(([k]) => !resetNamespaces.some((ns) => k.startsWith(ns))),
+            ...Object.entries(defaultTheme).filter(([k]) => !clearedBy(resetNamespaces, k)),
             ...Object.entries(options.theme).filter(([k]) => !k.endsWith('*')),
         ].filter(([k]) => !removedKeys.has(k)))
         : defaultTheme
@@ -1738,6 +1760,13 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
                 if (!each.decls.length) continue
                 const at = applyVariants(variantList, each.sel, darkMode, each.query)
                 if (!at) return null
+                // At-rule riêng của rule (`@layer daisyui.l1`, `@supports ...`): nối sau at-rule của biến thể thành chuỗi
+                // lồng `[@media_x{@layer_y]` (engine bọc theo thứ tự). Thứ tự lồng không đổi tên layer hay điều kiện.
+                if (each.at?.length) {
+                    const outer = at.media ? atRuleOf(at.media) : ''
+                    if (outer === null) return null
+                    at.media = encodeArbitrary([outer, ...each.at].filter(Boolean).join('{'))
+                }
                 // `important: '#app'`: Tailwind bọc `@tailwind utilities` trong `#app { }` -> `#app .x`,
                 // `:is(:where(.group):hover :is(#app .x))`... `:is(#app &)` cùng phạm vi và độ ưu tiên.
                 if (importantSelector && inUtilities) at.sel = at.sel.replace(/&/g, `:is(${importantSelector} &)`)
@@ -1819,8 +1848,8 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
             else if ('at' in item) out += item.at + ';'
             else if (/^@(keyframes|font-face|property|counter-style|page)\b/.test(item.head) || !item.body.includes('@apply')) out += `${item.head}{${item.body}}`
             else if (item.head.startsWith('@')) {
-                // `@layer base/components` của dự án: đặt cùng layer nền (thấp hơn utility) như Tailwind.
-                const head = /^@layer\s+(base|components|theme|utilities)$/.test(item.head) ? '@layer l0' : item.head
+                // `@layer utilities` của dự án: cùng layer với utility; `@layer base/components/theme` đổi sau (layerBaseCss).
+                const head = /^@layer\s+utilities$/.test(item.head) ? '@layer l0' : item.head
                 out += `${head}{${expandApply(item.body)}}`
             } else {
                 let body = ''
@@ -1839,7 +1868,31 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         }
         return out
     }
-    const layerBaseCss = (text: string) => text.replace(/@layer\s+(base|components|theme)\s*\{/g, '@layer l0{')
+    // `@layer base/components/theme` của dự án/plugin -> layer con cùng tên của `l0` (`@layer l0{@layer base{...}}`),
+    // thứ tự `theme, base, components` khai báo ở đầu CSS nền: thấp hơn mọi utility (nằm thẳng trong `l0`) và thấp hơn
+    // layer con mà utility của plugin tự đặt (`@layer daisyui.l1` của daisyUI), như `@layer base` < `@layer utilities`
+    // của Tailwind. Để thẳng trong `l0` thì preflight (`*{padding:0}`) thắng component của daisyUI.
+    const layerBaseCss = (text: string): string => {
+        let out = ''
+        let from = 0
+        const head = /@layer\s+(base|components|theme)\s*\{/g
+        for (let m = head.exec(text); m; m = head.exec(text)) {
+            let depth = 1
+            let k = head.lastIndex
+            for (let quote = ''; k < text.length && depth > 0; k++) {
+                const ch = text[k]
+                if (quote) {
+                    if (ch === '\\') k++
+                    else if (ch === quote) quote = ''
+                } else if (ch === '"' || ch === "'") quote = ch
+                else if (ch === '{') depth++
+                else if (ch === '}') depth--
+            }
+            out += text.slice(from, m.index) + `@layer l0{@layer ${m[1]}{${layerBaseCss(text.slice(head.lastIndex, k - 1))}}}`
+            from = head.lastIndex = k
+        }
+        return out + text.slice(from)
+    }
 
     const dialect = ((className: string): string[] | null => {
         if (blocklist.has(className)) return null
@@ -1932,13 +1985,17 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     const projectCss = options.css ? expandThemeFunctions(layerBaseCss(options.css.includes('@apply') ? expandApply(options.css) : options.css), ownTheme) : ''
     const themeCss = projectCss ? usedThemeCss(projectCss, ownTheme) : ''
     dialect.baseCss = [
+        BASE_LAYER_ORDER,
         PROPERTIES_CSS,
-        themeCss ? `@layer l0{${themeCss}}` : '',
-        options.preflight ? themedPreflight() : '',
+        themeCss ? `@layer l0{@layer theme{${themeCss}}}` : '',
+        options.preflight ? themedPreflight().replace(/^@layer l0\{([\s\S]*)\}$/, '@layer l0{@layer base{$1}}') : '',
         projectCss,
     ].filter(Boolean).join('\n')
     return dialect
 }
+
+/** Thứ tự layer con của CSS nền trong `l0` (như `@layer theme, base, components` của Tailwind), trước mọi utility. */
+const BASE_LAYER_ORDER = '@layer l0{@layer theme, base, components;}'
 
 /** Phiên bản Tailwind mà dữ liệu được sinh từ. */
 export const TAILWIND_DATA_VERSION = TW_DATA.version
@@ -1985,7 +2042,9 @@ const usedThemeCss = (css: string, values: Record<string, string>): string => {
         for (const m of text.matchAll(/var\(\s*(--(?:[\w-]|\\.)+)/g)) {
             // `--spacing-0\.5` -> tên theme `--spacing-0.5`.
             const name = m[1].replace(/\\/g, '')
-            if (values[name] === undefined || used.has(name)) continue
+            // `--color-primary: var(--color-primary)` (theme cấu hình của plugin như daisyUI, Tailwind coi là
+            // `reference` nên không phát): khai báo ở `:root` sẽ thành vòng lặp, xoá giá trị thật của dự án.
+            if (values[name] === undefined || used.has(name) || values[name].trim() === `var(${name})`) continue
             used.add(name)
             visit(values[name])
         }

@@ -917,7 +917,10 @@ export const LAYER_ORDER_STATEMENT = `@layer ${LAYER_NAMES.join(', ')};`
 export const composeSelector = (classSelector: string, selector: string): string =>
     selector.includes('&') ? selector.replace(/&/g, classSelector) : classSelector + selector
 
-/** Media key dạng at-rule nội tuyến `[@...]`, ví dụ `[@supports_(display:grid)]`, `[@starting-style]`. */
+/**
+ * Media key dạng at-rule nội tuyến `[@...]`, ví dụ `[@supports_(display:grid)]`, `[@starting-style]`; nhiều at-rule
+ * lồng nhau nối bằng `{` (`[@layer_x{@media_(hover:hover)]`).
+ */
 export const isInlineAtRuleKey = (key: string): boolean => /^\[@[^\]]+\]$/.test(key)
 export const decodeInlineAtRule = (key: string): string => key.slice(1, -1).replace(/\\_/g, '\u0000').replace(/_/g, ' ').replace(/\u0000/g, '_')
 
@@ -2075,7 +2078,11 @@ export const xcss = (
             if (!outer?.startsWith('@')) outer = isInlineAtRuleKey(media) ? decodeInlineAtRule(media) : ''
             if (outer) {
                 if (wrap) ruleBody = `${wrap}{${ruleBody}}`
-                wrap = outer
+                // Chuỗi at-rule lồng (`@layer x{@media y` — at-rule bên trong utility của plugin): `wrap` là at-rule
+                // ngoài cùng, các at-rule còn lại bọc thân rule.
+                const heads = outer.split('{')
+                for (let h = heads.length - 1; h > 0; h--) ruleBody = `${heads[h]}{${ruleBody}}`
+                wrap = heads[0]
                 if (media[0] === '[') media = 'default'
             }
             const fullBody = wrap ? `${wrap}{${ruleBody}}` : ruleBody
