@@ -1,0 +1,50 @@
+{
+  "pairs": 34,
+  "variants": {
+    "đối chứng: CSS tĩnh @porbit/style đủ mọi class": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    },
+    "lai <style>: A tĩnh, B động (HTML ban đầu)": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    },
+    "lai <style>: B tĩnh, A động (HTML ban đầu)": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    },
+    "lai <style>: A tĩnh, B động (chèn lúc chạy)": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    },
+    "lai <style>: B tĩnh, A động (chèn lúc chạy)": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    },
+    "lai <link>: A tĩnh, B động (chèn lúc chạy)": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    },
+    "lai <link>: B tĩnh, A động (chèn lúc chạy)": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    },
+    "lai, CSS Tailwind build: A tĩnh, B động": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    },
+    "lai, CSS Tailwind build: B tĩnh, A động": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    }
+  }
+}

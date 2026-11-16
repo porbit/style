@@ -13,6 +13,7 @@
  *   - Cache localStorage, đồng bộ khoá giữa tab, nạp CSS từ cache lúc khởi tạo (`cache.loadOnInit` không có tác dụng).
  */
 import presenceStyle from './core'
+import { readStaticCss, staticLayerBlock } from './hybrid'
 import { parseTailwindStylesheet, tailwindV4Dialect } from './tailwind-v4'
 
 // `document.currentScript` luôn là null với <script type="module">: tìm thẻ theo đường dẫn.
@@ -28,42 +29,6 @@ const attr = (name: string) => script?.getAttribute(name) ?? null
 type PluginModule = { resolveTailwindPlugin: (id: string) => string | null }
 const loadPlugins = (): Promise<PluginModule | null> =>
     import(/* @vite-ignore */ new URL('./tailwind-plugins.mjs', import.meta.url).href).catch(() => null)
-
-/**
- * Chế độ lai (`data-hybrid`): trang đã có CSS tĩnh (PostCSS/Vite/CLI), runtime chỉ sinh CSS cho class mới
- * xuất hiện lúc chạy (`bg-${color}-500`, nội dung CMS, HTML do AI sinh). Đọc từ stylesheet cùng nguồn:
- * tên class đã có rule và biến theme ở `:root`.
- */
-const readStaticCss = (): { classes: string[]; theme: Record<string, string> } => {
-    const classes = new Set<string>()
-    const theme: Record<string, string> = {}
-    // Bỏ escape của CSS: `md\\:p-4` -> `md:p-4`, `\\31 0` -> `10`.
-    const unescape = (name: string) => name.replace(/\\([0-9a-fA-F]{1,6}) ?/g, (_m, hex: string) => String.fromCodePoint(parseInt(hex, 16))).replace(/\\(.)/g, '$1')
-    const walk = (rules: CSSRuleList) => {
-        for (const rule of Array.from(rules)) {
-            const style = rule as CSSStyleRule
-            if (typeof style.selectorText === 'string') {
-                for (const m of style.selectorText.matchAll(/\.((?:\\.|[\w-])+)/g)) classes.add(unescape(m[1]))
-                if (/(^|,)\s*:root\b/.test(style.selectorText)) {
-                    for (let i = 0; i < style.style.length; i++) {
-                        const prop = style.style[i]
-                        if (prop.startsWith('--') && !prop.startsWith('--tw-')) theme[prop] = style.style.getPropertyValue(prop).trim()
-                    }
-                }
-            }
-            const nested = (rule as CSSGroupingRule).cssRules
-            if (nested && nested.length) walk(nested)
-        }
-    }
-    for (const sheet of Array.from(document.styleSheets)) {
-        try {
-            walk(sheet.cssRules)
-        } catch (_error) {
-            // stylesheet khác nguồn: không đọc được
-        }
-    }
-    return { classes: [...classes], theme }
-}
 
 const start = async () => {
     // `<style type="text/tailwindcss">@theme { --color-brand: ... }</style>` như @tailwindcss/browser.
@@ -89,22 +54,24 @@ const start = async () => {
     }
     const hybrid = attr('data-hybrid') !== null
     const existing = hybrid ? readStaticCss() : null
+    const dialect = tailwindV4Dialect({
+        // Lai: CSS tĩnh đã có preflight và CSS nền của dự án.
+        preflight: !hybrid && attr('data-preflight') !== 'false',
+        darkMode: attr('data-dark') === 'class' ? 'class' : 'media',
+        theme: existing ? { ...existing.theme, ...theme } : theme,
+        utilities,
+        variants,
+        prefix,
+        important,
+        css: hybrid ? '' : css.trim(),
+    })
     presenceStyle.cssObserve(document, {
         hashClassName: false,
         // Bản build này không có từ điển x-css (xem đầu file).
         dictionaryImport: false,
-        preload: existing ? { classes: existing.classes } : undefined,
-        dialects: [tailwindV4Dialect({
-            // Lai: CSS tĩnh đã có preflight và CSS nền của dự án.
-            preflight: !hybrid && attr('data-preflight') !== 'false',
-            darkMode: attr('data-dark') === 'class' ? 'class' : 'media',
-            theme: existing ? { ...existing.theme, ...theme } : theme,
-            utilities,
-            variants,
-            prefix,
-            important,
-            css: hybrid ? '' : css.trim(),
-        })],
+        // Lai: rule sinh lúc chạy chèn vào khối @layer của CSS tĩnh, đúng thứ tự Tailwind (staticLayerBlock).
+        preload: existing ? { classes: existing.classes, staticBlock: staticLayerBlock(dialect.compare!) } : undefined,
+        dialects: [dialect],
     })
 }
 
