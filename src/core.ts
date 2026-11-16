@@ -121,6 +121,11 @@ export type XCSSPreloadManifest = {
      * tĩnh). Không trả gì: dùng sheet riêng như thường. Xem `staticLayerBlock` trong src/hybrid.ts.
      */
     staticBlock?: (layer: number) => XCSSStaticBlock | null | undefined
+    /**
+     * Engine gán khi có `staticBlock`: chèn lại mọi rule runtime đã đặt vào CSS tĩnh, vào khối `staticBlock` trả lúc
+     * gọi. Dùng khi CSS tĩnh bị thay sau khi tải (HMR của Vite thay `<style>`/`<link>`): rule trong sheet cũ mất theo.
+     */
+    reinsert?: () => void
 }
 
 /**
@@ -1870,7 +1875,7 @@ export const xcss = (
 
         // Khối @layer trong CSSOM của từng sheet (xem insertIntoLayer). replaceSync xoá các khối đó: lần chèn sau
         // tạo khối mới ở cuối sheet.
-        let layerBlocks: Record<string, { b: CSSStyleSheet | CSSGroupingRule; g: any[]; o: number }> = {}
+        let layerBlocks: Record<string, { b: CSSStyleSheet | CSSGroupingRule; g: any[]; o: number; s?: number }> = {}
         const applySheetText = (mediaKey: string, text: string) => {
             setSheetText(mediaKey, text)
             layerBlocks = {}
@@ -2034,19 +2039,31 @@ export const xcss = (
         // sẵn ở đầu sheet (CSS nạp từ cache lúc khởi tạo).
         // Chế độ lai (`preload.staticBlock`): "khối" là khối `@layer` của CSS tĩnh, dãy khoá dựng từ rule có sẵn
         // (CSS tĩnh build theo cùng thứ tự nên cả khối là vùng có thứ tự). Dựng lại sau mỗi lần xoá layerBlocks.
+        // Chế độ lai: tham số các rule đã chèn vào khối của CSS tĩnh, để chèn lại khi CSS tĩnh bị thay (`preload.reinsert`).
+        let staticRules: any[][] = []
+        const preloadOptions = modules?.preload
+        if (preloadOptions?.staticBlock) {
+            preloadOptions.reinsert = () => {
+                const list = staticRules
+                staticRules = []
+                for (const key in layerBlocks) if (layerBlocks[key].s) delete layerBlocks[key]
+                for (const args of list) insertIntoLayer(...(args as Parameters<typeof insertIntoLayer>))
+            }
+        }
         const insertIntoLayer = (sheet: CSSStyleSheet, media: string, layer: number, body: string, wrap: string, order?: { compare: (a: string, b: string) => number; name: string }) => {
             const key = '@' + media + (supportsAtLayer ? ' ' + layer : '')
-            let blk = layerBlocks[key]
+            let blk: any = layerBlocks[key]
             let i = -1
             try {
                 if (!blk) {
                     const o = sheet.cssRules.length
-                    const target = supportsAtLayer && !sheet.media.length && modules?.preload?.staticBlock?.(layer)
-                    blk = layerBlocks[key] = target ? { b: target.b, g: target.g, o: 0 } : supportsAtLayer ? { b: sheet.cssRules[sheet.insertRule(`@layer l${layer}{}`, o)] as CSSGroupingRule, g: [], o: 0 } : { b: sheet, g: [], o }
+                    const target = supportsAtLayer && !sheet.media.length && preloadOptions?.staticBlock?.(layer)
+                    blk = layerBlocks[key] = target ? { b: target.b, g: target.g, o: 0, s: 1 } : supportsAtLayer ? { b: sheet.cssRules[sheet.insertRule(`@layer l${layer}{}`, o)] as CSSGroupingRule, g: [], o: 0 } : { b: sheet, g: [], o }
                     orderKeysByMedia[key] = target ? target.k : []
                     orderedCountByMedia[key] = target ? target.k.length : 0
                 }
                 const { b, g } = blk
+                if (blk.s) staticRules.push([sheet, media, layer, body, wrap, order])
                 i = ruleInsertIndex(key, g.length, order)
                 // Vị trí trong khối (mỗi nhóm tính là một rule) và số rule của nhóm đứng trước nằm trước điểm chèn.
                 let top = blk.o
