@@ -6,17 +6,17 @@
       "converted": 1284,
       "total": 1331,
       "matched": {
-        "mặc định": 0,
-        "mở": 0,
-        "đóng": 0,
-        ".dark": 0,
-        ":hover": 0,
-        ":focus": 0,
-        ":focus-visible": 0,
-        ":active": 0,
-        "375px": 0,
-        "768px": 0,
-        "1600px": 0
+        "mặc định": 1289,
+        "mở": 1286,
+        "đóng": 1288,
+        ".dark": 1289,
+        ":hover": 1289,
+        ":focus": 1289,
+        ":focus-visible": 1288,
+        ":active": 1289,
+        "375px": 1291,
+        "768px": 1289,
+        "1600px": 1289
       },
       "exercised": {
         "mở": 42,
@@ -33,17 +33,17 @@
       "combos": {
         "total": 379,
         "matched": {
-          "mặc định": 0,
-          "mở": 0,
-          "đóng": 0,
-          ".dark": 0,
-          ":hover": 0,
-          ":focus": 0,
-          ":focus-visible": 0,
-          ":active": 0,
-          "375px": 0,
-          "768px": 0,
-          "1600px": 0
+          "mặc định": 287,
+          "mở": 274,
+          "đóng": 287,
+          ".dark": 287,
+          ":hover": 287,
+          ":focus": 287,
+          ":focus-visible": 286,
+          ":active": 287,
+          "375px": 285,
+          "768px": 287,
+          "1600px": 287
         }
       }
     },
@@ -51,17 +51,17 @@
       "converted": 1284,
       "total": 1331,
       "matched": {
-        "mặc định": 0,
-        "mở": 0,
-        "đóng": 0,
-        ".dark": 0,
-        ":hover": 0,
-        ":focus": 0,
-        ":focus-visible": 0,
-        ":active": 0,
-        "375px": 0,
-        "768px": 0,
-        "1600px": 0
+        "mặc định": 1289,
+        "mở": 1286,
+        "đóng": 1288,
+        ".dark": 1289,
+        ":hover": 1289,
+        ":focus": 1289,
+        ":focus-visible": 1288,
+        ":active": 1289,
+        "375px": 1291,
+        "768px": 1289,
+        "1600px": 1289
       },
       "exercised": {
         "mở": 42,
@@ -78,17 +78,17 @@
       "combos": {
         "total": 379,
         "matched": {
-          "mặc định": 0,
-          "mở": 0,
-          "đóng": 0,
-          ".dark": 0,
-          ":hover": 0,
-          ":focus": 0,
-          ":focus-visible": 0,
-          ":active": 0,
-          "375px": 0,
-          "768px": 0,
-          "1600px": 0
+          "mặc định": 287,
+          "mở": 274,
+          "đóng": 287,
+          ".dark": 287,
+          ":hover": 287,
+          ":focus": 287,
+          ":focus-visible": 286,
+          ":active": 287,
+          "375px": 285,
+          "768px": 287,
+          "1600px": 287
         }
       }
     }

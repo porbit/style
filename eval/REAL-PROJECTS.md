@@ -10,12 +10,12 @@ Lượt đo: **mặc định** (1280 px) · **mở**/**đóng** (`data-state`, `
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | shadcn/ui v4 | không build | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 |
 | shadcn/ui v4 | PostCSS | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 |
-| coss ui | không build | 1331 | **1284** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
-| coss ui | PostCSS | 1331 | **1284** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
+| coss ui | không build | 1331 | **1284** | **1289** | **1286** | **1288** | **1289** | **1289** | **1289** | **1288** | **1289** | **1291** | **1289** | **1289** |
+| coss ui | PostCSS | 1331 | **1284** | **1289** | **1286** | **1288** | **1289** | **1289** | **1289** | **1288** | **1289** | **1291** | **1289** | **1289** |
 | HyperUI | không build | 619 | **611** | **608** | **608** | **608** | **608** | **607** | **608** | **608** | **607** | **608** | **608** | **608** |
 | HyperUI | PostCSS | 619 | **611** | **608** | **608** | **608** | **608** | **607** | **608** | **608** | **607** | **608** | **608** | **608** |
-| Magic UI | không build | 586 | **572** | **575** | **575** | **575** | **573** | **576** | **575** | **575** | **576** | **575** | **575** | **575** |
-| Magic UI | PostCSS | 586 | **572** | **575** | **575** | **575** | **573** | **576** | **575** | **575** | **576** | **575** | **575** | **575** |
+| Magic UI | không build | 586 | **573** | **576** | **576** | **576** | **574** | **576** | **576** | **576** | **576** | **576** | **576** | **576** |
+| Magic UI | PostCSS | 586 | **573** | **576** | **576** | **576** | **574** | **576** | **576** | **576** | **576** | **576** | **576** | **576** |
 | v3-extend | không build | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 |
 | v3-extend | PostCSS | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 |
 | v3-replace | không build | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 |
@@ -27,12 +27,12 @@ Lượt đo: **mặc định** (1280 px) · **mở**/**đóng** (`data-state`, `
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | shadcn/ui v4 | không build | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 |
 | shadcn/ui v4 | PostCSS | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 |
-| coss ui | không build | 379 | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
-| coss ui | PostCSS | 379 | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
+| coss ui | không build | 379 | **287** | **274** | **287** | **287** | **287** | **287** | **286** | **287** | **285** | **287** | **287** |
+| coss ui | PostCSS | 379 | **287** | **274** | **287** | **287** | **287** | **287** | **286** | **287** | **285** | **287** | **287** |
 | HyperUI | không build | 766 | **675** | **675** | **675** | **675** | **683** | **675** | **675** | **683** | **673** | **675** | **675** |
 | HyperUI | PostCSS | 766 | **675** | **675** | **675** | **675** | **683** | **675** | **675** | **683** | **673** | **675** | **675** |
-| Magic UI | không build | 245 | **237** | **237** | **237** | **237** | **238** | **237** | **237** | **238** | **237** | **237** | **237** |
-| Magic UI | PostCSS | 245 | **237** | **237** | **237** | **237** | **238** | **237** | **237** | **238** | **237** | **237** | **237** |
+| Magic UI | không build | 245 | **238** | **238** | **238** | **238** | **238** | **238** | **238** | **238** | **238** | **238** | **238** |
+| Magic UI | PostCSS | 245 | **238** | **238** | **238** | **238** | **238** | **238** | **238** | **238** | **238** | **238** | **238** |
 | v3-extend | không build | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 |
 | v3-extend | PostCSS | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 |
 | v3-replace | không build | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 |
@@ -64,10 +64,15 @@ Nguồn, giấy phép và phần đã chỉnh của từng fixture: README trong
 
 ## Phân Tích Lệch
 
-Ghi lại nguyên trạng, **chưa sửa** trong `src/`. Nhóm theo nguyên nhân dự đoán; số liệu từ lượt mặc định, chế độ
+Ghi lại khi đo lần đầu; mục nào đã sửa có ghi **Đã sửa**. Nhóm theo nguyên nhân dự đoán; số liệu từ lượt mặc định, chế độ
 "không build" (chế độ PostCSS cho cùng kết quả). Chi tiết từng class: các file `REAL-PROJECT-*.md`.
 
-### 1. Biến theme chỉ được CSS của dự án đọc không được phát ra (coss ui: lệch 1331/1331)
+### 1. Biến theme chỉ được CSS của dự án đọc không được phát ra (coss ui: lệch 1331/1331) — Đã sửa
+
+**Đã sửa:** CSS nền của phương ngữ khai báo `:root,:host{...}` ở layer thấp nhất cho mọi biến theme mà CSS của dự án
+(sau `@apply`) đọc qua `var(--x)`, kể cả biến mà giá trị theme đọc; `@theme static` luôn phát; `--alpha()`/`--spacing()`/
+`--theme()`/`theme()` được khai triển trong mọi CSS và trong giá trị `@theme`. coss ui: 0 → 1289/1331 ở lượt mặc định,
+tổ hợp 0 → 287/379 (đúng như đo chẩn đoán dưới). Phần còn lại thuộc các nhóm 3–12 (giải giá trị utility).
 
 coss ui khai báo màu ngữ nghĩa ngoài `@theme`: `:root { --border: --alpha(var(--color-black) / 8%); --foreground: var(--color-neutral-800) }`
 rồi `@layer base { * { @apply border-border outline-ring/50 } }`. Tailwind phát `--color-black`, `--color-neutral-800`...
@@ -135,8 +140,9 @@ coss ui (cả `data-checked:shadow-sm/5`, `in-data-[variant=card]:shadow-xs/5`..
 ### 10. Cú pháp khác chưa chuyển
 
 `border-(length:--border-beam-width)` và `text-(color:--shiki-dark)!` (gợi ý kiểu trong cú pháp biến `(kiểu:--x)`),
-`filter-[url(#threshold)_blur(0.6px)]` (`filter-[…]` tuỳ ý), `not-[&:hover]:duration-1000` (`not-[…]` với selector
-có `&`), `mask-position-(--x)`/`mask-size-(--x)` (coss ui). Magic UI.
+`filter-[url(#threshold)_blur(0.6px)]` (`filter-[…]` tuỳ ý), `mask-position-(--x)`/`mask-size-(--x)` (coss ui). Magic UI.
+**Đã sửa:** `not-[&:hover]:duration-1000` (`not-[…]`/`has-[…]`/`in-[…]`/`group-[…]` với selector có `&`, `[>img]`,
+`[@media…]`); Magic UI 575 → 576/586 ở lượt mặc định, tổ hợp 237 → 238/245.
 
 ### 11. `@utility container` trùng tên utility có sẵn
 

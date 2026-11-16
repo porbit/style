@@ -3,20 +3,20 @@
   "candidates": 586,
   "summary": {
     "không build (parseTailwindStylesheet)": {
-      "converted": 572,
+      "converted": 573,
       "total": 586,
       "matched": {
-        "mặc định": 575,
-        "mở": 575,
-        "đóng": 575,
-        ".dark": 573,
+        "mặc định": 576,
+        "mở": 576,
+        "đóng": 576,
+        ".dark": 574,
         ":hover": 576,
-        ":focus": 575,
-        ":focus-visible": 575,
+        ":focus": 576,
+        ":focus-visible": 576,
         ":active": 576,
-        "375px": 575,
-        "768px": 575,
-        "1600px": 575
+        "375px": 576,
+        "768px": 576,
+        "1600px": 576
       },
       "exercised": {
         "mở": 3,
@@ -33,35 +33,35 @@
       "combos": {
         "total": 245,
         "matched": {
-          "mặc định": 237,
-          "mở": 237,
-          "đóng": 237,
-          ".dark": 237,
+          "mặc định": 238,
+          "mở": 238,
+          "đóng": 238,
+          ".dark": 238,
           ":hover": 238,
-          ":focus": 237,
-          ":focus-visible": 237,
+          ":focus": 238,
+          ":focus-visible": 238,
           ":active": 238,
-          "375px": 237,
-          "768px": 237,
-          "1600px": 237
+          "375px": 238,
+          "768px": 238,
+          "1600px": 238
         }
       }
     },
     "plugin PostCSS (@porbit/style/postcss)": {
-      "converted": 572,
+      "converted": 573,
       "total": 586,
       "matched": {
-        "mặc định": 575,
-        "mở": 575,
-        "đóng": 575,
-        ".dark": 573,
+        "mặc định": 576,
+        "mở": 576,
+        "đóng": 576,
+        ".dark": 574,
         ":hover": 576,
-        ":focus": 575,
-        ":focus-visible": 575,
+        ":focus": 576,
+        ":focus-visible": 576,
         ":active": 576,
-        "375px": 575,
-        "768px": 575,
-        "1600px": 575
+        "375px": 576,
+        "768px": 576,
+        "1600px": 576
       },
       "exercised": {
         "mở": 3,
@@ -78,17 +78,17 @@
       "combos": {
         "total": 245,
         "matched": {
-          "mặc định": 237,
-          "mở": 237,
-          "đóng": 237,
-          ".dark": 237,
+          "mặc định": 238,
+          "mở": 238,
+          "đóng": 238,
+          ".dark": 238,
           ":hover": 238,
-          ":focus": 237,
-          ":focus-visible": 237,
+          ":focus": 238,
+          ":focus-visible": 238,
           ":active": 238,
-          "375px": 237,
-          "768px": 237,
-          "1600px": 237
+          "375px": 238,
+          "768px": 238,
+          "1600px": 238
         }
       }
     }
