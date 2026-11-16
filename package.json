@@ -141,7 +141,6 @@
     "dist/**/*.mjs",
     "dist/**/*.cjs",
     "dist/**/*.d.ts",
-    "dist/**/*.d.mts",
     "spec/dictionary.json",
     "spec/SPEC.md",
     "docs/guides/thiet-ke-nhanh.md",
@@ -151,11 +150,9 @@
     "docs/guides/static-first.md",
     "docs/guides/tailwind.md",
     "llms.txt",
-    "llms-full.txt",
     "README.en.md",
     "README.md",
     "CHANGELOG.md",
-    "DICTIONARY.md",
     "LICENSE"
   ],
   "sideEffects": [
@@ -168,7 +165,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && tsup",
     "dev": "tsup --watch",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",

@@ -21,12 +21,16 @@ const strict = args.includes('--strict')
 const only = (args.find((a) => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean)
 
 // Ngân sách: vượt là lỗi. Cập nhật có chủ đích khi thay đổi được chấp nhận.
+// Tính gzip của entry cộng mọi chunk nó import tĩnh (số trình duyệt tải khi import thẳng từ CDN).
 const BUDGET = {
     'dist/index-auto.mjs': 24 * 1024, // bản CDN (+chèn rule có thứ tự)
-    'dist/index.mjs': 36 * 1024,
+    'dist/index.mjs': 37 * 1024, // 4 file tải song song (chunk dùng chung với tailwind/merge): 34,7 -> 36,6 KB
     'dist/components.mjs': 8 * 1024,
     'dist/tailwind-auto.mjs': 63 * 1024, // thay @tailwindcss/browser (75 KB); +thứ tự cascade như Tailwind
 }
+// Gói npm (`npm pack`): giải nén 6,8 MB -> 1,47 MB khi tách nhóm build (tsup.config.ts) và bỏ file
+// tài liệu không đọc lúc chạy. Mục tiêu ≤ 1,5 MB.
+const PACKAGE_BUDGET = 1500 * 1000
 const EVAL_MIN = { xcssValidAfterFix: 99, tailwindValid: 98, holdout: 85 }
 
 const hasCommand = (cmd) => spawnSync(process.platform === 'win32' ? 'where' : 'which', [cmd], { stdio: 'ignore' }).status === 0
@@ -62,12 +66,41 @@ const steps = [
         run: () => {
             const lines = []
             let ok = true
+            const withChunks = (file, seen = new Set()) => {
+                if (seen.has(file)) return seen
+                seen.add(file)
+                const code = fs.readFileSync(path.join(root, file), 'utf8')
+                for (const m of code.matchAll(/(?:from|import)\s*["'](\.\/[^"']+)["']/g)) withChunks(path.posix.join(path.posix.dirname(file), m[1]), seen)
+                return seen
+            }
             for (const [file, limit] of Object.entries(BUDGET)) {
-                const size = zlib.gzipSync(fs.readFileSync(path.join(root, file))).length
+                const files = [...withChunks(file)]
+                const size = files.reduce((n, f) => n + zlib.gzipSync(fs.readFileSync(path.join(root, f))).length, 0)
                 if (size > limit) ok = false
-                lines.push(`${file} ${(size / 1024).toFixed(1)}/${(limit / 1024).toFixed(0)} KB${size > limit ? ' VƯỢT' : ''}`)
+                lines.push(`${file}${files.length > 1 ? ` (+${files.length - 1} chunk)` : ''} ${(size / 1024).toFixed(1)}/${(limit / 1024).toFixed(0)} KB${size > limit ? ' VƯỢT' : ''}`)
             }
             return { ok, detail: lines.join('; ') }
+        },
+    },
+    {
+        name: 'package',
+        // Gói đã `npm pack` cài vào thư mục tạm: mọi khoá "exports" chạy được bằng cả require lẫn import.
+        run: () => {
+            const r = run('node', ['scripts/smoke-exports.cjs', '--json'])
+            let report
+            try {
+                report = JSON.parse(r.out.trim().split('\n').pop())
+            } catch (_error) {
+                return r
+            }
+            const failed = Object.entries(report.results).filter(([, v]) => !v.ok)
+            const sizeOk = report.unpackedSize <= PACKAGE_BUDGET
+            return {
+                ok: r.ok && failed.length === 0 && sizeOk,
+                detail: `${Object.keys(report.results).length - failed.length}/${Object.keys(report.results).length} export (require + import) · ${report.files} file, ` +
+                    `${(report.size / 1024).toFixed(0)} KB nén, ${(report.unpackedSize / 1e6).toFixed(2)}/${(PACKAGE_BUDGET / 1e6).toFixed(2)} MB giải nén${sizeOk ? '' : ' VƯỢT'}` +
+                    failed.map(([key, v]) => `\n✗ ${key}: ${v.errors.join('; ')}`).join(''),
+            }
         },
     },
     {
