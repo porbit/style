@@ -41,7 +41,11 @@ Khác `@tailwindcss/browser` (Tailwind ghi rõ "không dùng cho production"), b
 export default { plugins: { '@porbit/style/postcss': {} } }   // thay '@tailwindcss/postcss'
 ```
 
-File CSS giữ nguyên như dự án Tailwind v4 (`@import "tailwindcss"`, `@theme`, `@utility`, `@custom-variant`, `@apply`, `@plugin`, `@config`). Plugin tự quét mã nguồn (bỏ `node_modules` và thư mục trong `.gitignore`), hiểu `@source "../x"`, `@source not`, `@source inline("{hover:,}bg-red-{100..900..100}")`, `source(none)`, và báo dependency cho chế độ watch. Tuỳ chọn: `base`, `optimize` (mặc định bật), `mergeTable` (mục 6).
+File CSS giữ nguyên như dự án Tailwind v4 (`@import "tailwindcss"`, `@theme`, `@utility`, `@custom-variant`, `@apply`, `@plugin`, `@config`). Plugin tự quét mã nguồn (bỏ `node_modules` và thư mục trong `.gitignore`), hiểu `@source "../x"`, `@source not`, `@source inline("{hover:,}bg-red-{100..900..100}")`, `source(none)`, và báo dependency cho chế độ watch. Tuỳ chọn: `base`, `optimize` (mặc định bật), `mergeTable` (mục 6), `xcss`, `scanCache`.
+
+Chỉ class Tailwind (và `@utility`/`@custom-variant`/plugin của dự án) được sinh CSS: token quét được mà không phải class Tailwind — số trong `<path d="...">` của SVG, tên biến, chuỗi trong mã — không thành rule rác. Dự án viết thêm class theo cú pháp x-css (`dF`, `md:bgcRed`) cạnh class Tailwind thì bật `xcss: true` (tuỳ chọn plugin) hoặc `"xcss": true` trong `presence-style.config.json` ở thư mục gốc.
+
+Bộ nhớ đệm quét (`scanCache`, mặc định bật): ứng viên của từng file lưu ở `node_modules/.cache/presence-style/` (theo đường dẫn + mtime + kích thước, khoá theo phiên bản gói, bộ quét và CSS vào), nên build trong tiến trình mới (CI giữ `node_modules/.cache`, khởi động lại dev server) chỉ đọc lại file đã đổi. File xoá/đổi tên, đổi CSS vào hoặc nâng cấp gói thì phần tương ứng bị bỏ. `scanCache: false` hoặc `PRESENCE_STYLE_CACHE=0` để tắt, `scanCache: "<thư mục>"` để đặt chỗ khác.
 
 Đo trên Next.js 15 (build production, cùng một ứng dụng build bằng hai plugin): **0 khác biệt hiển thị** so với `@tailwindcss/postcss` (chỉ lệch dưới 0,02 px do Tailwind làm tròn số), CSS **3,62 KB** so với 3,88 KB gzip. Chạy lại: `bash eval/next-parity.sh`.
 
