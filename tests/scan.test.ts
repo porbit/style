@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -105,5 +105,21 @@ describe('scanFiles', () => {
             if (file === files[5]) continue
             expect(parallel.cache.get(file)?.candidates).toEqual(sequential.cache.get(file)?.candidates)
         }
+        // Mọi file đổi mtime (đổi nhánh git): đọc lại song song dù đã có bộ nhớ đệm.
+        const later = new Date(Date.now() + 60_000)
+        for (const file of files) if (file !== files[5]) utimesSync(file, later, later)
+        const touched = await run('2', parallel.cache)
+        expect(touched.info.workers).toBe(2)
+        expect(touched.list).toEqual(sequential.list)
+        // Một file đổi nội dung: đọc lại riêng file đó (tuần tự), class mới nằm đúng vị trí của file.
+        writeFileSync(files[0], '<b class="moi-them"></b>')
+        const edited = await run('2', touched.cache)
+        expect(edited.info.workers).toBe(0)
+        const reference = new Set<string>(['inline-first'])
+        for (const file of files) {
+            if (file === files[5]) continue
+            for (const candidate of extractCandidates(readFileSync(file, 'utf8'))) reference.add(candidate)
+        }
+        expect(edited.list).toEqual([...reference])
     }, 60_000)
 })

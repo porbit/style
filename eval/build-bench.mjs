@@ -17,7 +17,8 @@
  *   của mọi file được đổi trước mỗi lượt để bộ nhớ đệm theo mtime của ta không được dùng — so sánh công bằng với
  *   `Scanner` mới của Tailwind).
  * - Hai phía chạy xen kẽ trong cùng lượt (máy bận thì cả hai cùng chịu); báo trung vị và [min–max].
- * - `--ours=dist,/đường/dẫn/dist-cũ`: so nhiều bản build của ta (trước/sau tối ưu), kèm kiểm CSS đầu ra trùng byte.
+ * - `--ours=dist,trước=/đường/dẫn/dist-cũ`: so nhiều bản build của ta (trước/sau tối ưu, `nhãn=` tuỳ chọn), kèm kiểm
+ *   CSS đầu ra trùng byte.
  * - `--single-thread`: thêm lượt cold của bản đầu tiên với `PRESENCE_STYLE_WORKERS=0` (không luồng phụ khi trích).
  * Bộ bench được giữ trong thư mục tạm để lần sau dùng lại (`--regen` để sinh lại, `--dir=` để đặt chỗ khác).
  * Ghi eval/build-bench.json.
@@ -184,7 +185,13 @@ const rounds = Number(arg('rounds', 9))
 const warmIterations = Number(arg('warm', 5))
 const benchDir = path.resolve(arg('dir', path.join(os.tmpdir(), `ps-build-bench-${count}`, 'project')))
 const tw = findTailwind()
-const dists = arg('ours', 'dist').split(',').map((d) => path.resolve(root, d))
+// `--ours=dist,trước=/đường/dẫn/dist-cũ`: mỗi mục là đường dẫn dist, có thể kèm nhãn `nhãn=`.
+const oursSpecs = arg('ours', 'dist').split(',').map((spec) => {
+    const eq = spec.indexOf('=')
+    return eq > 0 ? { name: spec.slice(0, eq), dist: path.resolve(root, spec.slice(eq + 1)) } : { name: null, dist: path.resolve(root, spec) }
+})
+const dists = oursSpecs.map((s) => s.dist)
+const names = new Map(oursSpecs.map((s) => [s.dist, s.name]))
 for (const dist of dists) if (!fs.existsSync(path.join(dist, 'postcss.cjs'))) throw new Error(`Thiếu ${dist}/postcss.cjs — chạy npm run build trước.`)
 
 const listFile = path.join(path.dirname(benchDir), 'files.json')
@@ -207,7 +214,7 @@ const runChild = (childArgs, env = {}) => {
     return { wall, ...JSON.parse(res.stdout) }
 }
 
-const label = (dist) => (dists.length > 1 ? `ta (${path.relative(root, dist) || dist})` : 'ta')
+const label = (dist) => (names.get(dist) ? `ta (${names.get(dist)})` : dists.length > 1 ? `ta (${path.relative(root, dist) || dist})` : 'ta')
 const sides = [
     ...(tw ? [{ name: `Tailwind ${tw.version} (oxide)`, args: ['--child=tw', `--target=${JSON.stringify(tw)}`] }] : []),
     ...dists.map((dist) => ({ name: label(dist), args: ['--child=ours', `--target=${dist}`] })),
@@ -253,6 +260,8 @@ const result = {
     date: new Date().toISOString().slice(0, 10),
     node: process.version,
     cpus: os.cpus().length,
+    // Tải máy lúc đo (1, 5, 15 phút): số đo chỉ so được giữa các phía trong cùng một lần chạy.
+    loadavg: os.loadavg().map((x) => +x.toFixed(2)),
     files: files.length,
     rounds,
     warmIterations: warmProcesses * warmIterations,

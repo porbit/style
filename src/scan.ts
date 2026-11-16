@@ -252,17 +252,41 @@ const workerCount = (): number => {
  * trong file theo `scanCandidates`). `cache` (theo mtime) giữ kết quả từng file cho lần build sau (chế độ watch).
  */
 export const scanFiles = async (files: string[], cache: Map<string, CandidateCacheEntry>, into: Set<string>): Promise<{ workers: number; workerBatches: number }> => {
-    let missing = 0
-    for (const file of files) if (!cache.has(file)) missing++
-    const workers = missing >= PARALLEL_MIN_FILES ? workerCount() : 0
+    // Song song khi có ít nhất PARALLEL_MIN_FILES file phải đọc lại: chưa có trong bộ nhớ đệm (build đầu), hoặc đã đổi
+    // mtime (đổi nhánh git, công cụ sinh mã ghi lại cả thư mục) — trường hợp sau phải stat trước để biết.
+    let workers = files.length >= PARALLEL_MIN_FILES ? workerCount() : 0
+    let mtimes: Array<number | null> | null = null
+    if (workers > 0) {
+        let missing = 0
+        for (const file of files) if (!cache.has(file)) missing++
+        if (missing < PARALLEL_MIN_FILES) {
+            mtimes = files.map((file) => {
+                try {
+                    return statSync(file).mtimeMs
+                } catch (_error) {
+                    return null
+                }
+            })
+            let stale = 0
+            mtimes.forEach((mtime, index) => {
+                if (mtime !== null && cache.get(files[index])?.mtime !== mtime) stale++
+            })
+            if (stale < PARALLEL_MIN_FILES) workers = 0
+        }
+    }
     if (workers === 0) {
-        for (const file of files) {
-            let mtime: number
-            try {
-                mtime = statSync(file).mtimeMs
-            } catch (_error) {
-                continue
+        for (let index = 0; index < files.length; index++) {
+            const file = files[index]
+            let mtime: number | null
+            if (mtimes) mtime = mtimes[index]
+            else {
+                try {
+                    mtime = statSync(file).mtimeMs
+                } catch (_error) {
+                    mtime = null
+                }
             }
+            if (mtime === null) continue
             const cached = cache.get(file)
             let list: string[]
             if (cached && cached.mtime === mtime) list = candidatesOfEntry(cached)
