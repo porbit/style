@@ -31,6 +31,26 @@ export interface TailwindV4DialectOptions {
     preflight?: boolean
     /** `media` (mặc định, như Tailwind v4): theo hệ điều hành. `class`: theo `.dark` ở tổ tiên. */
     darkMode?: 'media' | 'class'
+    /**
+     * Tiền tố như `@import "tailwindcss" prefix(tw)`: class viết `tw:flex`, `tw:hover:bg-red-500` (tiền tố đứng
+     * trước mọi biến thể); class không tiền tố không được nhận; `group`/`peer` thành `tw:group`/`tw:peer`.
+     * Nhận cả kiểu v3 `'tw-'` (bỏ một dấu `-` cuối như Tailwind v4); tiền tố khác chữ thường a-z báo lỗi.
+     * Biến theme trong CSS sinh ra giữ tên không tiền tố (`var(--color-red-500, …)`), giá trị như Tailwind.
+     */
+    prefix?: string
+    /**
+     * `true` (như `@import "tailwindcss" important` / `important: true` của cấu hình v3): mọi khai báo
+     * utility thêm `!important`. Chuỗi selector (`'#app'`, `important: '#app'` của cấu hình v3): utility chỉ áp
+     * trong phần tử đó (`#app .p-2`, cùng độ ưu tiên như Tailwind). `@apply` không bị ảnh hưởng (như Tailwind).
+     */
+    important?: boolean | string
+}
+
+/** Chuẩn hoá tiền tố như Tailwind v4: bỏ một `-` cuối (kiểu v3 `tw-`), chỉ nhận chữ thường a-z. */
+export const normalizeTailwindPrefix = (prefix: string): string => {
+    const value = prefix.endsWith('-') ? prefix.slice(0, -1) : prefix
+    if (!/^[a-z]+$/.test(value)) throw new Error(`The prefix "${value}" is invalid. Prefixes must be lowercase ASCII letters (a-z) only.`)
+    return value
 }
 
 // Bảng màu nén (`red:97.1 0.013 17.38,...|...`) -> `--color-red-50: oklch(97.1% 0.013 17.38)`.
@@ -345,6 +365,8 @@ const registeredKeys = new Set<string>()
 const MEDIA_QUERY = new Map<string, string>()
 /** Biến thể tự định nghĩa của dialect đang hoạt động. */
 let CUSTOM_VARIANTS: Record<string, string[][]> = {}
+/** Tiền tố class đã escape cho selector (`tw\:`) của dialect đang hoạt động: `group`/`peer` thành `.tw\:group`. */
+let MARKER_PREFIX = ''
 const buildBreakpoints = (darkMode: 'media' | 'class') => {
     const singles: Array<[string, string]> = []
     for (const key of [...RESPONSIVE].reverse()) singles.push([`max-${key}`, `(width < ${breakpointValue(key)})`])
@@ -394,7 +416,7 @@ const stateFragment = (state: string): string | null => {
     if (relation) {
         const inner = stateFragment(relation[2])
         if (!inner) return null
-        const marker = relation[3] ? `${relation[1]}\\/${relation[3]}` : relation[1]
+        const marker = MARKER_PREFIX + (relation[3] ? `${relation[1]}\\/${relation[3]}` : relation[1])
         if (relation[1] === 'in') return `:is(:where(${inner}) *)`
         return relation[1] === 'group' ? `:is(:where(.${marker})${inner} *)` : `:is(:where(.${marker})${inner} ~ *)`
     }
@@ -506,7 +528,7 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
             const fragment = stateFragment(relation[2])
             if (!fragment) return null
             if (/(^|-)hover$/.test(relation[2])) media.push('hover')
-            const marker = relation[3] ? `${relation[1]}\\/${relation[3]}` : relation[1]
+            const marker = MARKER_PREFIX + (relation[3] ? `${relation[1]}\\/${relation[3]}` : relation[1])
             if (relation[1] === 'in') sel = `:where(${fragment}) ` + sel
             else sel = sel.replace('&', relation[1] === 'group' ? `&:is(:where(.${marker})${fragment} *)` : `&:is(:where(.${marker})${fragment} ~ *)`)
             continue
@@ -1081,13 +1103,21 @@ const sortVariantsDesc = (variants: OrderVariant[]): OrderVariant[] => {
 
 export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSDialect => {
     const darkMode = options.darkMode ?? 'media'
+    // Tiền tố `tw` -> class `tw:...`; selector của `group`/`peer` là `.tw\:group`.
+    const prefix = options.prefix ? normalizeTailwindPrefix(options.prefix) : ''
+    const markerPrefix = prefix ? `${prefix}\\:` : ''
+    // `important: true` -> mọi khai báo `!important`; `important: '#app'` -> `&` thành `:is(#app &)`.
+    const importantAll = options.important === true
+    const importantSelector = typeof options.important === 'string' && options.important.trim() ? options.important.trim() : ''
     // `--color-*: initial` (hoặc `--*: initial`): bỏ cả namespace mặc định như `@theme` của Tailwind.
     const resetNamespaces = Object.entries(options.theme || {}).filter(([k, v]) => k.endsWith('*') && v.trim() === 'initial').map(([k]) => k.slice(0, -1))
+    // `--x: initial` (không `*`): bỏ đúng biến đó như `@theme` của Tailwind (dùng khi `prefix` đến từ `@config`).
+    const removedKeys = new Set(Object.entries(options.theme || {}).filter(([k, v]) => !k.endsWith('*') && v.trim() === 'initial').map(([k]) => k))
     const ownTheme = options.theme && Object.keys(options.theme).length
         ? Object.fromEntries([
             ...Object.entries(defaultTheme).filter(([k]) => !resetNamespaces.some((ns) => k.startsWith(ns))),
             ...Object.entries(options.theme).filter(([k]) => !k.endsWith('*')),
-        ])
+        ].filter(([k]) => !removedKeys.has(k)))
         : defaultTheme
     const ownVariants: Record<string, string[][]> = {}
     for (const [name, body] of Object.entries(options.variants || {})) {
@@ -1105,6 +1135,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     const activate = () => {
         CUSTOM_VARIANTS = ownVariants
         RESET_NAMESPACES = resetNamespaces
+        MARKER_PREFIX = markerPrefix
         if (ORDER_ROOTS !== ownRoots) {
             ORDER_ROOTS = ownRoots
             orderVariantCache.clear()
@@ -1176,8 +1207,12 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
 
     type Placed = { media: string; sel: string; decls: Array<[string, string]> }
     /** Class Tailwind -> các rule đã đặt chỗ (selector có `&`, media key/at-rule nội tuyến, khai báo). */
-    const place = (className: string): { placed: Placed[]; important: boolean; base: Array<[string, string]>; signature: string; root: string; variants: string[] } | null => {
+    /** `inUtilities`: class sinh utility (áp `important` của dialect); false cho `@apply` (Tailwind không áp). */
+    const place = (fullName: string, inUtilities = true): { placed: Placed[]; important: boolean; base: Array<[string, string]>; signature: string; root: string; variants: string[] } | null => {
         activate()
+        // Có tiền tố: chỉ nhận `tw:...` (kể cả trong `@apply`, như Tailwind), tiền tố đứng trước mọi biến thể.
+        if (prefix && !fullName.startsWith(prefix + ':')) return null
+        const className = prefix ? fullName.slice(prefix.length + 1) : fullName
         const parts = splitVariants(className)
         let base = parts.pop() as string
         let important = false
@@ -1208,6 +1243,9 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
                 if (!each.decls.length) continue
                 const at = applyVariants(variantList, each.sel, darkMode, each.query)
                 if (!at) return null
+                // `important: '#app'`: Tailwind bọc `@tailwind utilities` trong `#app { }` -> `#app .x`,
+                // `:is(:where(.group):hover :is(#app .x))`... `:is(#app &)` cùng phạm vi và độ ưu tiên.
+                if (importantSelector && inUtilities) at.sel = at.sel.replace(/&/g, `:is(${importantSelector} &)`)
                 let decls = each.decls
                 // before:/after: cần `content` như Tailwind.
                 if (/::(before|after)/.test(at.sel) && !decls.some(([p]) => p === 'content')) {
@@ -1217,6 +1255,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
             }
         }
         if (placed.some((p) => /::(before|after)/.test(p.sel)) && !baseDecls.some(([p]) => p === 'content')) baseDecls.unshift(['content', 'var(--tw-content)'])
+        if (importantAll && inUtilities) important = true
         return placed.length ? { placed, important, base: baseDecls, signature: baseSignature, root: base, variants: parts } : null
     }
 
@@ -1256,7 +1295,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         let extra = ''
         const parentSel = splitTopLevel(selector).length > 1 ? `:is(${selector})` : selector
         for (const name of list.trim().split(/\s+/)) {
-            const result = place(name)
+            const result = place(name, false)
             if (!result) {
                 inline += `/* @apply ${name}: chưa hỗ trợ */`
                 continue
@@ -1322,6 +1361,8 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
                 // `--tw-blur: ;` (rỗng) của Tailwind: dùng `initial`, cùng kết quả khi biến được đọc
                 // bằng `var(--tw-blur,)` vì engine không nhận giá trị rỗng.
                 const finalValue = value.trim() === '' && prop.startsWith('--') ? 'initial' : withThemeFallback(value)
+                // Biến CSS không nhận dạng `--x![...]` của engine: ghi `!important` vào giá trị (`--x: v !important`).
+                if (result.important && prop.startsWith('--')) return `${prefix}${prop}[${encodeValue(finalValue + ' !important')}]${suffix}`
                 return `${prefix}${prop}${result.important ? '!' : ''}[${encodeValue(finalValue)}]${suffix}`
             }).filter((token) => !seen.has(token) && !!seen.add(token))
         })
@@ -1355,7 +1396,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         }
         for (const [name] of staticUtilities) names.add(name)
         names.add('container')
-        classListCache = [...names].filter((name) => !!dialect(name)).sort(compare)
+        classListCache = [...names].map((name) => (prefix ? `${prefix}:${name}` : name)).filter((name) => !!dialect(name)).sort(compare)
         return classListCache
     }
     /** Tên biến thể dùng được trước `:` (cho gợi ý). */
@@ -1386,6 +1427,14 @@ export interface TailwindStylesheet {
     variants: Record<string, string>
     /** `@import`/`@plugin` không giải được (ngoài `tailwindcss`). */
     unresolved: string[]
+    /** Tiền tố (`@import "tailwindcss" prefix(tw)` hoặc `prefix` của `@config`): truyền vào `tailwindV4Dialect({ prefix })`. */
+    prefix?: string
+    /**
+     * `true`: `@import "tailwindcss" important` / `important: true` của `@config`. Chuỗi: selector bọc utility
+     * (`#app { @tailwind utilities; }` — cách Tailwind v4 áp `important: '#app'` của `@config`). Truyền vào
+     * `tailwindV4Dialect({ important })`.
+     */
+    important?: boolean | string
 }
 
 export interface ParseTailwindOptions {
@@ -1403,20 +1452,38 @@ export interface ParseTailwindOptions {
  *   - `@theme { --color-brand: #0a64e8; @keyframes wiggle {...} }` -> theme + keyframes,
  *   - `@utility name {...}`, `@utility name-* { x: --value(...) }` -> utilities,
  *   - `@custom-variant name (&:is(.dark *));` hoặc dạng khối có `@slot` -> variants,
+ *   - `@import "tailwindcss" prefix(tw) important` -> `prefix`, `important`; `#app { @tailwind utilities; }` -> `important: '#app'`,
  *   - CSS còn lại giữ nguyên (`@apply` được dialect mở rộng); `@import "tailwindcss"`, `@source`, `@config` bị bỏ qua.
+ * Truyền kết quả cho dialect: `tailwindV4Dialect({ theme, css, utilities, variants, prefix, important })`.
  */
 export const parseTailwindStylesheet = (source: string, options: ParseTailwindOptions = {}): TailwindStylesheet => {
     const sheet: TailwindStylesheet = { theme: {}, css: '', utilities: {}, variants: {}, unresolved: [] }
     const seen = new Set<string>()
     const KEYFRAMES = /@keyframes\s+[\w-]+\s*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g
-    const read = (text: string) => {
+    // Như Tailwind v4: tiền tố của CSS thắng tiền tố của `@config`; `important` của hai nơi cộng dồn.
+    let cssPrefix: string | undefined
+    let configPrefix: string | undefined
+    let importantAll = false
+    let importantSelector = ''
+    const read = (text: string, fromConfig = false) => {
         for (const item of parseCssItems(text.replace(/\/\*[\s\S]*?\*\//g, ''))) {
             if ('decl' in item) continue
             if ('at' in item) {
-                const load = item.at.match(/^@(import|plugin)\s+(?:url\()?["']([^"']+)["']/)
+                const load = item.at.match(/^@(import|plugin)\s+(?:url\()?["']([^"']+)["']\)?/)
                 if (load) {
                     const id = load[2]
-                    if (id === 'tailwindcss' || id.startsWith('tailwindcss/') || seen.has(id)) continue
+                    if (id === 'tailwindcss' || id.startsWith('tailwindcss/')) {
+                        // Tuỳ chọn của import: `prefix(tw)`, `important` (bỏ qua `layer(...)`, `source(...)`, `theme(...)`).
+                        const params = item.at.slice(load[0].length).replace(/\b(layer|source|theme)\([^)]*\)/g, '')
+                        const ownPrefix = params.match(/\bprefix\(\s*([^)\s]*)\s*\)/)?.[1]
+                        if (ownPrefix !== undefined) {
+                            if (fromConfig) configPrefix ??= ownPrefix
+                            else cssPrefix ??= ownPrefix
+                        }
+                        if (/(^|\s)important(\s|$)/.test(params)) importantAll = true
+                        continue
+                    }
+                    if (seen.has(id)) continue
                     seen.add(id)
                     const content = options.resolve?.(id)
                     if (content) read(content)
@@ -1426,7 +1493,7 @@ export const parseTailwindStylesheet = (source: string, options: ParseTailwindOp
                 const configFile = item.at.match(/^@config\s+["']([^"']+)["']/)
                 if (configFile) {
                     const converted = options.loadConfig?.(configFile[1])
-                    if (converted !== null && converted !== undefined) read(converted)
+                    if (converted !== null && converted !== undefined) read(converted, true)
                     else sheet.unresolved.push(configFile[1])
                     continue
                 }
@@ -1453,10 +1520,27 @@ export const parseTailwindStylesheet = (source: string, options: ParseTailwindOp
                 continue
             }
             if (/^@plugin\b/.test(item.head)) continue
+            // `#app { @tailwind utilities; }`: utility chỉ áp trong `#app` (Tailwind v4 đổi `important: '#app'` thành vậy).
+            if (!item.head.startsWith('@') && /^@tailwind\s+utilities\b[^;{}]*;?$/.test(item.body.trim())) {
+                importantSelector ||= item.head.trim()
+                continue
+            }
             sheet.css += `${item.head}{${item.body}}\n`
         }
     }
     read(source)
     sheet.css = sheet.css.trim()
+    const prefix = cssPrefix ?? configPrefix
+    if (prefix !== undefined) {
+        try {
+            sheet.prefix = normalizeTailwindPrefix(prefix)
+        } catch (_error) {
+            // Tailwind v4 báo lỗi với tiền tố không phải chữ thường a-z: ghi lại để công cụ cảnh báo.
+            sheet.unresolved.push(`prefix(${prefix})`)
+        }
+    }
+    // Có cả hai (`important` của CSS và `important: '#app'` của @config): giữ selector (giới hạn đã biết).
+    if (importantSelector) sheet.important = importantSelector
+    else if (importantAll) sheet.important = true
     return sheet
 }

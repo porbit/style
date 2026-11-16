@@ -1,0 +1,9 @@
+/* Không qua @config: cú pháp CSS của Tailwind v4 cho tiền tố và important (đích mà `prefix`/`important: true`
+   của cấu hình v3 được đổi sang). */
+@import "tailwindcss" prefix(tw) important;
+
+@theme {
+  --color-brand: #0a64e8;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
