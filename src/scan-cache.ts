@@ -19,7 +19,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { candidatesOfEntry, createScanner, type CandidateCacheEntry } from './scan'
+import { candidatesOfEntry, createScanner, scanCandidates, type CandidateCacheEntry } from './scan'
 
 declare const __PRESENCE_STYLE_VERSION__: string
 
@@ -133,22 +133,44 @@ export const addFromSnapshot = (snapshot: ScanCacheSnapshot, files: string[], ca
 export const serializeScanCache = (key: string, files: string[], cache: Map<string, CandidateCacheEntry>): string => {
     const ids = new Map<string, number>()
     const tokens: string[] = []
+    // Số hiệu đã viết sẵn thành chuỗi: nối dòng không phải đổi số -> chuỗi cho từng lần xuất hiện.
+    const texts: string[] = []
+    const number = (token: string): number => {
+        let id = ids.get(token)
+        if (id === undefined) {
+            id = tokens.length
+            ids.set(token, id)
+            tokens.push(token)
+            texts.push(String(id))
+        }
+        return id
+    }
+    // Mục quét tuần tự giữ số hiệu của bộ quét chính: đổi sang số hiệu trong file đệm qua mảng (-1: chưa gặp).
+    const generation = scanCandidates.generation()
+    let remap = new Int32Array(0)
+    const row: string[] = []
     const lines: string[] = []
     for (const path of files) {
         const entry = cache.get(path)
         if (!entry || path.includes('\n')) continue
-        const list = candidatesOfEntry(entry)
-        if (!list) continue
-        const row: number[] = new Array(list.length)
-        for (let k = 0; k < list.length; k++) {
-            const token = list[k]
-            let id = ids.get(token)
-            if (id === undefined) {
-                id = tokens.length
-                ids.set(token, id)
-                tokens.push(token)
+        const raw = entry.candidates
+        row.length = 0
+        if (raw instanceof Int32Array && entry.gen === generation) {
+            for (let k = 0; k < raw.length; k++) {
+                const scannerId = raw[k]
+                if (scannerId >= remap.length) {
+                    const bigger = new Int32Array(Math.max(scannerId + 1, remap.length * 2, 1024)).fill(-1)
+                    bigger.set(remap)
+                    remap = bigger
+                }
+                let id = remap[scannerId]
+                if (id < 0) id = remap[scannerId] = number(scanCandidates.token(scannerId))
+                row.push(texts[id])
             }
-            row[k] = id
+        } else {
+            const list = candidatesOfEntry(entry)
+            if (!list) continue
+            for (let k = 0; k < list.length; k++) row.push(texts[number(list[k])])
         }
         lines.push(`${entry.mtime}\t${entry.size}\t${row.join(',')}\t${path}`)
     }

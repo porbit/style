@@ -2398,7 +2398,9 @@ export const xcss = (
          */
         const matches = (txtClass: string): boolean => shouldHashClass(txtClass)
 
-        return { clsx, observe, getCssString, destroy, matches }
+        // `apply`: dựng rule cho các class (một token mỗi phần tử) như clsx nhưng không đổi tên, không ghi nhớ chuỗi
+        // đầu ra — trích xuất tĩnh với `hashClassName: false` (đầu ra của clsx luôn trùng đầu vào).
+        return { clsx, observe, getCssString, destroy, matches, apply: applyObservedItems }
     }
 
 
@@ -2683,7 +2685,6 @@ export const xcss = (
                 className,
                 property: group.declarations.join(';'),
                 selector: selectorStr,
-                cssRules: `.${className}${selectorStr}{${group.declarations.join(';')}}`,
                 order,
             })
         }
@@ -2787,7 +2788,6 @@ export const xcss = (
                     className,
                     property: cssPropItems.join(';'),
                     selector: selectorStr,
-                    cssRules: `.${className}${selectorStr}{${cssPropItems.join(';')}}`,
                 }
             }
         }
@@ -2823,7 +2823,6 @@ export const xcss = (
             className,
             property: cssPropItems.join(';'),
             selector: selectorStr,
-            cssRules: `.${className}${selectorStr}{${cssPropItems.join(';')}}`,
         }
     }
 
@@ -2834,44 +2833,37 @@ export const xcss = (
         const length = str.length
         let index = -1
         let result = ''
+        // Đầu đoạn ký tự giữ nguyên chưa chép vào `result`: chép cả đoạn một lần (class thường chỉ có vài ký tự escape).
+        let start = 0
         const firstCode = str.charCodeAt(0)
         while (++index < length) {
             const codeUnit = str.charCodeAt(index)
+            let escaped: string
             // U+0000 -> ký tự thay thế U+FFFD
-            if (codeUnit === 0x0000) {
-                result += '�'
-                continue
-            }
-            if (
+            if (codeUnit === 0x0000) escaped = '�'
+            else if (
                 // [U+0001, U+001F] hoặc U+007F
                 (codeUnit >= 0x0001 && codeUnit <= 0x001f) || codeUnit === 0x007f ||
                 // chữ số ở vị trí đầu
                 (index === 0 && codeUnit >= 0x0030 && codeUnit <= 0x0039) ||
                 // chữ số ngay sau dấu '-' ở đầu
                 (index === 1 && codeUnit >= 0x0030 && codeUnit <= 0x0039 && firstCode === 0x002d)
-            ) {
-                result += '\\' + codeUnit.toString(16) + ' '
-                continue
-            }
+            ) escaped = '\\' + codeUnit.toString(16) + ' '
             // '-' đơn lẻ ở đầu
-            if (index === 0 && length === 1 && codeUnit === 0x002d) {
-                result += '\\' + str.charAt(index)
-                continue
-            }
+            else if (index === 0 && length === 1 && codeUnit === 0x002d) escaped = '\\-'
             // Giữ nguyên: >= U+0080, '-', '_', [0-9], [A-Z], [a-z]
-            if (
+            else if (
                 codeUnit >= 0x0080 || codeUnit === 0x002d || codeUnit === 0x005f ||
                 (codeUnit >= 0x0030 && codeUnit <= 0x0039) ||
                 (codeUnit >= 0x0041 && codeUnit <= 0x005a) ||
                 (codeUnit >= 0x0061 && codeUnit <= 0x007a)
-            ) {
-                result += str.charAt(index)
-                continue
-            }
+            ) continue
             // Còn lại: escape bằng backslash
-            result += '\\' + str.charAt(index)
+            else escaped = '\\' + str.charAt(index)
+            result += str.slice(start, index) + escaped
+            start = index + 1
         }
-        return result
+        return start ? result + str.slice(start) : str
     }
 
     // B5: thay đệ quy + spread + flat(Infinity) bằng querySelectorAll('[class]').
