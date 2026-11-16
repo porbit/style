@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname as dirnamePath, join, join as joinPath, resolve, resolve as resolvePath } from 'node:path'
 import { tailwindConfigToCss } from './tailwind-config'
+import { createTailwindPluginLoader, requireWithTailwindShims, type TailwindPluginLoader } from './tailwind-plugin-api'
 
 export const DEFAULT_EXTENSIONS = ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'vue', 'svelte', 'astro', 'mdx']
 // Thư mục không bao giờ cần quét: artifact build và phụ thuộc.
@@ -98,24 +99,35 @@ const BUILTIN_IN_V4 = new Set(['@tailwindcss/aspect-ratio', '@tailwindcss/contai
 
 /**
  * Nạp `@config "./tailwind.config.js"` (Node): `require` file cấu hình (CJS hoặc ESM) rồi đổi sang CSS v4.
- * Plugin được nhận ra bằng cách so trùng với chính các gói đó cài trong dự án.
+ * Plugin quen thuộc được nhận ra bằng cách so trùng với chính các gói đó cài trong dự án (dùng bản đóng gói sẵn);
+ * plugin khác chạy qua API giả lập (`tailwind-plugin-api`). Truyền `plugins` (bộ nạp dùng chung với `@plugin`)
+ * rồi gọi `plugins.apply(sheet)` để giữ cả utility có tên không viết được bằng CSS (`x-0.5`, `x-1/2`).
  */
-export const createConfigLoader = (baseDir: string) => (id: string): string | null => {
+export const createConfigLoader = (baseDir: string, plugins: TailwindPluginLoader = createTailwindPluginLoader(baseDir)) => (id: string): string | null => {
     const file = resolvePath(baseDir, id)
     try {
         const req = createRequire(joinPath(baseDir, 'noop.js'))
         delete req.cache[file]
-        const config = req(file)
+        // `tailwindcss/plugin`, `tailwindcss/colors`... trong cấu hình/plugin: dùng bản thay nếu dự án không cài tailwindcss.
+        const config = requireWithTailwindShims(baseDir, file) as Record<string, any>
         const knownPlugins: Record<string, unknown> = {}
         for (const name of KNOWN_PLUGINS) {
             try {
-                knownPlugins[name] = req(name)
+                knownPlugins[name] = requireWithTailwindShims(baseDir, name)
             } catch (_error) {
                 // gói không cài: bỏ qua
             }
         }
         const { css } = tailwindConfigToCss(config, { knownPlugins })
-        return css.split('\n').filter((line) => !BUILTIN_IN_V4.has(line.match(/^@plugin "([^"]+)";$/)?.[1] || '')).join('\n')
+        const lines = css.split('\n').filter((line) => !BUILTIN_IN_V4.has(line.match(/^@plugin "([^"]+)";$/)?.[1] || ''))
+        // Plugin không có bản đóng gói: chạy hàm plugin với theme/cấu hình của dự án.
+        const known = Object.values(knownPlugins)
+        const cfg = config?.default ?? config
+        for (const plugin of cfg?.plugins || []) {
+            if (known.some((value) => value === plugin || (value as { default?: unknown })?.default === plugin)) continue
+            lines.push(plugins.run(plugin, cfg, id))
+        }
+        return lines.join('\n')
     } catch (_error) {
         return null
     }
