@@ -37,6 +37,8 @@ if (useFixture) {
 }
 
 const entry = fs.readFileSync(entryPath, 'utf8')
+// Plugin JS và `@config` (cấu hình kiểu v3) của dự án.
+const loadModule = async (id, base) => ({ base, path: id, module: require(id.startsWith('.') ? path.resolve(base, id) : require.resolve(id, { paths: [base, root] })) })
 const loadStylesheet = async (id, base) => {
     if (imports[id]) return { base, path: imports[id], content: fs.readFileSync(imports[id], 'utf8') }
     const file = id === 'tailwindcss' ? 'index.css' : id.replace(/^tailwindcss\//, '')
@@ -50,7 +52,7 @@ const resolve = (id) => (imports[id] ? fs.readFileSync(imports[id], 'utf8') : pl
 const { extractCandidates, extractFromClasses } = await import(path.join(root, 'dist/index.mjs'))
 const tw = await import(path.join(root, 'dist/tailwind.mjs'))
 
-const ds = await __unstable__loadDesignSystem(entry, { base: path.dirname(entryPath), loadStylesheet })
+const ds = await __unstable__loadDesignSystem(entry, { base: path.dirname(entryPath), loadStylesheet, loadModule })
 const sources = []
 const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : /\.(tsx?|jsx?|html|vue|svelte)$/.test(e.name) && sources.push(path.join(dir, e.name))))
 walk(srcDir)
@@ -85,7 +87,7 @@ for (const file of sources) {
 }
 const comboList = [...combos]
 
-const compiler = await compile(entry, { base: path.dirname(entryPath), loadStylesheet })
+const compiler = await compile(entry, { base: path.dirname(entryPath), loadStylesheet, loadModule })
 const twCss = compiler.build(candidates)
 
 const variantsOf = (c) => {
@@ -104,11 +106,12 @@ const variantsOf = (c) => {
 }
 
 const modes = []
-const sheet = tw.parseTailwindStylesheet(entry, { resolve })
+const { createConfigLoader } = await import(path.join(root, 'dist/postcss.mjs'))
+const sheet = tw.parseTailwindStylesheet(entry, { resolve, loadConfig: createConfigLoader(path.dirname(entryPath)) })
 if (sheet.unresolved.length) console.warn('chưa giải được:', sheet.unresolved)
-modes.push({ name: 'không build (parseTailwindStylesheet)', dialect: tw.tailwindV4Dialect({ preflight: true, darkMode: 'class', theme: sheet.theme, css: sheet.css, utilities: sheet.utilities, variants: sheet.variants }) })
+modes.push({ name: 'không build (parseTailwindStylesheet)', dialect: tw.tailwindV4Dialect({ preflight: true, darkMode: arg('dark') === 'media' ? 'media' : 'class', theme: sheet.theme, css: sheet.css, utilities: sheet.utilities, variants: sheet.variants }) })
 // Plugin PostCSS (thay @tailwindcss/postcss): chạy postcss thật trên file CSS của dự án, tự quét mã nguồn.
-if (useFixture) {
+{
     const { default: postcss } = await import('postcss')
     const { default: presenceStylePostcss } = await import(path.join(root, 'dist/postcss.mjs'))
     const processed = await postcss([presenceStylePostcss({ base: srcDir })]).process(entry, { from: entryPath })
@@ -208,6 +211,8 @@ for (const mode of modes) {
 }
 await browser.close()
 lines.push('', ...details)
-fs.writeFileSync(path.join(root, `eval/REAL-PROJECT.md`), lines.join('\n'))
-fs.writeFileSync(path.join(root, `eval/real-project.json`), JSON.stringify({ label, candidates: candidates.length, summary }, null, 2) + '\n')
+// Fixture mặc định: eval/REAL-PROJECT.md; dự án khác: eval/REAL-PROJECT-<nhãn>.md.
+const suffix = useFixture ? '' : '-' + label.replace(/[^\w-]+/g, '-')
+fs.writeFileSync(path.join(root, `eval/REAL-PROJECT${suffix}.md`), lines.join('\n'))
+fs.writeFileSync(path.join(root, `eval/real-project${suffix}.json`), JSON.stringify({ label, candidates: candidates.length, summary }, null, 2) + '\n')
 console.log(lines.filter((l) => l.startsWith('|') || l.startsWith('Tổ hợp')).join('\n'))

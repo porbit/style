@@ -13,7 +13,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { extractCandidates, extractFromClasses, type ExtractOptions } from './extract'
-import { collectFilesSync, createStylesheetReader } from './files'
+import { collectFilesSync, createConfigLoader, createStylesheetReader } from './files'
 import { resolveTailwindPlugin } from './tailwind-plugins'
 import { parseTailwindStylesheet, tailwindV4Dialect } from './tailwind-v4'
 import { buildMergeTable } from './merge'
@@ -35,7 +35,7 @@ export interface PresenceStylePostcssOptions extends Omit<ExtractOptions, 'diale
 
 export const POSTCSS_EXTENSIONS = ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'mts', 'cts', 'vue', 'svelte', 'astro', 'mdx', 'md', 'php', 'erb', 'hbs', 'liquid', 'twig', 'njk']
 const PLUGIN_NAME = '@porbit/style/postcss'
-const TAILWIND_ENTRY = /@import\s+["']tailwindcss(?:\/[\w./-]+)?["']|@tailwind\s+(?:base|components|utilities)\b/
+const TAILWIND_ENTRY = /@import\s+["']tailwindcss(?:\/[\w./-]+)?["']|@tailwind\s+(?:base|components|utilities)\b|@config\s+["']/
 
 /** Mở rộng `{a,b}` và `{100..900..100}` như `@source inline()` của Tailwind. */
 export const expandBraces = (pattern: string): string[] => {
@@ -106,7 +106,14 @@ export const compileTailwindCss = async (css: string, options: PresenceStylePost
         if (content !== null && (id.startsWith('.') || isAbsolute(id))) imports.push(resolve(cssDir, id))
         return content
     }
-    const sheet = parseTailwindStylesheet(css, { resolve: (id) => read(id) ?? resolveTailwindPlugin(id) })
+    const loadConfig = createConfigLoader(cssDir)
+    const sheet = parseTailwindStylesheet(css, {
+        resolve: (id) => read(id) ?? resolveTailwindPlugin(id),
+        loadConfig: (id) => {
+            imports.push(resolve(cssDir, id))
+            return loadConfig(id)
+        },
+    })
 
     // Nguồn quét.
     const sourceOption = css.match(/@import\s+["']tailwindcss["'][^;]*\bsource\(\s*(none|["']([^"']+)["'])\s*\)/)
@@ -181,3 +188,6 @@ const presenceStylePostcss = (options: PresenceStylePostcssOptions = {}) => ({
 presenceStylePostcss.postcss = true
 
 export default presenceStylePostcss
+
+export { createConfigLoader, createStylesheetReader } from './files'
+export { tailwindConfigToCss } from './tailwind-config'

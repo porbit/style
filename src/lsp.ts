@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 import { setTailwindFallback } from './analyze'
 import { resolveConfigFile } from './config-file'
 import type { XCSSConfig } from './core'
-import { createStylesheetReader } from './files'
+import { createConfigLoader, createStylesheetReader } from './files'
 import { createLanguageService, type ServiceDiagnostic } from './language-service'
 import { tailwindFixFallback } from './tailwind'
 
@@ -55,7 +55,7 @@ export const loadWorkspaceConfig = (rootDir: string | null): XCSSConfig => {
     try {
         const raw = JSON.parse(readFileSync(join(rootDir, CONFIG_FILE), 'utf8'))
         delete raw.safelist
-        return resolveConfigFile(raw, { readStylesheet: createStylesheetReader(rootDir) })
+        return resolveConfigFile(raw, { readStylesheet: createStylesheetReader(rootDir), loadConfig: createConfigLoader(rootDir) })
     } catch (_error) {
         return {}
     }

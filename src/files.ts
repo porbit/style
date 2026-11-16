@@ -1,6 +1,8 @@
 /** Liệt kê file nguồn cho CLI và MCP server. */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname as dirnamePath, join, join as joinPath, resolve, resolve as resolvePath } from 'node:path'
+import { tailwindConfigToCss } from './tailwind-config'
 
 export const DEFAULT_EXTENSIONS = ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'vue', 'svelte', 'astro', 'mdx']
 // Thư mục không bao giờ cần quét: artifact build và phụ thuộc.
@@ -87,5 +89,34 @@ export const createStylesheetReader = (baseDir: string) => (id: string): string 
             }
         }
         if (dirnamePath(dir) === dir) return null
+    }
+}
+
+// Plugin v3 hay gặp: gói có bản đóng gói sẵn, hoặc đã có sẵn trong Tailwind v4 (không cần dòng @plugin).
+const KNOWN_PLUGINS = ['@tailwindcss/forms', '@tailwindcss/typography', 'tailwindcss-animate', '@tailwindcss/aspect-ratio', '@tailwindcss/container-queries']
+const BUILTIN_IN_V4 = new Set(['@tailwindcss/aspect-ratio', '@tailwindcss/container-queries'])
+
+/**
+ * Nạp `@config "./tailwind.config.js"` (Node): `require` file cấu hình (CJS hoặc ESM) rồi đổi sang CSS v4.
+ * Plugin được nhận ra bằng cách so trùng với chính các gói đó cài trong dự án.
+ */
+export const createConfigLoader = (baseDir: string) => (id: string): string | null => {
+    const file = resolvePath(baseDir, id)
+    try {
+        const req = createRequire(joinPath(baseDir, 'noop.js'))
+        delete req.cache[file]
+        const config = req(file)
+        const knownPlugins: Record<string, unknown> = {}
+        for (const name of KNOWN_PLUGINS) {
+            try {
+                knownPlugins[name] = req(name)
+            } catch (_error) {
+                // gói không cài: bỏ qua
+            }
+        }
+        const { css } = tailwindConfigToCss(config, { knownPlugins })
+        return css.split('\n').filter((line) => !BUILTIN_IN_V4.has(line.match(/^@plugin "([^"]+)";$/)?.[1] || '')).join('\n')
+    } catch (_error) {
+        return null
     }
 }

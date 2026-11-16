@@ -7,7 +7,7 @@
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, relative, resolve } from 'node:path'
-import { collectFiles, createStylesheetReader, DEFAULT_EXTENSIONS, readTextSync } from './files'
+import { collectFiles, createConfigLoader, createStylesheetReader, DEFAULT_EXTENSIONS, readTextSync } from './files'
 import { createPreloadManifest, extractFromClasses, extractCandidates, type ExtractOptions } from './extract'
 import { startMcpServer } from './mcp'
 import { startLanguageServer } from './lsp'
@@ -149,7 +149,7 @@ const runSourceCommand = async (command: 'sort' | 'check', argv: string[]): Prom
     }
     if (options.config) {
         try {
-            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions, { readStylesheet: createStylesheetReader(dirname(resolve(options.config))) })
+            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions, { readStylesheet: createStylesheetReader(dirname(resolve(options.config))), loadConfig: createConfigLoader(dirname(resolve(options.config))) })
         } catch (error) {
             process.stderr.write(`Không đọc được file cấu hình ${options.config}: ${(error as Error).message}\n`)
             return 1
@@ -308,7 +308,7 @@ export const runCli = async (argv: string[]): Promise<number> => {
     }
     if (options.config) {
         try {
-            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions, { readStylesheet: createStylesheetReader(dirname(resolve(options.config))) })
+            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions, { readStylesheet: createStylesheetReader(dirname(resolve(options.config))), loadConfig: createConfigLoader(dirname(resolve(options.config))) })
         } catch (error) {
             process.stderr.write(`Không đọc được file cấu hình ${options.config}: ${(error as Error).message}\n`)
             return 1

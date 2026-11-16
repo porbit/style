@@ -50,6 +50,18 @@ const keysByNamespace = (ns: string) =>
 // Họ utility đọc biến theme theo giá trị (`var(--color-{v})`): giá trị ngoài bảng mặc định được nhận nếu
 // theme có biến tương ứng (`bg-brand` khi có `--color-brand`).
 const themePrefixCache = new Map<number, string[]>()
+/** Tiền tố biến theme mà mẫu đọc theo giá trị: `var(--color-{v})` -> `--color-`. */
+const templatePrefixes = (templateIndex: number): string[] => {
+    let prefixes = themePrefixCache.get(templateIndex)
+    if (!prefixes) {
+        const text = templates[templateIndex].slice(1).map((i) => declTable[i]).join(';')
+        prefixes = [...text.matchAll(/var\((--[\w-]*?)\{v\}\)/g)].map((m) => m[1])
+        themePrefixCache.set(templateIndex, prefixes)
+    }
+    return prefixes
+}
+/** Namespace theme bị thay hẳn trong dialect đang hoạt động. */
+let RESET_NAMESPACES: string[] = []
 const families = TW_DATA.families as unknown as Record<string, Array<[number, number]>>
 const explicit = TW_DATA.explicit as unknown as Record<string, readonly number[]>
 const arbitraryTemplates = TW_DATA.arbitrary as unknown as Record<string, number | Record<string, number>>
@@ -165,33 +177,38 @@ const resolveBase = (name: string): Rule | null => {
         const entries = families[root]
         if (!entries) continue
         for (const [templateIndex, setIndex] of entries) {
-            const accepted = setIndex === -1
-                ? NUMBER_VALUE.test(value) && Number.isInteger(Number(value) * 4)
-                : valueSet(setIndex).has(value)
-            if (accepted) return unpack(templates[templateIndex], (t) => fill(t, value))
-            // Giá trị đặt tên trong `--spacing-*` (`p-gutter`): Tailwind đọc `var(--spacing-gutter)`.
-            if (theme[`--spacing-${value}`] !== undefined && !NUMBER_VALUE.test(value) && /var\(--spacing\) \* -?\{v\}/.test(templates[templateIndex].slice(1).map((i) => declTable[i]).join(';'))) {
+            // Giá trị trong `--spacing-*` (`p-gutter`, `p-18` từ cấu hình): Tailwind ưu tiên `var(--spacing-x)` trước hệ số.
+            if (theme[`--spacing-${value}`] !== undefined && /var\(--spacing\) \* -?\{v\}/.test(templates[templateIndex].slice(1).map((i) => declTable[i]).join(';'))) {
                 const named = `var(--spacing-${value})`
                 return unpack(templates[templateIndex], (t) => t
                     .replace(/calc\(var\(--spacing\) \* -\{v\}\)/g, `calc(${named} * -1)`)
                     .replace(/calc\(var\(--spacing\) \* \{v\}\)/g, named)
                     .split('{v}').join(value))
             }
+            let accepted = setIndex === -1
+                ? NUMBER_VALUE.test(value) && Number.isInteger(Number(value) * 4)
+                : valueSet(setIndex).has(value)
+            // Namespace bị thay (`--color-*: initial`): giá trị mặc định không còn (`bg-red-500`).
+            if (accepted && RESET_NAMESPACES.length) {
+                const prefixes = templatePrefixes(templateIndex)
+                if (prefixes.some((prefix) => RESET_NAMESPACES.some((ns) => prefix.startsWith(ns)) && theme[prefix + value] === undefined)) accepted = false
+            }
+            if (accepted) return unpack(templates[templateIndex], (t) => fill(t, value))
         }
         if (theme !== defaultTheme) {
             const shadow = themeShadow(name)
             if (shadow) return shadow
             for (const [templateIndex] of entries) {
-                let prefixes = themePrefixCache.get(templateIndex)
-                if (!prefixes) {
-                    const text = templates[templateIndex].slice(1).map((i) => declTable[i]).join(';')
-                    prefixes = [...text.matchAll(/var\((--[\w-]*?)\{v\}\)/g)].map((m) => m[1])
-                    themePrefixCache.set(templateIndex, prefixes)
-                }
+                const prefixes = templatePrefixes(templateIndex)
                 if (prefixes.length && prefixes.every((prefix) => theme[prefix + value] !== undefined)) {
                     const rule = unpack(templates[templateIndex], (t) => fill(t, value))
                     // `text-hero` khi theme không có `--text-hero--line-height`: Tailwind bỏ khai báo đó.
                     rule.decls = rule.decls.filter(([, v]) => [...v.matchAll(/var\((--[\w.-]+--[\w-]+)\)/g)].every((m) => theme[m[1]] !== undefined))
+                    // `fontSize: ['3.5rem', { letterSpacing, fontWeight }]`: Tailwind thêm hai khai báo này.
+                    if (prefixes.includes('--text-')) {
+                        if (theme[`--text-${value}--letter-spacing`] !== undefined) rule.decls.push(['letter-spacing', `var(--tw-tracking, var(--text-${value}--letter-spacing))`])
+                        if (theme[`--text-${value}--font-weight`] !== undefined) rule.decls.push(['font-weight', `var(--tw-font-weight, var(--text-${value}--font-weight))`])
+                    }
                     return rule
                 }
             }
@@ -274,7 +291,12 @@ const PSEUDO_ELEMENTS: Record<string, string> = {
     backdrop: '::backdrop', 'details-content': '::details-content',
 }
 
-const breakpointValue = (key: string) => theme[`--breakpoint-${key}`]
+/**
+ * Breakpoint mặc định khi theme thay hẳn `--breakpoint-*` (`screens` của cấu hình v3): như Tailwind, biến thể
+ * `sm`...`2xl` vẫn chạy với giá trị cũ nhưng không có giá trị theme (khi sắp thứ tự coi như null).
+ */
+let GHOST_BREAKPOINTS: Record<string, string> = {}
+const breakpointValue = (key: string) => theme[`--breakpoint-${key}`] ?? GHOST_BREAKPOINTS[key]
 const MEDIA_FEATURES: Record<string, string> = {
     dark: '(prefers-color-scheme: dark)',
     print: 'print',
@@ -301,7 +323,7 @@ const mediaOf = (variant: string, darkMode: 'media' | 'class'): string | null =>
     const min = variant.replace(/^min-/, '')
     if (RESPONSIVE.includes(min)) return `(width >= ${breakpointValue(min)})`
     const max = variant.match(/^max-(.+)$/)
-    if (max && RESPONSIVE.includes(max[1])) return `(width < ${breakpointValue(max[1])})`
+    if (max && RESPONSIVE.includes(max[1]) && !GHOST_BREAKPOINTS[max[1]]) return `(width < ${breakpointValue(max[1])})`
     if (variant === 'dark' && darkMode === 'class') return null
     return MEDIA_FEATURES[variant] ?? null
 }
@@ -1050,7 +1072,14 @@ const sortVariantsDesc = (variants: OrderVariant[]): OrderVariant[] => {
 
 export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSDialect => {
     const darkMode = options.darkMode ?? 'media'
-    const ownTheme = options.theme && Object.keys(options.theme).length ? { ...defaultTheme, ...options.theme } : defaultTheme
+    // `--color-*: initial` (hoặc `--*: initial`): bỏ cả namespace mặc định như `@theme` của Tailwind.
+    const resetNamespaces = Object.entries(options.theme || {}).filter(([k, v]) => k.endsWith('*') && v.trim() === 'initial').map(([k]) => k.slice(0, -1))
+    const ownTheme = options.theme && Object.keys(options.theme).length
+        ? Object.fromEntries([
+            ...Object.entries(defaultTheme).filter(([k]) => !resetNamespaces.some((ns) => k.startsWith(ns))),
+            ...Object.entries(options.theme).filter(([k]) => !k.endsWith('*')),
+        ])
+        : defaultTheme
     const ownVariants: Record<string, string[][]> = {}
     for (const [name, body] of Object.entries(options.variants || {})) {
         const compiled = compileCustomVariant(body)
@@ -1061,18 +1090,26 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     const ownRoots: Record<string, readonly [string, number]> = { ...TW_ORDER.variants }
     let lastOrder = Math.max(...Object.values(ownRoots).map(([, order]) => order))
     for (const name of Object.keys(ownVariants)) if (!ownRoots[name]) ownRoots[name] = ['s', ++lastOrder]
+    const ghostBreakpoints: Record<string, string> = resetNamespaces.includes('--breakpoint-')
+        ? Object.fromEntries(Object.entries(defaultTheme).filter(([k]) => k.startsWith('--breakpoint-') && ownTheme[k] === undefined).map(([k, v]) => [k.slice(13), v]))
+        : {}
     const activate = () => {
         CUSTOM_VARIANTS = ownVariants
+        RESET_NAMESPACES = resetNamespaces
         if (ORDER_ROOTS !== ownRoots) {
             ORDER_ROOTS = ownRoots
             orderVariantCache.clear()
         }
         if (theme === ownTheme) return
         theme = ownTheme
-        RESPONSIVE = keysByNamespace('--breakpoint-')
+        GHOST_BREAKPOINTS = ghostBreakpoints
+        RESPONSIVE = [...Object.keys(ghostBreakpoints), ...keysByNamespace('--breakpoint-')]
         CONTAINER_SIZES = keysByNamespace('--container-')
     }
     activate()
+    // Breakpoint tự định nghĩa (`--breakpoint-3xl`, `tablet` từ cấu hình v3): cùng nhóm thứ tự với `sm`...`2xl`.
+    for (const key of RESPONSIVE) if (!ownRoots[key]) ownRoots[key] = ['s', TW_ORDER.variants.sm[1]]
+    orderVariantCache.clear()
     const breakpoints = buildBreakpoints(darkMode)
 
     // `@utility name { ... }` / `@utility name-* { --value(...) }`: utility của người dùng (kể cả plugin CSS
@@ -1340,6 +1377,11 @@ export interface TailwindStylesheet {
 export interface ParseTailwindOptions {
     /** Trả nội dung CSS cho `@import "x"` / `@plugin "x"` (ví dụ plugin đóng gói sẵn); null nếu không có. */
     resolve?: (id: string) => string | null
+    /**
+     * Nạp `@config "./tailwind.config.js"` (cấu hình JS kiểu v3): trả CSS v4 tương đương (xem `tailwindConfigToCss`),
+     * null nếu không đọc được. Chỉ có ở Node (`createConfigLoader`).
+     */
+    loadConfig?: (id: string) => string | null
 }
 
 /**
@@ -1367,6 +1409,13 @@ export const parseTailwindStylesheet = (source: string, options: ParseTailwindOp
                     else sheet.unresolved.push(id)
                     continue
                 }
+                const configFile = item.at.match(/^@config\s+["']([^"']+)["']/)
+                if (configFile) {
+                    const converted = options.loadConfig?.(configFile[1])
+                    if (converted !== null && converted !== undefined) read(converted)
+                    else sheet.unresolved.push(configFile[1])
+                    continue
+                }
                 const variant = item.at.match(/^@custom-variant\s+([\w-]+)\s+([\s\S]+)$/)
                 if (variant) sheet.variants[variant[1]] = variant[2].trim()
                 else if (!/^@(source|config|reference|tailwind|import|plugin)\b/.test(item.at)) sheet.css += item.at + ';\n'
@@ -1384,7 +1433,7 @@ export const parseTailwindStylesheet = (source: string, options: ParseTailwindOp
             }
             if (/^@theme\b/.test(item.head)) {
                 for (const kf of item.body.match(KEYFRAMES) || []) sheet.css += kf + '\n'
-                for (const decl of item.body.replace(KEYFRAMES, '').matchAll(/(--[\w.-]+(?:\\.[\w-]+)*)\s*:\s*([^;]+);/g)) {
+                for (const decl of item.body.replace(KEYFRAMES, '').matchAll(/(--[\w.-]*(?:\\.[\w-]+)*\*?)\s*:\s*([^;]+);/g)) {
                     sheet.theme[decl[1].replace(/\\\./g, '.')] = decl[2].trim()
                 }
                 continue
