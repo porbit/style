@@ -90,7 +90,7 @@ So **toàn bộ computed style** của phần tử và phần tử con giữa CS
 | Theme tuỳ chỉnh, `@utility`, `@apply` | 28 / 28 |
 | Thứ tự rule (cascade) như Tailwind: class gốc, một biến thể, hai biến thể, shadcn/ui | 100% mỗi tập (`eval/tailwind-order.mjs`) |
 | Biến thể Tailwind được hỗ trợ | 403 / 403 (100%) |
-| Plugin đóng gói: tw-animate-css · tailwindcss-animate · forms · typography | 486/486 · 445/447 · 7/7 · 35/35 (198/198 biến thể) |
+| Plugin đóng gói: tw-animate-css · tailwindcss-animate · forms · typography | 486/486 · 447/447 · 7/7 · 35/35 (198/198 biến thể) |
 | Plugin JS bất kỳ, chạy không cần cài `tailwindcss` (tailwindcss-motion, tailwindcss-animate, tailwind-scrollbar, tailwindcss-animated, react-aria-components...) | 100% class và biến thể (`eval/tailwind-js-plugins.mjs`) |
 | Dự án thật (11 lượt: mặc định, `data-*`/`aria-*` mở/đóng, `.dark`, `:hover`/`:focus`/`:focus-visible`/`:active` ép, 375–1600 px; cả không build và PostCSS): shadcn/ui v4 · HyperUI · Magic UI · coss ui | 769/769 · 619/619 · 586/586 · 1331/1331 |
 | Chuỗi class thật của component (nhiều class trên một phần tử) | 260/260 · 766/766 · 245/245 · 379/379 |
@@ -145,7 +145,7 @@ Build tĩnh: `node eval/build-bench.mjs --tw=<node_modules có @tailwindcss/cli>
 - **`presets`**: gộp theo thứ tự của Tailwind — preset lồng trước, rồi preset, rồi chính cấu hình. `theme.x` của cấu hình sau thay của cấu hình trước, `theme.extend` cộng dồn (gộp sâu), plugin của preset chạy trước plugin của cấu hình; `darkMode`, `prefix`, `important`, `blocklist` lấy cấu hình cuối có khai báo (nên `blocklist` của cấu hình thay hẳn của preset). Hàm trong `extend` đọc chính khoá đang giải (`extend.colors` gọi `theme('colors.x')`) không thấy giá trị, như Tailwind.
 - **`blocklist`**: Tailwind v4 vẫn đọc — class trùng **đúng cả chuỗi** (kể cả biến thể: chặn `p-4` không chặn `md:p-4`) không sinh CSS; mục RegExp bị bỏ qua. Đổi thành `@source not inline("...")`, có hiệu lực ở cả chế độ không build. (`@apply` một class bị chặn: Tailwind báo lỗi, ở đây bỏ qua class đó.)
 - **`theme.container`** (và `extend.container`): `center` → `margin-inline: auto`, `padding` (chuỗi, hoặc object có `DEFAULT` và khoá breakpoint), `screens` → cộng vào `container` sẵn có của v4 đúng thuật toán compat của Tailwind (`max-width: none` từ breakpoint nhỏ nhất rồi `max-width` theo từng màn hình; `padding` theo breakpoint gắn vào màn hình cùng tên). Breakpoint lấy từ cấu hình (`theme.screens`/`extend.screens`) hoặc mặc định v4; breakpoint chỉ khai báo trong `@theme` của CSS chưa được tính.
-- **Plugin**: `matchVariant` nhận giá trị có tên (`values`, `DEFAULT`), giá trị tuỳ ý `name-[x]:` (`_` là khoảng trắng), modifier `name-[x]/mod:`, ghép sau `group-`/`peer-`/`hover:`...; `sort` quyết định thứ tự trong nhóm như Tailwind: giá trị tuỳ ý (`mq-[900px]`) xếp xen giữa giá trị có tên (`mq-small`, `mq-big`); không `sort` thì theo thứ tự khai báo khoá, giá trị tuỳ ý sau; `matchVariant` trùng tên biến thể sẵn có (`nth`) giữ thứ tự của biến thể đó. Khi tự dựng dialect từ stylesheet có plugin JS, truyền thêm `variantOrder: sheet.variantOrder`. `@apply` trong CSS-in-JS (`'.btn': { '@apply px-4 py-2': {}, '&:hover': { '@apply underline': {} } }`) như `@apply` trong `@utility`. Chưa hỗ trợ: `matchVariant` mà kết quả không là mẫu của giá trị (dùng giá trị để rẽ nhánh: chỉ giá trị có tên).
+- **Plugin**: `matchVariant` nhận giá trị có tên (`values`, `DEFAULT`), giá trị tuỳ ý `name-[x]:` (`_` là khoảng trắng), modifier `name-[x]/mod:`, ghép sau `group-`/`peer-`/`hover:`...; `sort` quyết định thứ tự trong nhóm như Tailwind: giá trị tuỳ ý (`mq-[900px]`) xếp xen giữa giá trị có tên (`mq-small`, `mq-big`); không `sort` thì theo thứ tự khai báo khoá, giá trị tuỳ ý sau; `matchVariant` trùng tên biến thể sẵn có (`nth`) giữ thứ tự của biến thể đó. Khi tự dựng dialect từ stylesheet có plugin JS, truyền thêm `variantOrder: sheet.variantOrder`. `@apply` trong CSS-in-JS (`'.btn': { '@apply px-4 py-2': {}, '&:hover': { '@apply underline': {} } }`) như `@apply` trong `@utility`. Chưa hỗ trợ: `matchVariant` mà kết quả không là mẫu của giá trị (dùng giá trị để rẽ nhánh: chỉ giá trị có tên). Không xác định ngay ở Tailwind: hai biến thể cùng giá trị khác modifier (`state-[open]:p-4` cạnh `state-[open]/menu:p-2`) — hàm `sort` của plugin không đọc modifier nên phép so của Tailwind trả 1 cả hai chiều, rule xếp theo thứ tự Tailwind gặp class trong mã nguồn; cả hai bên đều không hứa thứ tự cố định, nên `eval/tailwind-order.mjs` không đo cặp này. Cần thứ tự chắc chắn thì đừng để hai class như vậy cùng đặt một thuộc tính trên một phần tử.
 - Bỏ qua như Tailwind v4: `corePlugins`, `separator`, `safelist`, `future`, `experimental`.
 
 Plugin cộng đồng đã thử qua `@config` (so computed style với Tailwind 4.3.5 + chính plugin):
@@ -243,11 +243,11 @@ out.css; out.sources['src/App.tsx']; out.map /* tên gốc -> tên ngắn */; ou
 ```
 
 ```js
-// next.config.mjs — Next.js (webpack): chỉ khi `next build`, dev server và Turbopack giữ nguyên tên
+// next.config.mjs — Next.js 15.5+/16 (Turbopack hoặc webpack): chỉ khi `next build`, dev server giữ nguyên tên
 import { withPresenceStyle } from '@porbit/style/next'
 export default withPresenceStyle({ /* cấu hình Next.js */ }, { shortClassNames: true })
 
-// postcss.config.mjs — giữ plugin như mục 2; `shortClassNames: true` (tuỳ chọn) đổi tên ngay lúc sinh CSS
+// postcss.config.mjs — giữ plugin như mục 2; `shortClassNames: true` (nên bật) đổi tên ngay lúc sinh CSS
 export default { plugins: { '@porbit/style/postcss': { shortClassNames: true } } }
 ```
 
@@ -260,12 +260,19 @@ module.exports = { plugins: [new PresenceStyleWebpackPlugin({ shortClassNames: t
 **Next.js, webpack, Rspack — bảng dùng chung.** Plugin PostCSS không sửa được mã nguồn, còn loader JS không thấy CSS, nên plugin `@porbit/style/webpack` dựng bảng ánh xạ MỘT lần trước khi biên dịch (`beforeRun`/`watchRun`): quét toàn bộ mã dưới `include` (mặc định cả dự án, bỏ `node_modules`, thư mục ẩn, `.next`/`dist`/`build`) và biên dịch mọi file CSS kiểu Tailwind ở đó như plugin PostCSS, rồi ghi ra file JSON (Next.js: `.next/cache/presence-style/short-class-names.json`; webpack thuần: `node_modules/.cache/presence-style/`). Mọi nơi đổi tên đọc đúng file đó:
 
 - loader `enforce: 'pre'` (`@porbit/style/webpack-loader`, plugin tự thêm) đổi token trong mã gốc trước SWC/Babel, kèm sourcemap; chạy ở cả compiler server, client, edge của Next.js nên HTML dựng sẵn, RSC payload và JS đều dùng tên mới;
-- plugin PostCSS với `shortClassNames: true` tìm bảng qua biến môi trường do plugin webpack đặt (không có bảng — dev, Turbopack, chưa bật — thì không làm gì); cần khi CSS đi vào JS (`style-loader`) thay vì thành file `.css`;
+- plugin PostCSS với `shortClassNames: true` tìm bảng qua biến môi trường do plugin webpack (hoặc `withPresenceStyle` khi dùng Turbopack) đặt (không có bảng — dev, chưa bật — thì không làm gì); cần khi CSS đi vào JS (`style-loader`) thay vì thành file `.css`;
 - mọi file `.css` của bundle được đổi tên lại ở `processAssets` (không đổi gì nếu PostCSS đã đổi: tên mới không trùng class nào).
 
 Bảng xác định nên nhiều compiler hay worker cho cùng kết quả; file JSON là dependency của mọi module đã đổi nên cache bền của webpack (`.next/cache/webpack`) tự vô hiệu khi bảng đổi. File không qua loader (`public/`, `.md`, `.html`...) chỉ được đọc để giữ tên class xuất hiện ở đó. CSS ngoài bảng (thư viện) có class trùng một tên ngắn đã cấp thì build lỗi (đặt `prefix`). Tuỳ chọn thêm của plugin: `include`, `extensions`, `opaque` (thư mục file tĩnh, mặc định `['public']`), `postcss` (tuỳ chọn plugin PostCSS dùng để biên dịch, nên giống `postcss.config`), `mapFile`, `force`.
 
-**Turbopack chưa được hỗ trợ**: Turbopack không chạy plugin webpack và không có loader tương đương có thể đọc bảng dùng chung trước khi biên dịch, nên bản build Turbopack giữ nguyên tên class (an toàn, chỉ không nhỏ hơn) và `withPresenceStyle` in cảnh báo. Next.js 15: `next build` dùng webpack; Next.js 16+: dùng `next build --webpack`.
+**Turbopack** (`next build` của Next.js 16+, `next build --turbopack` của Next.js 15.5): Turbopack không chạy plugin webpack, nên `withPresenceStyle` làm phần việc của plugin ngay khi Next.js nạp `next.config` ở phase build production (nhận ra qua tham số `phase` của cấu hình dạng hàm, `NEXT_PHASE`, hoặc dòng lệnh `next build`):
+
+- dựng bảng ánh xạ ĐỒNG BỘ (tiến trình Node con chạy cùng mã với plugin webpack, vì biên dịch CSS là bất đồng bộ còn cấu hình dạng object được đọc đồng bộ), ghi `.next/cache/presence-style/short-class-names.json` và đặt biến môi trường cho plugin PostCSS và loader; tiến trình con của Next.js (worker biên dịch của Next 15.5 — nơi dòng lệnh không còn `build` và cấu hình object không nhận `phase` —, worker dựng trang tĩnh) thừa hưởng biến này và dùng lại bảng, không dựng lại;
+- khai báo loader `@porbit/style/webpack-loader` qua `turbopack.rules` cho `*.js`, `*.jsx`, `*.ts`, `*.tsx`, `*.mjs`, `*.cjs`, `*.mts`, `*.cts` (bỏ file của thư viện: `condition: { not: 'foreign' }` ở Next 16, `{ foreign: false, default: ... }` ở Next 15; không đặt `as` vì `as: '*.tsx'` đổi định danh module thành `page.tsx.tsx` và làm hỏng file `"use client"`). Luật sẵn có của dự án cho cùng phần mở rộng được giữ, loader của ta thêm vào cuối mảng (chạy đầu tiên, trên mã gốc); `*.mdx` chỉ được thêm khi dự án đã có luật cho nó (`@next/mdx`). Loader chỉ dùng API con mà Turbopack có (`resourcePath`, `getOptions`, `async`, `addDependency`);
+- Turbopack chạy PostCSS của dự án cho MỌI file CSS, kể cả CSS của thư viện trong `node_modules` (`import 'react-day-picker/style.css'`), nên plugin PostCSS với `shortClassNames: true` đổi tên và kiểm tra trùng tên ngắn ở mọi nơi;
+- `compiler.runAfterProductionCompile` (giữ hàm của dự án, gọi trước) đổi lại mọi file `.css` đã xuất trong `.next` — không đổi gì nếu PostCSS đã đổi; khi PostCSS không bật `shortClassNames` thì đây là nơi CSS được đổi tên và kiểm tra trùng tên ngắn. Bước này cũng là lưới an toàn: loader và PostCSS chạy ở tiến trình khác nên để lại file đánh dấu cạnh bảng (`.loader`, `.postcss`); không thấy dấu của loader (luật bị ghi đè, Next.js không áp `turbopack.rules`) thì build dừng với lỗi thay vì xuất CSS đã đổi tên cho mã còn tên gốc.
+
+`withPresenceStyle` luôn thêm khoá `turbopack` (giữ cấu hình sẵn có, hoặc `{}`): Next.js 16 dừng `next build`/`next dev` dùng Turbopack mặc định khi cấu hình có `webpack` mà không có `turbopack`. Next.js dưới 15.5 với Turbopack (chưa thử; cần `turbopack.rules` có điều kiện và `compiler.runAfterProductionCompile`): in cảnh báo và giữ nguyên tên class.
 
 Tuỳ chọn: `exclude` (tên hoặc RegExp; luôn kèm `dark`, `light` vì thư viện theme gắn lúc chạy), `prefix` (đặt trước mọi tên mới, nên dùng khi trang có runtime lai ở mục 7 hoặc CSS ngoài bundle), `functions` (hàm có đối số là chuỗi class, mặc định `cn clsx cx cva tv tw twMerge twJoin`). `merge` (mặc định `'auto'`, xem dưới).
 
@@ -300,12 +307,20 @@ Giới hạn đã biết:
 - Plugin PostCSS không thể sửa mã nguồn nên tự nó không rút gọn: tuỳ chọn `shortClassNames` của nó chỉ đọc bảng do plugin webpack/`withPresenceStyle` dựng. Với bundler khác dùng plugin Vite, lệnh `shorten` hoặc `shortenClasses`.
 - Hàm gộp class: số đo bảng trên (fixture không gọi tailwind-merge) là khi không cần bảo vệ. Dự án dùng tailwind-merge được bảo vệ tự động nên giảm ít hơn: cùng CSS và mã với `merge: true`, shadcn/ui 752 → 315 class đổi tên, CSS gzip −10,3% (thay vì −17,4%); coss ui 1.203 → 522, −11,0%. Hàm gộp vẫn có thể bỏ một class vì class đứng sau mà CSS không sinh ra (tên sai, không có trong mã quét được): hiếm, nhưng khi đó bản rút gọn giữ class kia.
 
-Đo trên ứng dụng Next.js 15.5 thật (`bash eval/next-short-classnames.sh`, build production gốc và `withPresenceStyle(..., { shortClassNames: true })` + PostCSS `shortClassNames: true`, `next start`, Chromium so computed style của MỌI phần tử trang kèm `::before`/`::after` ở 5 lượt: 1440/768/375 px, ép `:hover`, ép `:focus-visible`):
+Đo trên ứng dụng Next.js thật (`bash eval/next-short-classnames.sh`; `NEXT_VERSION`, `BUNDLERS` chọn phiên bản và bundler), Next.js 16.4.6 và 15.5.29, cả Turbopack lẫn webpack: build production gốc và `withPresenceStyle(..., { shortClassNames: true })` + PostCSS `shortClassNames: true` bằng cùng bundler, `next start`, Chromium so computed style của MỌI phần tử trang kèm `::before`/`::after` ở 5 lượt: 1440/768/375 px, ép `:hover`, ép `:focus-visible`. Kích thước: CSS là mọi `.css` dưới `.next/static`, HTML và RSC payload dựng sẵn ở `.next/server/app`, JS là `.next/static/chunks`:
 
-| Ứng dụng | Phần tử khớp | CSS thô · gzip | HTML dựng sẵn thô · gzip | JS (`static/chunks`) gzip | RSC payload gzip |
-| :--- | ---: | ---: | ---: | ---: | ---: |
-| `eval/fixtures/nextjs-app` (`@apply`, `@utility`, typography) | 55/55 (100%) | −3,0% · −2,0% | −3,7% · −3,4% | ±0 | −4,9% |
-| shadcn/ui: ~30 component, sáng + `.dark`, tailwind-merge (`eval/fixtures/nextjs-shadcn`) | 3.170/3.170 (100%) | 92,1 → 81,5 KB (−11,6%) · 13,9 → 12,7 KB (−8,8%) | 268 → 206 KB (−23,3%) · −7,3% | −0,1% | −0,5% |
-| như trên, `merge: false` (để so sánh, KHÔNG an toàn) | 1.186/3.170 (37%) | −21,1% · −18,2% | −51,2% · −21,4% | −0,3% | −1,3% |
+| Ứng dụng | Next.js · bundler | Phần tử khớp | CSS thô · gzip | HTML dựng sẵn thô · gzip | JS gzip | RSC gzip |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| `eval/fixtures/nextjs-app` (`@apply`, `@utility`, typography) | 16.4 · Turbopack | 55/55 (100%) | −3,0% · −1,8% | −1,9% · −1,8% | ±0 | −2,5% |
+| | 16.4 · webpack | 55/55 (100%) | −3,0% · −2,0% | −2,1% · −2,2% | +0,2% | −2,9% |
+| | 15.5 · Turbopack | 55/55 (100%) | −1,8% · −1,3% | −3,1% · −3,4% | ±0 | −4,3% |
+| | 15.5 · webpack | 55/55 (100%) | −3,0% · −2,0% | −3,7% · −3,2% | ±0 | −4,7% |
+| shadcn/ui: ~30 component, sáng + `.dark`, tailwind-merge (`eval/fixtures/nextjs-shadcn`) | 16.4 · Turbopack | 3.170/3.170 (100%) | 94,0 → 83,4 KB (−11,4%) · 14,4 → 13,2 KB (−8,5%) | 279 → 217 KB (−22,4%) · −6,6% | −0,3% | −0,3% |
+| | 16.4 · webpack | 3.170/3.170 (100%) | 93,8 → 83,1 KB (−11,4%) · 13,9 → 12,7 KB (−8,8%) | 277 → 215 KB (−22,6%) · −6,7% | ±0 | −0,3% |
+| | 15.5 · Turbopack | 3.170/3.170 (100%) | 107,9 → 97,2 KB (−10,0%) · 15,6 → 14,4 KB (−7,7%) | 271 → 208 KB (−23,1%) · −7,3% | −0,2% | −0,3% |
+| | 15.5 · webpack | 3.170/3.170 (100%) | 93,8 → 83,1 KB (−11,4%) · 13,9 → 12,7 KB (−8,8%) | 268 → 206 KB (−23,3%) · −7,4% | −0,1% | −0,4% |
+| như trên, `merge: false` (để so sánh, KHÔNG an toàn) | 16.4 · Turbopack / webpack | 1.186/3.170 (37%) | −20,4% · −17,8% / −20,7% · −18,4% | −49,1% · −18,9% / −49,5% · −19,2% | −0,8% / −0,3% | −0,3% / −0,4% |
+
+Bảng dựng lúc nạp cấu hình làm `next build` Turbopack chậm thêm ~0,45 s (ứng dụng shadcn: "Running next.config.mjs" 15 ms → 456 ms); bước hậu kỳ 12 ms. CSS của Turbopack Next 15.5 lớn hơn của webpack vì cách gộp/thu gọn của chính Turbopack, không phải do rút gọn tên. Bản gốc của ứng dụng shadcn trước đây không build được bằng Turbopack: CSS sinh ra có selector sai (`::after[data-state=active]`, `[data-spacing=0]`) mà webpack để lọt còn Lightning CSS của Turbopack từ chối — đã sửa ở engine (xem Lịch sử thay đổi).
 
 Dòng cuối là lý do có `merge`: tên ngắn làm tailwind-merge không còn bỏ `px-4` khi gặp `px-2`, nút ghi đè `className` hiển thị sai và kéo lệch bố cục cả trang. JS gần như không đổi vì chuỗi class nằm trong chunk component, phần lớn là class giữ tên để bảo vệ tailwind-merge; phần giảm chủ yếu ở CSS và HTML dựng sẵn. Plugin cũng đã chạy thử với Rspack 1.x (`builtin:swc-loader`, `CssExtractRspackPlugin`, `postcss-loader`).

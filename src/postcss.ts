@@ -65,8 +65,8 @@ export interface PresenceStylePostcssOptions extends Omit<ExtractOptions, 'diale
     scanCache?: boolean | string
     /**
      * Đổi tên class theo bảng rút gọn của lần build hiện tại (do plugin bundler `@porbit/style/webpack` hoặc
-     * `withPresenceStyle` của `@porbit/style/next` dựng và trỏ tới qua biến môi trường). Không có bảng (dev,
-     * Turbopack, bundler không bật rút gọn) thì không làm gì: CSS và mã luôn cùng tên.
+     * `withPresenceStyle` của `@porbit/style/next` — webpack lẫn Turbopack — dựng và trỏ tới qua biến môi trường).
+     * Không có bảng (dev, bundler không bật rút gọn) thì không làm gì: CSS và mã luôn cùng tên.
      */
     shortClassNames?: boolean
 }
@@ -267,7 +267,7 @@ const presenceStylePostcss = (options: PresenceStylePostcssOptions = {}) => ({
                 throw new Error(`[presence-style] shortClassNames: ${from ?? 'CSS'} có class trùng tên ngắn (${collisions.slice(0, 5).join(', ')}). Đặt shortClassNames.prefix (ví dụ 'x').`)
             }
             const next = short.rewriter.rewriteCss(css)
-            markPostcssShortened()
+            markPostcssShortened(short.mapFile)
             result.messages.push({ type: 'dependency', plugin: PLUGIN_NAME, file: short.mapFile, parent: from })
             if (next === css && !entry) return
             css = next
