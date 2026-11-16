@@ -26,7 +26,7 @@ const BUDGET = {
     'dist/index-auto.mjs': 24 * 1024, // bản CDN (+chèn rule có thứ tự)
     'dist/index.mjs': 37 * 1024, // 4 file tải song song (chunk dùng chung với tailwind/merge): 34,7 -> 36,6 KB
     'dist/components.mjs': 8 * 1024,
-    'dist/tailwind-auto.mjs': 53 * 1024, // thay @tailwindcss/browser (75 KB); dữ liệu nén giải mã lúc nạp
+    'dist/tailwind-auto.mjs': 42 * 1024, // thay @tailwindcss/browser (75 KB); dữ liệu nén giải mã lúc nạp; không từ điển x-css/cache: 52,1 -> 40,9 KB
 }
 // Gói npm (`npm pack`): giải nén 6,8 MB -> 1,47 MB khi tách nhóm build (tsup.config.ts) và bỏ file
 // tài liệu không đọc lúc chạy. Mục tiêu ≤ 1,5 MB.

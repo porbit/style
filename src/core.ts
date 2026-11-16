@@ -7,6 +7,16 @@ import {
     SPECIFIC_VALUES as BUILTIN_SPECIFIC_VALUES,
 } from './dictionary'
 
+// Cờ build (tsup.config.ts `define`): bản CDN Tailwind (`tailwind-auto.mjs`) đặt cả hai là false để bundler
+// loại bỏ phần không dùng. Mọi entry khác đặt true; không định nghĩa (chạy thẳng mã nguồn: vitest...) cũng là true.
+//   __XCSS_CACHE__: cache localStorage (nén LZW/deflate), đồng bộ khoá giữa tab, nạp CSS từ cache lúc khởi tạo.
+//   __XCSS_DICTIONARY__: từ điển x-css dựng sẵn, nạp từ điển ngoài (URL/Node), danh sách property chuẩn.
+// Khi tắt từ điển, engine chạy như `dictionaryImport: false` dù cấu hình đặt gì.
+declare const __XCSS_CACHE__: boolean | undefined
+declare const __XCSS_DICTIONARY__: boolean | undefined
+const CACHE_BUILD = typeof __XCSS_CACHE__ === 'undefined' || __XCSS_CACHE__
+const DICTIONARY_BUILD = typeof __XCSS_DICTIONARY__ === 'undefined' || __XCSS_DICTIONARY__
+
 
 export type XCSSConfig = {
     base?: string
@@ -1172,9 +1182,9 @@ export const xcss = (
     const shouldHashOutputClassName = hashClassName !== false
 
     const cacheConfig = resolveCacheConfig(cacheOptions)
-    const cacheKey = createCacheKey(cacheConfig)
-    const keySyncKey = createKeySyncKey(cacheConfig)
-    const keySyncChannelName = createKeySyncChannelName(cacheConfig)
+    const cacheKey = CACHE_BUILD ? createCacheKey(cacheConfig) : ''
+    const keySyncKey = CACHE_BUILD ? createKeySyncKey(cacheConfig) : ''
+    const keySyncChannelName = CACHE_BUILD ? createKeySyncChannelName(cacheConfig) : ''
 
     const mergedExcludes = excludeNames
 
@@ -1223,10 +1233,10 @@ export const xcss = (
     const mediaKeySet = new Set<string>([...defaultMediaKeys, ...customMediaKeys])
     // `[@supports_(display:grid)]`: at-rule nội tuyến (không cần đăng ký), `_` là khoảng trắng.
     const isValidMediaKey = (mq?: string): boolean => !mq || mediaKeySet.has(mq) || isInlineAtRuleKey(mq)
-    const shouldEnforceKnownProperties = dictionaryImport !== false
+    const shouldEnforceKnownProperties = DICTIONARY_BUILD && dictionaryImport !== false
     const compositePropertyKeys = new Set(['mx', 'my', 'px', 'py', 'bdx', 'bdy'])
     let knownFullPropertyNames = new Set<string>()
-    const standardPropertyNames = new Set<string>(STANDARD_CSS_PROPERTIES)
+    const standardPropertyNames = new Set<string>(DICTIONARY_BUILD ? STANDARD_CSS_PROPERTIES : [])
     const isKnownPropertyKey = (prop: string): boolean => {
         if (!prop) return false
         if (!shouldEnforceKnownProperties) return true
@@ -1326,7 +1336,7 @@ export const xcss = (
     let dictionaryReady = true
     let dictionaryReadyPromise: Promise<void> = Promise.resolve()
 
-    if (dictionaryImport === false) {
+    if (!DICTIONARY_BUILD || dictionaryImport === false) {
         applyDictionary(null)
     } else if (typeof dictionaryImport === 'string') {
         dictionaryReady = false
@@ -1355,7 +1365,7 @@ export const xcss = (
         const browserWindow = isBrowser ? window : null
         // Chỉ thăm dò (ghi/xoá thử) localStorage khi người dùng bật cache: tránh một lần
         // ghi đồng bộ vào ổ đĩa cho mỗi engine khởi tạo ở cấu hình mặc định.
-        const cacheEnabled = !!cacheConfig.loadOnInit && isBrowser && canUseCacheRuntime()
+        const cacheEnabled = CACHE_BUILD && !!cacheConfig.loadOnInit && isBrowser && canUseCacheRuntime()
         const browserStorage = cacheEnabled ? getLocalStorageSafe() : null
         const cacheStorage = cacheEnabled ? browserStorage : null
         let docRoot: Document | ShadowRoot | null = null
@@ -1416,12 +1426,12 @@ export const xcss = (
 
         const resolveSourceClassName = (value: string): string =>
             shouldHashOutputClassName ? CSS_KEY_SOURCES.get(value) || value : value
-        const keyRegistryKey = createKeyRegistryKey(cacheConfig)
+        const keyRegistryKey = CACHE_BUILD ? createKeyRegistryKey(cacheConfig) : ''
         let sizeLast = cacheConfig.sizeLast;
 
         // Flag: lần render đầu tiên xử lý CSS đồng bộ để giảm CLS
         let isFirstRenderBatch = true;
-        const syncSourceId = `xcss_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
+        const syncSourceId = CACHE_BUILD ? `xcss_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}` : ''
         const pendingKeySyncEntries: [string, string][] = []
         let pendingKeySyncScheduled = false
         let keySyncBroadcastChannel: BroadcastChannel | null = null
@@ -2896,7 +2906,7 @@ export const xcss = (
 
     // API công khai để xuất cache cho build thủ công
     const exportCache = () => {
-        const storage = cacheConfig.loadOnInit ? getLocalStorageSafe() : null
+        const storage = CACHE_BUILD && cacheConfig.loadOnInit ? getLocalStorageSafe() : null
         if (!storage) return lastKnownCacheData
         let raw: string | null = null
         try {

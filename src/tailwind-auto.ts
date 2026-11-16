@@ -5,6 +5,12 @@
  *
  * Tuỳ chọn qua thuộc tính của thẻ script: `data-preflight="false"`, `data-dark="class"`,
  * `data-hybrid` (trang đã có CSS tĩnh: chỉ sinh CSS cho class mới xuất hiện lúc chạy).
+ *
+ * Chỉ dành cho class Tailwind. Để gọn (52,1 -> 40,9 KB gzip), bản build ESM này tắt hai phần của lõi
+ * (cờ `__XCSS_DICTIONARY__`/`__XCSS_CACHE__` trong tsup.config.ts, xem đầu src/core.ts):
+ *   - Từ điển x-css: class viết tắt x-css (`dF`, `p16`, `cRed`...) KHÔNG sinh CSS trên trang này; engine chạy
+ *     như `dictionaryImport: false` (CSS của class Tailwind không đổi). Cần x-css thì dùng `index-auto.mjs`.
+ *   - Cache localStorage, đồng bộ khoá giữa tab, nạp CSS từ cache lúc khởi tạo (`cache.loadOnInit` không có tác dụng).
  */
 import presenceStyle from './core'
 import { parseTailwindStylesheet, tailwindV4Dialect } from './tailwind-v4'
@@ -67,12 +73,17 @@ const start = async () => {
     const theme: Record<string, string> = {}
     const utilities: Record<string, string> = {}
     const variants: Record<string, string> = {}
+    // `@import "tailwindcss" prefix(tw) important`: lấy giá trị cuối cùng có khai báo trong các thẻ <style>.
+    let prefix: string | undefined
+    let important: boolean | string | undefined
     let css = ''
     for (const text of sources) {
         const parsed = parseTailwindStylesheet(text, { resolve: plugins?.resolveTailwindPlugin })
         Object.assign(theme, parsed.theme)
         Object.assign(utilities, parsed.utilities)
         Object.assign(variants, parsed.variants)
+        if (parsed.prefix !== undefined) prefix = parsed.prefix
+        if (parsed.important !== undefined) important = parsed.important
         css += parsed.css + '\n'
         parsed.unresolved.forEach((id) => console.warn(`[presence-style] Không tìm thấy "${id}" (plugin chưa đóng gói sẵn).`))
     }
@@ -80,6 +91,8 @@ const start = async () => {
     const existing = hybrid ? readStaticCss() : null
     presenceStyle.cssObserve(document, {
         hashClassName: false,
+        // Bản build này không có từ điển x-css (xem đầu file).
+        dictionaryImport: false,
         preload: existing ? { classes: existing.classes } : undefined,
         dialects: [tailwindV4Dialect({
             // Lai: CSS tĩnh đã có preflight và CSS nền của dự án.
@@ -88,6 +101,8 @@ const start = async () => {
             theme: existing ? { ...existing.theme, ...theme } : theme,
             utilities,
             variants,
+            prefix,
+            important,
             css: hybrid ? '' : css.trim(),
         })],
     })
