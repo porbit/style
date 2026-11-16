@@ -23,6 +23,8 @@
     "mcp",
     "model-context-protocol",
     "vite-plugin",
+    "webpack-plugin",
+    "nextjs",
     "tailwindcss",
     "tailwind-runtime"
   ],
@@ -93,6 +95,19 @@
       "import": "./dist/shorten.mjs",
       "require": "./dist/shorten.js",
       "default": "./dist/shorten.mjs"
+    },
+    "./webpack": {
+      "types": "./dist/webpack.d.ts",
+      "import": "./dist/webpack.mjs",
+      "require": "./dist/webpack.js",
+      "default": "./dist/webpack.mjs"
+    },
+    "./webpack-loader": "./dist/webpack-loader.cjs",
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "import": "./dist/next.mjs",
+      "require": "./dist/next.js",
+      "default": "./dist/next.mjs"
     },
     "./analyze": {
       "types": "./dist/analyze.d.ts",
