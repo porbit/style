@@ -7,8 +7,9 @@
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, relative, resolve } from 'node:path'
-import { collectFiles, createConfigLoader, createStylesheetReader, DEFAULT_EXTENSIONS, readTextSync } from './files'
-import { createPreloadManifest, extractFromClasses, extractCandidates, type ExtractOptions } from './extract'
+import { collectFiles, createConfigLoader, createStylesheetReader, DEFAULT_EXTENSIONS } from './files'
+import { createPreloadManifest, extractFromClasses, type ExtractOptions } from './extract'
+import { scanFiles } from './scan'
 import { startMcpServer } from './mcp'
 import { startLanguageServer } from './lsp'
 import { runInit } from './init'
@@ -325,10 +326,9 @@ export const runCli = async (argv: string[]): Promise<number> => {
         return 1
     }
 
+    // Đọc + quét (nhiều file thì thêm luồng phụ), thứ tự ứng viên như quét tuần tự từng file.
     const candidates = new Set<string>()
-    for (const file of files) {
-        for (const candidate of extractCandidates(readTextSync(file))) candidates.add(candidate)
-    }
+    await scanFiles(files, new Map(), candidates)
 
     // Bảng gộp class cho `createMerge({ table })` (@porbit/style/merge/lite).
     if (command === 'merge-table') {
