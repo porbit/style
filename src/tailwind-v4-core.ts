@@ -845,6 +845,12 @@ const negateAtRule = (rule: string): string | null => {
  * Ghép như Tailwind: `group-`/`peer-` thay `&` bằng `:where(.group)`, `has-`/`in-`/`not-` thay `&` bằng `*`;
  * `not-` của biến thể có at-rule thành hai phương án (selector phủ định HOẶC at-rule phủ định).
  */
+/**
+ * `spacing=0` -> `spacing="0"` như Tailwind: giá trị không ngoặc phải là identifier (`[data-spacing=0]`,
+ * `[data-x=1/2]` là selector sai: trình duyệt bỏ cả rule, Lightning CSS của Turbopack báo lỗi). Giữ cờ `i`/`s`.
+ */
+const quoteAttributeValue = (inner: string): string => inner.replace(/^([^=]+=)([^"'\s].*?)(\s+[is])?$/i, '$1"$2"$3')
+
 const stateAlternatives = (state: string): StateAlt[] | null => {
     const custom = customVariant(state)
     if (custom) {
@@ -881,7 +887,7 @@ const stateAlternatives = (state: string): StateAlt[] | null => {
     const nth = state.match(/^nth(-last)?(-of-type)?-(?:\[(.+)\]|(\d+))$/)
     if (nth) return [{ at: [], sel: `&:nth${nth[1] || ''}${nth[2] ? '-of-type' : '-child'}(${nth[3] ? arbitraryInner(nth[3]) : nth[4]})` }]
     const attr = state.match(/^(aria|data)-(?:\[(.+)\]|([a-z-]+))$/)
-    if (attr) return [{ at: [], sel: `&[${attr[1]}-${attr[2] ? arbitraryInner(attr[2]) : attr[1] === 'aria' ? `${attr[3]}="true"` : attr[3]}]` }]
+    if (attr) return [{ at: [], sel: `&[${attr[1]}-${attr[2] ? quoteAttributeValue(arbitraryInner(attr[2])) : attr[1] === 'aria' ? `${attr[3]}="true"` : attr[3]}]` }]
     if (state === 'ltr' || state === 'rtl') return [{ at: [], sel: `&:where(:dir(${state}), [dir="${state}"], [dir="${state}"] *)` }]
     // Quan hệ: `group-peer-hover` = .group đứng sau .peer đang hover; `in-hover` = nằm trong phần tử hover.
     const relation = state.match(/^(group|peer|in|has)-(.+?)(?:\/([\w-]+))?$/)
@@ -952,7 +958,6 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
     // thứ tự áp (trong ra ngoài): lồng thành chuỗi `[@a{@b]` như Tailwind lồng (`@[300px]:@max-[500px]:`, `md:@md:`).
     const atRules: string[] = []
     const inline = (encoded: string) => atRules.push(arbitraryInner(encoded.slice(1, -1)))
-    let pseudoElement = ''
     const atContainer = (v: string) => {
         const m = v.match(/^@(min-|max-)?([\w]+)$/)
         return m && CONTAINER_SIZES.includes(m[2]) ? `c-${m[1] === 'max-' ? 'max-' : ''}${m[2]}` : null
@@ -982,8 +987,12 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
             sel = sel.replace('&', '&:hover')
             continue
         }
+        // Pseudo-element đặt ngay tại vị trí của nó như Tailwind: biến thể bên trái (trạng thái của phần tử) đứng trước
+        // (`data-[state=active]:after:` -> `&[data-state=active]::after`, `hover:after:` -> `&:hover::after`), bên phải
+        // đứng sau (`after:hover:` -> `&::after:hover`). Trước đây luôn gắn cuối cùng ngay sau `&`, ra selector sai
+        // (`&::after[data-state=active]`) mà trình duyệt bỏ và Lightning CSS (Turbopack) báo lỗi.
         if (PSEUDO_ELEMENTS[variant]) {
-            pseudoElement = PSEUDO_ELEMENTS[variant] + pseudoElement
+            sel = sel.replace('&', '&' + PSEUDO_ELEMENTS[variant])
             continue
         }
         if (variant === '*') {
@@ -1041,7 +1050,6 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
         const own = alts[0].sel
         sel = sel.replace('&', () => own)
     }
-    if (pseudoElement) sel = sel.replace('&', '&' + pseudoElement)
 
     // Mọi điều kiện thành at-rule nội tuyến trong sheet mặc định: thứ tự rule theo `compare` (như Tailwind),
     // không phụ thuộc thứ tự các sheet media. Nhiều điều kiện media gộp bằng `and` (`md:dark:hover:`) ở ngoài cùng,

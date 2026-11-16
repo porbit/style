@@ -40,6 +40,21 @@ describe('phương ngữ Tailwind v4 (sinh từ chính Tailwind)', () => {
         expect(css('space-x-4')).toContain(':where(.space-x-4 > :not(:last-child))')
     })
 
+    it('pseudo-element đứng đúng vị trí trong chuỗi biến thể (như Tailwind; selector hợp lệ cho Lightning CSS)', () => {
+        expect(css('data-[state=active]:after:opacity-50')).toContain('.data-\\[state\\=active\\]\\:after\\:opacity-50[data-state="active"]::after{')
+        expect(css('hover:after:opacity-20')).toContain(':hover::after{')
+        expect(css('after:hover:opacity-30')).toContain('::after:hover{')
+        expect(css('group-data-[variant=line]/tabs-list:data-[state=active]:after:opacity-100')).toContain(':is(:where(.group\\/tabs-list)[data-variant="line"] *)[data-state="active"]::after{')
+        expect(css('focus:placeholder:text-red-500')).toContain(':focus::placeholder{')
+        // Giá trị thuộc tính luôn trong ngoặc kép như Tailwind (`[data-spacing=0]` là selector sai).
+        expect(css('data-[spacing=0]:p-4')).toContain('[data-spacing="0"]{')
+        expect(css('aria-[sort=ascending]:p-4')).toContain('[aria-sort="ascending"]{')
+        expect(css('data-[x="a"]:p-4')).toContain('[data-x="a"]{')
+        expect(css('data-[state=open_i]:p-4')).toContain('[data-state="open" i]{')
+        expect(css('data-[active]:p-4')).toContain('[data-active]{')
+        expect(css('data-[label=a_b]:p-4')).toMatch(/\[data-label="a(\\20 | )b"\]\{/)
+    })
+
     it('độ mờ màu, line-height modifier, !important, giá trị tuỳ ý', () => {
         expect(css('bg-red-500/50')).toContain('color-mix(in oklab, var(--color-red-500')
         expect(css('text-sm/6')).toContain('line-height:calc(var(--spacing, 0.25rem) * 6)')

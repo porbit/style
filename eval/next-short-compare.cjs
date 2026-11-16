@@ -8,7 +8,8 @@
  * Mỗi lượt (375/768/1440 px; ép :hover, :focus-visible lên mọi phần tử bằng CDP): mọi phần tử của trang, mọi thuộc
  * tính (trừ biến CSS không phải `--tw-*`), kèm ::before/::after. Transition chạy hết, animation dừng ở 0. Cũng kiểm
  * tra số phần tử bằng nhau và bản B thật sự dùng tên class khác (đã rút gọn).
- * Kích thước (khi có --dir-a/--dir-b): CSS (`static/css`), JS (`static/chunks`), HTML + RSC payload dựng sẵn (`server/app`).
+ * Kích thước (khi có --dir-a/--dir-b): CSS (mọi `.css` dưới `static`: webpack ghi ở `static/css`, Turbopack ở
+ * `static/chunks`), JS (`static/chunks`), HTML + RSC payload dựng sẵn (`server/app`).
  */
 const fs = require('fs')
 const path = require('path')
@@ -95,7 +96,7 @@ const sizes = (dir) => {
         return acc
     }, { files: files.length, raw: 0, gzip: 0 })
     return {
-        css: measure(walk(path.join(dir, 'static/css'), (f) => f.endsWith('.css'))),
+        css: measure(walk(path.join(dir, 'static'), (f) => f.endsWith('.css'))),
         js: measure(walk(path.join(dir, 'static/chunks'), (f) => f.endsWith('.js'))),
         html: measure(walk(path.join(dir, 'server/app'), (f) => f.endsWith('.html'))),
         rsc: measure(walk(path.join(dir, 'server/app'), (f) => f.endsWith('.rsc'))),

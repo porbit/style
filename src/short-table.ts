@@ -2,7 +2,7 @@
  * Bảng rút gọn tên class dùng chung giữa plugin bundler (webpack/Rspack), loader và plugin PostCSS: đọc/ghi file JSON,
  * cache theo mtime, kiểm tra trùng tên ngắn. Chỉ chạy trên Node.
  */
-import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { collectCssClasses, shortClassNamesFromMap, type ShortClassRewriter, type ShortClassSkipReason } from './shorten'
 
@@ -27,11 +27,13 @@ export interface Shared {
     loaded: Map<string, { mtime: number; size: number; table: ShortClassTable; rewriter: ShortClassRewriter; files: Set<string> }>
     /** Plugin PostCSS đã đổi tên CSS trong tiến trình này (kiểm tra trùng tên đã làm ở đó). */
     postcss: boolean
+    /** File đánh dấu (`.postcss`, `.loader`) đã ghi trong tiến trình này. */
+    markers: Set<string>
 }
 export const shared = (): Shared => {
     const key = Symbol.for('@porbit/style/short-class-names')
     const g = globalThis as unknown as Record<symbol, Shared | undefined>
-    return (g[key] ??= { tables: new Map(), loaded: new Map(), postcss: false })
+    return (g[key] ??= { tables: new Map(), loaded: new Map(), postcss: false, markers: new Set() })
 }
 
 /** Ghi bảng (chỉ khi nội dung đổi: giữ nguyên mtime để cache bền của webpack không bị vô hiệu vô ích). */
@@ -78,8 +80,34 @@ export const findShortNameCollisions = (css: string, table: Pick<ShortClassTable
     return [...collectCssClasses(css).classes.keys()].filter((name) => values.has(name) && !Object.hasOwn(table.map, name))
 }
 
-/** Đánh dấu plugin PostCSS đã đổi tên CSS trong tiến trình này (dùng nội bộ). */
-export const markPostcssShortened = (): void => {
-    shared().postcss = true
+/**
+ * File đánh dấu cạnh bảng: plugin PostCSS đã đổi tên CSS theo bảng này. Turbopack chạy PostCSS ở tiến trình khác nên
+ * bước hậu kỳ của `withPresenceStyle` đọc file này thay cho cờ trong bộ nhớ.
+ */
+export const postcssMarkerFile = (mapFile: string): string => `${mapFile}.postcss`
+
+/** File đánh dấu cạnh bảng: loader đã đổi tên mã của ít nhất một file theo bảng này (bước hậu kỳ Turbopack kiểm tra). */
+export const loaderMarkerFile = (mapFile: string): string => `${mapFile}.loader`
+
+/** Ghi file đánh dấu (một lần mỗi tiến trình; lỗi ghi bỏ qua: bước hậu kỳ sẽ báo). */
+const touchMarker = (marker: string): void => {
+    // `??=`: đối tượng dùng chung có thể do bản cũ của gói tạo (cùng tiến trình).
+    const markers = (shared().markers ??= new Set())
+    if (markers.has(marker)) return
+    markers.add(marker)
+    try {
+        if (!existsSync(marker)) writeFileSync(marker, '')
+    } catch (_error) {
+        /* thư mục chỉ đọc */
+    }
 }
+
+/** Đánh dấu plugin PostCSS đã đổi tên CSS trong tiến trình này (dùng nội bộ); có `mapFile` thì ghi cả file đánh dấu. */
+export const markPostcssShortened = (mapFile?: string): void => {
+    shared().postcss = true
+    if (mapFile) touchMarker(postcssMarkerFile(mapFile))
+}
+
+/** Đánh dấu loader đã chạy trên file của bảng (dùng nội bộ). */
+export const markLoaderRan = (mapFile: string): void => touchMarker(loaderMarkerFile(mapFile))
 

@@ -26,7 +26,7 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { collectFilesSync } from './files'
 import { compileTailwindCss, POSTCSS_EXTENSIONS, type PresenceStylePostcssOptions } from './postcss'
 import { createShortClassNames, DEFAULT_CLASS_FUNCTIONS, type ShortClassNamesOptions } from './shorten'
-import { findShortNameCollisions, loadShortClassTable, shared, SHORT_CLASS_MAP_ENV, writeShortClassTable, type ShortClassTable } from './short-table'
+import { findShortNameCollisions, loadShortClassTable, markLoaderRan, shared, SHORT_CLASS_MAP_ENV, writeShortClassTable, type ShortClassTable } from './short-table'
 
 export { findShortNameCollisions, loadShortClassTable, SHORT_CLASS_MAP_ENV, writeShortClassTable, type ShortClassTable } from './short-table'
 
@@ -158,25 +158,29 @@ const buildTable = async (input: TableInput, { sourceFiles, cssFiles }: ReturnTy
 // Loader
 // ---------------------------------------------------------------------------
 
-interface MinimalLoaderContext {
+/**
+ * Phần API loader mà loader dùng: có ở webpack, Rspack và Turbopack (`turbopack.rules`, API con của webpack).
+ * `addDependency`/`emitWarning` không bắt buộc (bộ chạy loader tối giản).
+ */
+export interface MinimalLoaderContext {
     resourcePath: string
-    getOptions?(): { mapFile?: string }
+    getOptions?(): { mapFile?: string } | undefined
     query?: unknown
-    addDependency(file: string): void
-    emitWarning(error: Error): void
+    addDependency?(file: string): void
+    emitWarning?(error: Error): void
     async(): (error: Error | null, code?: string, map?: unknown) => void
 }
 
 /**
- * Loader webpack/Rspack (`@porbit/style/webpack-loader`, do plugin tự thêm): đổi tên token trong chuỗi class của file
- * đã phân tích; file khác (ngoài `include`, thư viện) chỉ được kiểm tra để cảnh báo.
+ * Loader webpack/Rspack/Turbopack (`@porbit/style/webpack-loader`, do plugin hoặc `withPresenceStyle` tự thêm): đổi
+ * tên token trong chuỗi class của file đã phân tích; file khác (ngoài `include`, thư viện) chỉ được kiểm tra để cảnh báo.
  */
 export function shortClassNamesLoader(this: MinimalLoaderContext, code: string, inputMap?: unknown): void {
     const callback = this.async()
     const options = (this.getOptions ? this.getOptions() : (this.query as { mapFile?: string } | undefined)) ?? {}
     const mapFile = options.mapFile
     if (!mapFile) return callback(null, code, inputMap)
-    this.addDependency(mapFile)
+    this.addDependency?.(mapFile)
     let loaded
     try {
         loaded = loadShortClassTable(mapFile)
@@ -186,6 +190,7 @@ export function shortClassNamesLoader(this: MinimalLoaderContext, code: string, 
     if (!loaded || !Object.keys(loaded.table.map).length) return callback(null, code, inputMap)
     const file = this.resourcePath
     if (loaded.files.has(file)) {
+        markLoaderRan(mapFile)
         const next = loaded.rewriter.rewriteSourceWithMap(code, file)
         return next.map ? callback(null, next.code, next.map) : callback(null, code, inputMap)
     }
@@ -197,7 +202,7 @@ export function shortClassNamesLoader(this: MinimalLoaderContext, code: string, 
         if (hits.length >= 2) hits.forEach((token) => used.add(token))
         if (used.size >= 5) break
     }
-    if (used.size) {
+    if (used.size && this.emitWarning) {
         const where = toPosix(relative(loaded.table.root, file)) || file
         this.emitWarning(new Error(`[presence-style] shortClassNames: ${where} (ngoài include) có vẻ dùng class đã đổi tên: ${[...used].slice(0, 5).join(', ')}. Thêm file vào include hoặc vào shortClassNames.exclude.`))
     }
