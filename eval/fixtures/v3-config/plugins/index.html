@@ -1,0 +1,14 @@
+<!-- matchVariant: giá trị có tên, giá trị tuỳ ý (`_` là khoảng trắng), modifier, at-rule + sort. -->
+<ul class="nth-odd:bg-brand nth-even:p-2 nth-3:text-white nth-[2n_+_1]:font-bold nth-[3]:underline"><li>1</li><li>2</li><li>3</li></ul>
+<div class="state-on:p-4 state-[open]:bg-brand state-[closed]:text-white state-[open]/menu:font-bold group-nth-[2]:p-1">a</div>
+<!-- Giá trị tuỳ ý xếp sau mọi giá trị có tên (khi có `sort`, Tailwind xếp xen theo `sort`: chưa hỗ trợ nên không đặt
+     giá trị tuỳ ý cùng thuộc tính với giá trị có tên trên một phần tử). -->
+<div class="mq-small:p-4 mq-big:p-8 mq-[700px]:text-white mq-small:text-sm">b</div>
+<div class="mq-[900px]:p-6 mq-[700px]:font-bold">b2</div>
+<div class="hover:state-[open]:bg-brand-900 md:nth-odd:p-3 dark:mq-[700px]:bg-brand">c</div>
+<!-- @apply trong CSS-in-JS. -->
+<h6>h</h6>
+<button class="btn btn-brand hover:btn md:btn-brand">btn</button>
+<div class="card stack md:stack">card</div>
+<!-- matchUtilities với values từ config.theme của plugin. -->
+<div class="glow glow-soft glow-[red] hover:glow">g</div>

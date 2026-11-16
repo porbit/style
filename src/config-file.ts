@@ -39,7 +39,7 @@ export const resolveConfigFile = <T extends Record<string, any>>(input: T, optio
                     return tailwindV4Dialect({
                         darkMode,
                         preflight: config.preflight === true,
-                        ...(sheet ? { theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, css: sheet.css, prefix: sheet.prefix, important: sheet.important } : {}),
+                        ...(sheet ? { theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, css: sheet.css, prefix: sheet.prefix, important: sheet.important, blocklist: sheet.blocklist } : {}),
                     })
                 }
                 if (entry === 'tailwind-legacy') return tailwindDialect({ darkMode })

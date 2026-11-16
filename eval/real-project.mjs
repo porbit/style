@@ -180,10 +180,13 @@ const variantsOf = (c) => {
 }
 
 const modes = []
-const { createConfigLoader } = await import(path.join(root, 'dist/postcss.mjs'))
-const sheet = tw.parseTailwindStylesheet(entry, { resolve, loadConfig: createConfigLoader(path.dirname(entryPath)) })
+const { createConfigLoader, createTailwindPluginLoader } = await import(path.join(root, 'dist/postcss.mjs'))
+// Plugin JS của `@config` chạy qua API giả lập; `apply` gộp utility/biến thể có tên không viết được bằng CSS
+// (`x-0.5`, biến thể hàm `name-*` của `matchVariant`).
+const jsPlugins = createTailwindPluginLoader(path.dirname(entryPath))
+const sheet = jsPlugins.apply(tw.parseTailwindStylesheet(entry, { resolve, loadConfig: createConfigLoader(path.dirname(entryPath), jsPlugins) }))
 if (sheet.unresolved.length) console.warn('chưa giải được:', sheet.unresolved)
-modes.push({ name: 'không build (parseTailwindStylesheet)', dialect: tw.tailwindV4Dialect({ preflight: true, darkMode: arg('dark') === 'media' ? 'media' : 'class', theme: sheet.theme, css: sheet.css, utilities: sheet.utilities, variants: sheet.variants, prefix: sheet.prefix, important: sheet.important }) })
+modes.push({ name: 'không build (parseTailwindStylesheet)', dialect: tw.tailwindV4Dialect({ preflight: true, darkMode: arg('dark') === 'media' ? 'media' : 'class', theme: sheet.theme, css: sheet.css, utilities: sheet.utilities, variants: sheet.variants, prefix: sheet.prefix, important: sheet.important, blocklist: sheet.blocklist }) })
 // Plugin PostCSS (thay @tailwindcss/postcss): chạy postcss thật trên file CSS của dự án, tự quét mã nguồn.
 {
     const { default: postcss } = await import('postcss')
