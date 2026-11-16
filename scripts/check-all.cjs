@@ -31,6 +31,14 @@ const BUDGET = {
 // Gói npm (`npm pack`): giải nén 6,8 MB -> 1,47 MB khi tách nhóm build (tsup.config.ts) và bỏ file
 // tài liệu không đọc lúc chạy. Mục tiêu ≤ 1,5 MB.
 const PACKAGE_BUDGET = 1500 * 1000
+// Dự án nâng cấp từ v3 (`@config`): extend, thay hẳn theme, prefix, important, corePlugins, file .ts, cờ CSS v4.
+const V3_FIXTURES = [
+    ['v3-extend', 'eval/fixtures/v3-config/app.css', 'eval/fixtures/v3-config/src'],
+    ['v3-replace', 'eval/fixtures/v3-config/replace/app.css', 'eval/fixtures/v3-config/replace'],
+    ...['prefix', 'important', 'important-selector', 'core-plugins', 'ts', 'css-flags'].map((name) => [`v3-${name}`, `eval/fixtures/v3-config/${name}/app.css`, `eval/fixtures/v3-config/${name}`]),
+]
+// Dự án mã nguồn mở khác: chưa khớp 100% nên dùng "bánh cóc" — không được tụt dưới mốc đã ghi.
+const PROJECT_FIXTURES = ['hyperui', 'magicui', 'coss-ui']
 const EVAL_MIN = { xcssValidAfterFix: 99, tailwindValid: 98, holdout: 85 }
 
 const hasCommand = (cmd) => spawnSync(process.platform === 'win32' ? 'where' : 'which', [cmd], { stdio: 'ignore' }).status === 0
@@ -164,10 +172,7 @@ const steps = [
             const plugins = run('node', ['eval/tailwind-plugins.mjs'])
             const real = run('node', ['eval/real-project.mjs'])
             // Dự án nâng cấp từ v3 (`@config "./tailwind.config.js"`): extend và thay hẳn theme.
-            const v3 = [
-                run('node', ['eval/real-project.mjs', '--css=eval/fixtures/v3-config/app.css', '--src=eval/fixtures/v3-config/src', '--label=v3-extend']),
-                run('node', ['eval/real-project.mjs', '--css=eval/fixtures/v3-config/replace/app.css', '--src=eval/fixtures/v3-config/replace', '--label=v3-replace']),
-            ]
+            const v3 = V3_FIXTURES.map(([label, css, src]) => run('node', ['eval/real-project.mjs', `--css=${css}`, `--src=${src}`, `--label=${label}`]))
             const order = run('node', ['eval/tailwind-order.mjs'])
             const prettier = run('node', ['eval/prettier-sort.mjs'])
             const merge = run('node', ['eval/merge-accuracy.mjs'])
@@ -180,7 +185,7 @@ const steps = [
             const pluginsOk = Object.values(pluginReport).every((p) => p.matched === p.cases)
             const allModes = (file) => Object.values(JSON.parse(fs.readFileSync(path.join(root, file), 'utf8')).summary)
             const fullMatch = (mode) => mode.converted === mode.total && Object.values(mode.matched).every((n) => n === mode.total) && (!mode.combos || Object.values(mode.combos.matched).every((n) => n === mode.combos.total))
-            const v3Ok = v3.every((r) => r.ok) && ['eval/real-project-v3-extend.json', 'eval/real-project-v3-replace.json'].every((f) => allModes(f).every(fullMatch))
+            const v3Ok = v3.every((r) => r.ok) && V3_FIXTURES.every(([label]) => allModes(`eval/real-project-${label}.json`).every(fullMatch))
             const realOk = allModes('eval/real-project.json').every(fullMatch)
             const orderReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-order.json'), 'utf8'))
             const orderOk = order.ok && Object.values(orderReport).every((r) => r.wrong === 0)
@@ -202,6 +207,37 @@ const steps = [
                     `plugin JS ${jsRows.map(([id, r]) => `${id} ${r.classes.matched}/${r.classes.cases}`).join(', ') || '✗'} ${jsOk ? '✓' : '✗'}\n` +
                     `thứ tự class ${orderOk ? '100%' : '✗'} · Prettier ${prettierReport.identical}/${prettierReport.files} file · gộp class ${mergeOk ? '100%' : '✗'} (tailwind-merge: ${Object.values(mergeReport).filter((r) => r && r.methods).map((r) => r.methods['tailwind-merge 3.7'].percent + '%').join(' / ')})`,
             }
+        },
+    },
+    {
+        name: 'projects',
+        // `node scripts/check-all.cjs --only=projects --update-baseline` để nâng mốc sau khi sửa được lỗi.
+        run: () => {
+            const baselineFile = path.join(root, 'eval/projects-baseline.json')
+            const baseline = fs.existsSync(baselineFile) ? JSON.parse(fs.readFileSync(baselineFile, 'utf8')) : {}
+            const current = {}
+            const lines = []
+            let ok = true
+            for (const name of PROJECT_FIXTURES) {
+                const r = run('node', ['eval/real-project.mjs', `--fixture=${name}`])
+                if (!r.ok) return { ok: false, detail: `${name}: ${tail(r.out, 5)}` }
+                const summary = JSON.parse(fs.readFileSync(path.join(root, `eval/real-project-${name}.json`), 'utf8')).summary
+                const modes = Object.values(summary)
+                const score = {
+                    converted: Math.min(...modes.map((m) => m.converted)),
+                    classes: Math.min(...modes.flatMap((m) => Object.values(m.matched))),
+                    combos: Math.min(...modes.flatMap((m) => (m.combos ? Object.values(m.combos.matched) : []))),
+                    total: modes[0].total,
+                    comboTotal: modes[0].combos ? modes[0].combos.total : 0,
+                }
+                current[name] = score
+                const base = baseline[name]
+                const regressed = base && ['converted', 'classes', 'combos'].some((k) => score[k] < base[k])
+                if (regressed) ok = false
+                lines.push(`${name}: class ${score.classes}/${score.total} (chuyển ${score.converted}), tổ hợp ${score.combos}/${score.comboTotal}${regressed ? ` TỤT so với mốc ${base.classes}/${base.combos}` : ''}`)
+            }
+            if (args.includes('--update-baseline') || !fs.existsSync(baselineFile)) fs.writeFileSync(baselineFile, JSON.stringify(current, null, 2) + '\n')
+            return { ok, detail: lines.join('\n') }
         },
     },
     {
