@@ -114,9 +114,12 @@ node eval/real-project.mjs --css=src/app.css --src=src --import=tw-animate-css=n
 | Runtime: thêm 200 phần tử × 10 lần | 1.148,9 ms | 207,0 ms |
 | Cài đặt cho đường PostCSS | ~25 MB (Oxide, Lightning CSS) | 1,3 MB |
 | Build tĩnh 248 file | 189–242 ms (CLI, Oxide) | 154–208 ms |
-| Build tĩnh 6.200 file (25 MB) | 315–358 ms | 327–399 ms |
+| Build tĩnh 6.000 file nhân bản fixture: tiến trình mới / có bộ nhớ đệm quét / build lại cùng tiến trình | 408 / 408 / 369 ms | 423 / 284 / 288 ms |
+| Build tĩnh 6.273 trang HTML (HyperUI nhân bản): như trên | 202 / 202 / 157 ms | 215 / 127 / 144 ms |
 | CSS tĩnh cùng trang (gzip) | 4,81 KB | 4,70 KB |
 | Next.js 15, cùng ứng dụng (CSS gzip) | 3,88 KB (`@tailwindcss/postcss`) | 3,62 KB |
+
+Build tĩnh: `node eval/build-bench.mjs --tw=<node_modules có @tailwindcss/cli>` (kết quả `eval/build-bench.json`), trung vị 9 lượt, hai phía chạy xen kẽ trên máy 4 lõi đang bận (tải 2–3). Tailwind quét bằng Oxide (Rust, đa luồng), không có bộ nhớ đệm trên đĩa; ta quét một luồng. Build đầu tiên ngang Tailwind (trong dao động đo; khi máy bận hơn ta nhanh hơn), mọi build sau — tiến trình mới có bộ nhớ đệm quét, hoặc build lại trong dev server — nhanh hơn rõ rệt. Phần lớn thời gian còn lại là sinh CSS.
 
 ## 5. Hỗ Trợ Cấu Hình Nâng Cao
 

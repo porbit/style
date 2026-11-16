@@ -7,13 +7,15 @@
  *   - không cấp phát mảng match/chuỗi con cho từng chuỗi trích dẫn, quét thẳng trên chuỗi nguồn theo chỉ số;
  *   - chuỗi `class="..."` đã quét ở lượt thuộc tính không quét lại ở lượt "mọi chuỗi trích dẫn" (cùng nội dung,
  *     mọi token đã có trong tập);
- *   - tìm dấu nháy/xuống dòng bằng `indexOf` (tìm kiếm gốc) thay vì thử regex ở từng vị trí.
+ *   - tìm dấu nháy/xuống dòng bằng `indexOf` (tìm kiếm gốc) thay vì thử regex ở từng vị trí;
+ *   - bảng intern token dùng chung giữa các file (không cắt chuỗi cho token đã gặp, không giữ file nguồn qua chuỗi
+ *     cắt) và ghi nhớ theo nội dung chuỗi (HTML/JSX lặp lại cùng bộ class, cùng `d="..."` của icon);
+ *   - `scanFiles` chỉ thêm vào tập hợp các token mới gặp trong lượt.
  *
- * `scanFiles` đọc + quét nhiều file, dùng thêm luồng phụ (worker_threads) khi có nhiều file chưa có trong bộ nhớ đệm
- * (build lần đầu): mỗi luồng nhận dần từng lô file liên tiếp, kết quả gộp lại đúng thứ tự file.
+ * `scanFiles` đọc + quét nhiều file; khi ép bằng `PRESENCE_STYLE_WORKERS` thì dùng thêm luồng phụ (worker_threads) cho file chưa có
+ * trong bộ nhớ đệm: mỗi luồng nhận dần từng lô file liên tiếp, kết quả gộp lại đúng thứ tự file. Mặc định tuần tự (xem dưới).
  */
 import { readFileSync, statSync } from 'node:fs'
-import { availableParallelism, loadavg } from 'node:os'
 import { Worker } from 'node:worker_threads'
 
 /**
@@ -435,25 +437,16 @@ export const candidatesOfEntry = (entry: CandidateCacheEntry): string[] | null =
     return entry.candidates as string[]
 }
 
-// Dưới ngưỡng này luồng phụ không lợi: mỗi luồng mất ~40–70 ms khởi động, JIT nguội và không dùng chung bảng ghi nhớ
-// với luồng chính (luồng chính quét ~6.000 trang HTML trong ~130 ms).
-const PARALLEL_MIN_FILES = 3000
-const MAX_WORKERS = 3
+// Luồng phụ (worker_threads) chỉ khi ép bằng `PRESENCE_STYLE_WORKERS=<số>`. Mặc định tắt: mỗi luồng mất ~40–70 ms
+// khởi động, JIT nguội và không dùng chung bảng intern/ghi nhớ với luồng chính; đo trên máy 4 lõi (6.000 file, cả lúc
+// tải thấp) 1–2 luồng phụ đều chậm hơn quét tuần tự (luồng chính quét ~6.000 trang HTML trong ~130 ms).
+const PARALLEL_MIN_FILES = 1500
 
-/**
- * Số luồng phụ: `PRESENCE_STYLE_WORKERS` (0 để tắt), mặc định theo số lõi còn rảnh (số lõi trừ tải 1 phút, chừa
- * thêm một lõi), tối đa 3. Máy bận (CI chạy nhiều build song song) thì quét tuần tự: luồng phụ khi đó chỉ tranh CPU,
- * đo được còn chậm hơn một luồng.
- */
+/** Số luồng phụ: `PRESENCE_STYLE_WORKERS` (mặc định 0). */
 const workerCount = (): number => {
     const env = Number(process.env.PRESENCE_STYLE_WORKERS)
     if (process.env.PRESENCE_STYLE_WORKERS !== undefined && Number.isFinite(env)) return Math.max(0, Math.floor(env))
-    try {
-        const cores = availableParallelism()
-        return Math.max(0, Math.min(cores - 1, Math.floor(cores - loadavg()[0]) - 1, MAX_WORKERS))
-    } catch (_error) {
-        return 0
-    }
+    return 0
 }
 
 const statOrNull = (file: string): { mtimeMs: number; size: number } | null => {
