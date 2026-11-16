@@ -432,9 +432,7 @@ const propertyList = [...propertyBlocks].map(([name, block]) => {
 // (`--tw-x:`) hoặc đọc không kèm dự phòng (`var(--tw-x)`), trừ biến trong PROPERTY_NO_SET khi đặt (`outline-solid`,
 // `ring-red-500`, `content-none` không đăng ký), trong PROPERTY_NO_READ khi đọc (`bg-linear-to-r` đọc
 // `--tw-gradient-stops` mà không đăng ký); đọc kèm dự phòng (`var(--tw-x, ...)`) chỉ tính với PROPERTY_FALLBACK_READ.
-// Kiểm trên mọi class của getClassList: lệch ghi ở `propertyMismatch`, chỉ còn class cũ `transform`/`filter`/
-// `backdrop-filter` (đọc `var(--tw-x, )` như `transform-gpu` không đăng ký) và `text-shadow-none` (không đọc biến nào):
-// biến đọc kèm dự phòng rỗng mà không đăng ký cho cùng computed style.
+// Kiểm trên mọi class của getClassList (lệch ghi ở `propertyMismatch`, phải rỗng); ngoại lệ tường minh: `propertyExtra`.
 const PROPERTY_NO_SET = ['border-style', 'outline-style', 'ring-color', 'inset-ring-color', 'ring-offset-color', 'ring-offset-width', 'ring-offset-shadow', 'mask-radial-shape', 'mask-radial-size', 'mask-radial-position', 'gradient-position', 'gradient-via-stops', 'content']
 const PROPERTY_NO_READ = ['gradient-stops', 'ring-offset-width', 'ring-offset-color']
 const PROPERTY_FALLBACK_READ = ['text-shadow-color']
@@ -454,14 +452,24 @@ for (const name of propertyBlocks.keys()) {
     const signature = registeredBy.map((c) => (c.registered.has(name) ? 1 : 0)).join('')
     propertyAtom.set(name, signature.includes('1') ? signature : name)
 }
+// Class mà quy tắc trên không suy ra đúng (chỉ thiếu nhóm, không thừa): ghi tường minh nhóm Tailwind đăng ký thêm,
+// mỗi nhóm một biến đại diện (`propertyExtra`, bộ giải mã: `place` trong src/tailwind-v4-core.ts). Đó là class cũ
+// `transform`/`filter`/`backdrop-filter` (đọc `var(--tw-x, )` nhưng vẫn đăng ký, trong khi `transform-gpu` cùng dạng thì
+// không) và `text-shadow-none` (không đọc biến nào mà đăng ký nhóm màu bóng chữ). Class khác lệch là lỗi.
+const PROPERTY_EXTRA_CLASSES = ['transform', 'filter', 'backdrop-filter', 'text-shadow-none']
+const propertyExtra = {}
 const propertyMismatch = []
 for (const { name, css, registered } of registeredBy) {
     const atoms = new Set([...propertyTriggers(css)].filter((v) => propertyAtom.has(v)).map((v) => propertyAtom.get(v)))
     const derived = [...propertyBlocks.keys()].filter((v) => atoms.has(propertyAtom.get(v)))
-    if (derived.length !== registered.size || derived.some((v) => !registered.has(v))) propertyMismatch.push(name)
+    if (derived.length === registered.size && derived.every((v) => registered.has(v))) continue
+    const missing = [...registered].filter((v) => !atoms.has(propertyAtom.get(v)))
+    const extraAtoms = new Set(missing.map((v) => propertyAtom.get(v)))
+    const full = [...propertyBlocks.keys()].filter((v) => atoms.has(propertyAtom.get(v)) || extraAtoms.has(propertyAtom.get(v)))
+    if (!PROPERTY_EXTRA_CLASSES.includes(name) || full.length !== registered.size || full.some((v) => !registered.has(v))) propertyMismatch.push(name)
+    else propertyExtra[name] = [...extraAtoms].map((atom) => missing.find((v) => propertyAtom.get(v) === atom).slice(5)).join(' ')
 }
-const PROPERTY_KNOWN_MISMATCH = ['transform', 'filter', 'backdrop-filter', 'text-shadow-none']
-if (propertyMismatch.some((name) => !PROPERTY_KNOWN_MISMATCH.includes(name))) throw new Error(`Quy tắc đăng ký @property lệch Tailwind: ${propertyMismatch.slice(0, 20).join(' ')}`)
+if (propertyMismatch.length) throw new Error(`Quy tắc đăng ký @property lệch Tailwind: ${propertyMismatch.slice(0, 20).join(' ')}`)
 // Bảng gọn xếp lại theo nhóm (thứ tự xuất @property không ảnh hưởng gì); `+` trước tên: mục đầu của một nhóm; dấu
 // sau tên: `!` thuộc PROPERTY_NO_SET, `?` thuộc PROPERTY_NO_READ, `~` thuộc PROPERTY_FALLBACK_READ.
 const atomOrder = [...new Set(propertyAtom.values())]
@@ -729,6 +737,7 @@ const compactData = () => {
         explicit: Object.fromEntries(Object.entries(explicitRules).map(([name, rule]) => [name, pack(rule)])),
         tpl: tplRules.map(pack),
         properties: groupedProperties,
+        propertyExtra,
         syntaxes: propertySyntaxes,
         fallback: FALLBACK_WRAP,
         keyframes,
@@ -749,7 +758,7 @@ const THEME_ROOTS_TEXT = Object.entries(themeRoots).map(([ns, list]) => {
         }
         return `${ns}:${rest.join(' ')}`
 }).join('|')
-const DIST_KEY_ORDER = ['version', 'palette', 'tpl', 'roots', 'explicit', 'hints', 'props', 'properties', 'xs', 'vals', 'syntaxes', 'lits', 'valueSets', 'fallback', 'theme', 'keyframes', 'sels']
+const DIST_KEY_ORDER = ['version', 'palette', 'tpl', 'roots', 'explicit', 'hints', 'props', 'properties', 'propertyExtra', 'xs', 'vals', 'syntaxes', 'lits', 'valueSets', 'fallback', 'theme', 'keyframes', 'sels']
 const DIST = (() => {
     const data = compactData()
     if (Object.keys(data).sort().join() !== [...DIST_KEY_ORDER].sort().join()) throw new Error('DIST_KEY_ORDER thiếu/thừa khoá của dữ liệu nén')

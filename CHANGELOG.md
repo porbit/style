@@ -7,6 +7,8 @@
 - Khoá theme tự định nghĩa ở mọi namespace Tailwind đọc: `--aspect-wide` → `aspect-wide`, `--z-index-*`, `--width-*`, `--margin-*`, `--border-width-*`, `--background-color-*`... (75 namespace, dò bằng chính Tailwind); `@config` v3 đổi khoá theme khác (`zIndex`, `aspectRatio`, `gridTemplateColumns`...) sang namespace kebab-case như Tailwind; `aspect-1`…`aspect-16` của `@tailwindcss/aspect-ratio`. Theme tuỳ chỉnh trong `tailwind-parity` 28 → 50/50.
 - `matchVariant` có `sort`: giá trị tuỳ ý xếp xen giữa giá trị có tên như Tailwind (trước đây luôn xếp sau); trùng biến thể sẵn có (`nth`) giữ thứ tự biến thể đó. Dialect nhận `variantOrder` (từ `sheet.variantOrder`).
 - Hai at-rule nội tuyến lồng nhau: `@[300px]:@max-[500px]:`, `md:@[300px]:`, `supports-[...]:@md:`, `@md:hover:`, `md:not-dark:`... (trước trả null). Độ phủ biến thể 403 → 415/415.
+- `@plugin "tailwindcss-animate"` (bản đóng gói): giữ `@keyframes enter`/`exit` mà Tailwind luôn phát cho plugin (từ `theme.extend.keyframes`; trước đây bộ sinh chỉ lấy `@utility`/`@layer base`, nên `animate-in`/`animate-out` không có keyframes, `transform` tính ra `none` thay vì ma trận đơn vị). 445 → 447/447; `check:all` nay đòi mọi plugin JS và bản đóng gói khớp 100% (trước ≥ 99%).
+- `@property` của `transform`, `filter`, `backdrop-filter`, `text-shadow-none` đăng ký đúng nhóm như Tailwind (4 ngoại lệ của quy tắc chung, bảng `propertyExtra` sinh từ Tailwind; lệch quy tắc trên class bất kỳ của `getClassList` nay là lỗi khi sinh). Lệch đo được còn lại so với Tailwind: 0 (ghi chú phần Tailwind không xác định: `eval/README.md`).
 - Chế độ lai (`data-hybrid`): CSS tĩnh bị thay sau khi tải (HMR của Vite) không còn làm mất rule runtime — chèn lại vào sheet mới đúng thứ tự.
 
 **Giấy phép**

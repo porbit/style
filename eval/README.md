@@ -79,6 +79,16 @@ Thêm dự án: tạo `fixtures/<tên>/` với file CSS, thư mục nguồn và 
 (`@plugin "daisyui"`) chạy qua API giả lập ở cả hai chế độ.
 Kết quả tổng hợp: [REAL-PROJECTS.md](./REAL-PROJECTS.md).
 
+## Lệch Còn Lại So Với Tailwind 4.3.5
+
+Mọi bộ so với Tailwind thật (`check:all` bước `tailwind` và `projects`) đòi khớp 100%: class, biến thể, runtime, theme,
+plugin đóng gói và plugin JS, dự án thật, thứ tự cascade, chế độ lai. Không còn lệch đo được; phần duy nhất không đo
+là chỗ chính Tailwind không xác định:
+
+- **Thứ tự `state-[open]` và `state-[open]/menu`** (`matchVariant` có `sort`, cùng giá trị khác modifier): `sort` của plugin
+  không nhận modifier nên phép so của Tailwind trả 1 cả hai chiều, thứ tự rule theo thứ tự Tailwind gặp class trong mã
+  nguồn (đổi khi đổi thứ tự file). `tailwind-order.mjs` vì vậy bỏ cặp này khỏi tập đo.
+
 ## Thời Gian Build Tĩnh
 
 `build-bench.mjs` đo plugin PostCSS (`compileTailwindCss`) so với Tailwind CLI v4 (`@tailwindcss/node` `compile()` +
