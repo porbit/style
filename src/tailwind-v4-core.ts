@@ -166,7 +166,7 @@ const families: Record<string, Array<[number, number]>> = {}
 const explicit: Record<string, number[]> = {}
 // Class dựng từ mẫu (`h-full`, `inset-x-auto`... vài nghìn class): tên -> [mẫu, biểu thức xs[x], giá trị], dựng rule khi
 // tra lần đầu thay vì lúc nạp module. Tên cũng có trong DATA.explicit thì bản đó thắng (như thứ tự gán trước đây).
-const derivedSpecs: Record<string, [number, number, string]> = {}
+const derivedSpecs: Record<string, [number[], number, string]> = {}
 const arbitraryTemplates: Record<string, number | Record<string, number>> = {}
 /** Mẫu theo gợi ý kiểu: `bg-[length:200%]` -> background-size (giá trị trần `bg-[200%]` là background-position). */
 const hintTemplates: Record<string, Record<string, number>> = {}
@@ -185,7 +185,7 @@ for (const root in DATA.roots) {
         for (const [j, x, lit] of derived) {
             for (const pair of DATA.lits[lit].split('|')) {
                 const eq = pair.indexOf('=')
-                derivedSpecs[`${root}-${pair.slice(0, eq)}`] = [families[root][j][0], x, pair.slice(eq + 1)]
+                derivedSpecs[`${root}-${pair.slice(0, eq)}`] = [familyTemplate(j), x, pair.slice(eq + 1)]
             }
         }
     }
@@ -205,11 +205,8 @@ for (const root in DATA.roots) {
 }
 for (const name in DATA.explicit) explicit[name] = decodeRule(DATA.explicit[name])
 /** Rule tường minh (kể cả class dựng từ mẫu, dựng khi tra lần đầu). */
-const explicitRule = (name: string): number[] | undefined => {
-    const spec = explicit[name] ? undefined : derivedSpecs[name]
-    if (spec) explicit[name] = deriveRule(templates[spec[0]], spec[1], spec[2])
-    return explicit[name]
-}
+const explicitRule = (name: string): number[] | undefined =>
+    explicit[name] || (derivedSpecs[name] ? (explicit[name] = deriveRule(...derivedSpecs[name])) : undefined)
 // Gốc -> [namespace theme, loại mẫu tuỳ ý] cho khoá tự định nghĩa (`aspect-wide`): đến cùng phần đọc stylesheet
 // (useTailwindStylesheet, xem `themeRoots` trong src/tailwind-stylesheet.ts) vì khoá tự định nghĩa chỉ có khi dự án có theme.
 let THEME_ROOTS: Record<string, Array<[string, string]>> = {}
@@ -1342,22 +1339,20 @@ const propertySort = (decls: Array<[string, string]>): { properties: number[]; c
 
 /** So hai khoá như `o.sort(...)` trong compiler của Tailwind. */
 export const compareTailwindOrderKeys = (a: TailwindOrderKey, b: TailwindOrderKey): number => {
-    // Bitmask biến thể: tập có biến thể "cao" nhất (khác nhau) đứng sau. Đọc trong độ dài mảng (đọc ngoài độ dài
-    // làm V8 rơi về đường chậm: hàm này chạy hàng chục nghìn lần mỗi build khi chèn rule theo thứ tự).
-    const av = a.variants
-    const bv = b.variants
-    const n = av.length < bv.length ? av.length : bv.length
-    for (let i = 0; i < n; i++) {
-        const c = compareOrderVariants(av[i], bv[i])
+    // Bitmask biến thể: tập có biến thể "cao" nhất (khác nhau) đứng sau.
+    for (let i = 0; ; i++) {
+        const va = a.variants[i]
+        const vb = b.variants[i]
+        if (!va && !vb) break
+        if (!va) return -1
+        if (!vb) return 1
+        const c = compareOrderVariants(va, vb)
         if (c !== 0) return c
     }
-    if (av.length !== bv.length) return av.length < bv.length ? -1 : 1
-    const ap = a.properties
-    const bp = b.properties
     let h = 0
-    while (h < ap.length && h < bp.length && ap[h] === bp[h]) h++
-    const pa = h < ap.length ? ap[h] : Infinity
-    const pb = h < bp.length ? bp[h] : Infinity
+    while (h < a.properties.length && h < b.properties.length && a.properties[h] === b.properties[h]) h++
+    const pa = a.properties[h] ?? Infinity
+    const pb = b.properties[h] ?? Infinity
     if (pa !== pb) return pa - pb
     return b.count - a.count || compareNatural(a.name, b.name)
 }
@@ -1530,7 +1525,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
 
         // Phần gốc dịch một lần cho mọi biến thể (`p-4`, `md:p-4`, `hover:p-4`...); không ghi nhớ khi đang gom nhóm
         // @property của `@apply` (`applied`: lần dịch lồng phải chạy lại để ghi nhóm).
-        if (baseRoots !== THEME_ROOTS) {
+        if (baseRoots !== THEME_ROOTS || baseCache.size > 20000) {
             baseCache.clear()
             baseRoots = THEME_ROOTS
         }
@@ -1547,10 +1542,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
                 }
             }
             hit = [rule, found]
-            if (!applied) {
-                if (baseCache.size > 20000) baseCache.clear()
-                baseCache.set(base, hit)
-            }
+            if (!applied) baseCache.set(base, hit)
         }
         const rule = hit[0]
         if (!rule) return null

@@ -2833,37 +2833,44 @@ export const xcss = (
         const length = str.length
         let index = -1
         let result = ''
-        // Đầu đoạn ký tự giữ nguyên chưa chép vào `result`: chép cả đoạn một lần (class thường chỉ có vài ký tự escape).
-        let start = 0
         const firstCode = str.charCodeAt(0)
         while (++index < length) {
             const codeUnit = str.charCodeAt(index)
-            let escaped: string
             // U+0000 -> ký tự thay thế U+FFFD
-            if (codeUnit === 0x0000) escaped = '�'
-            else if (
+            if (codeUnit === 0x0000) {
+                result += '�'
+                continue
+            }
+            if (
                 // [U+0001, U+001F] hoặc U+007F
                 (codeUnit >= 0x0001 && codeUnit <= 0x001f) || codeUnit === 0x007f ||
                 // chữ số ở vị trí đầu
                 (index === 0 && codeUnit >= 0x0030 && codeUnit <= 0x0039) ||
                 // chữ số ngay sau dấu '-' ở đầu
                 (index === 1 && codeUnit >= 0x0030 && codeUnit <= 0x0039 && firstCode === 0x002d)
-            ) escaped = '\\' + codeUnit.toString(16) + ' '
+            ) {
+                result += '\\' + codeUnit.toString(16) + ' '
+                continue
+            }
             // '-' đơn lẻ ở đầu
-            else if (index === 0 && length === 1 && codeUnit === 0x002d) escaped = '\\-'
+            if (index === 0 && length === 1 && codeUnit === 0x002d) {
+                result += '\\' + str.charAt(index)
+                continue
+            }
             // Giữ nguyên: >= U+0080, '-', '_', [0-9], [A-Z], [a-z]
-            else if (
+            if (
                 codeUnit >= 0x0080 || codeUnit === 0x002d || codeUnit === 0x005f ||
                 (codeUnit >= 0x0030 && codeUnit <= 0x0039) ||
                 (codeUnit >= 0x0041 && codeUnit <= 0x005a) ||
                 (codeUnit >= 0x0061 && codeUnit <= 0x007a)
-            ) continue
+            ) {
+                result += str.charAt(index)
+                continue
+            }
             // Còn lại: escape bằng backslash
-            else escaped = '\\' + str.charAt(index)
-            result += str.slice(start, index) + escaped
-            start = index + 1
+            result += '\\' + str.charAt(index)
         }
-        return start ? result + str.slice(start) : str
+        return result
     }
 
     // B5: thay đệ quy + spread + flat(Infinity) bằng querySelectorAll('[class]').
