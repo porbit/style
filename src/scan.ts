@@ -12,11 +12,15 @@
  *     cắt) và ghi nhớ theo nội dung chuỗi (HTML/JSX lặp lại cùng bộ class, cùng `d="..."` của icon);
  *   - `scanFiles` chỉ thêm vào tập hợp các token mới gặp trong lượt.
  *
- * `scanFiles` đọc + quét nhiều file; khi ép bằng `PRESENCE_STYLE_WORKERS` thì dùng thêm luồng phụ (worker_threads) cho file chưa có
- * trong bộ nhớ đệm: mỗi luồng nhận dần từng lô file liên tiếp, kết quả gộp lại đúng thứ tự file. Mặc định tuần tự (xem dưới).
+ * `scanFiles` đọc + quét nhiều file; mặc định tuần tự bằng bộ quét theo byte (WASM, `./scan-wasm`: đọc file thẳng vào
+ * bộ nhớ WASM, không giải mã UTF-8, cùng kết quả với bản JS ở đây), bản JS khi không nạp được WASM. Khi ép bằng
+ * `PRESENCE_STYLE_WORKERS` thì dùng thêm luồng phụ (worker_threads, bản JS) cho file chưa có trong bộ nhớ đệm: mỗi luồng
+ * nhận dần từng lô file liên tiếp, kết quả gộp lại đúng thứ tự file (xem dưới).
  */
 import { closeSync, fstatSync, openSync, readFileSync, statSync } from 'node:fs'
 import { Worker } from 'node:worker_threads'
+import { createByteScanner, type ByteScanner } from './scan-wasm'
+import { SCAN_WASM } from './scan-wasm-generated'
 
 /**
  * Dựng hàm quét. Tự chứa (không dùng gì ngoài thân hàm): luồng phụ dựng lại hàm này từ chính mã nguồn của nó.
@@ -367,6 +371,17 @@ export const createScanner = (): Scanner => {
 export const scanCandidates = createScanner()
 const mainScanner = scanCandidates
 
+/** Mã định nghĩa cách trích (bản JS + bản WASM): đổi là bỏ bộ nhớ đệm trên đĩa (xem ./scan-cache). */
+export const scannerSource = (): string => createScanner.toString() + SCAN_WASM
+
+// Bộ quét theo byte (WASM) cho `scanFiles`: nạp lười ở lần quét đầu; null: không dùng được, quét bằng bản JS.
+let byteScanner: ByteScanner | null | undefined
+
+const loadByteScanner = (): ByteScanner | null => {
+    if (byteScanner === undefined) byteScanner = createByteScanner()
+    return byteScanner
+}
+
 type Scan = (source: string) => string[]
 type ReadText = (file: string, encoding: 'utf8') => string
 type Stat = (file: string) => { mtimeMs: number; size: number }
@@ -457,19 +472,25 @@ export interface CandidateCacheEntry {
     at?: number
     count?: number
     gen?: number
+    /** Bộ quét đã cấp số hiệu (bộ quét theo byte hoặc bản JS chính). */
+    scanner?: TokenSource
 }
+
+/** Nguồn số hiệu token của mục bộ nhớ đệm dạng vùng nhớ số hiệu. */
+export type TokenSource = Pick<Scanner, 'token' | 'generation'>
 
 /** Ứng viên của một mục bộ nhớ đệm; null nếu mục hỏng (số hiệu không có trong bảng): coi như chưa có, quét lại. */
 export const candidatesOfEntry = (entry: CandidateCacheEntry): string[] | null => {
     const ids = entry.candidates
     if (ids instanceof Int32Array) {
         // Bảng intern đã làm lại: số hiệu hết nghĩa, coi như chưa có.
-        if (entry.gen !== mainScanner.generation()) return null
+        const scanner = entry.scanner ?? mainScanner
+        if (entry.gen !== scanner.generation()) return null
         const at = entry.at ?? 0
         const list: string[] = new Array(entry.count ?? 0)
-        for (let k = 0; k < list.length; k++) list[k] = mainScanner.token(ids[at + k])
+        for (let k = 0; k < list.length; k++) list[k] = scanner.token(ids[at + k])
         entry.candidates = list
-        entry.gen = entry.at = entry.count = undefined
+        entry.gen = entry.at = entry.count = entry.scanner = undefined
     } else if (typeof entry.candidates === 'string') {
         const text = entry.candidates
         const table = entry.table
@@ -536,6 +557,81 @@ const statOrNull = (file: string): { mtimeMs: number; size: number } | null => {
     }
 }
 
+/** Mở `file` và quét bằng bộ quét theo byte; lỗi (không mở/đọc được): không ứng viên. */
+const scanPathBytes = (file: string, scanner: ByteScanner, fresh: string[]): number => {
+    try {
+        const fd = openSync(file, 'r')
+        try {
+            return scanner.scanFd(fd, fstatSync(fd).size, fresh)
+        } finally {
+            closeSync(fd)
+        }
+    } catch (_error) {
+        return 0
+    }
+}
+
+/** `scanFiles` tuần tự bằng bộ quét theo byte (WASM): như nhánh tuần tự bản JS, đọc file thẳng vào bộ nhớ WASM. */
+const scanFilesBytes = (
+    files: string[],
+    cache: Map<string, CandidateCacheEntry>,
+    into: Set<string>,
+    stats: Array<{ mtimeMs: number; size: number } | null> | null,
+    scanner: ByteScanner,
+): ScanFilesResult => {
+    let scanned = 0
+    const fresh: string[] = []
+    scanner.begin()
+    for (let index = 0; index < files.length; index++) {
+        const file = files[index]
+        const cached = cache.get(file)
+        let info: { mtimeMs: number; size: number } | null = null
+        // Số token của file đã quét ở bước mở; -1: chưa quét.
+        let count = -1
+        fresh.length = 0
+        if (!stats && cached === undefined) {
+            // Chưa có trong bộ nhớ đệm (build đầu): mở file một lần, fstat + đọc qua fd. Mở/fstat lỗi thì stat theo
+            // đường dẫn (file không còn: bỏ qua) rồi đọc theo đường dẫn; đọc lỗi (thư mục...): không ứng viên.
+            let fd = -1
+            try {
+                fd = openSync(file, 'r')
+            } catch (_error) {
+                fd = -1
+            }
+            if (fd >= 0) {
+                try {
+                    info = fstatSync(fd)
+                    try {
+                        count = scanner.scanFd(fd, info.size, fresh)
+                    } catch (_error) {
+                        count = 0
+                    }
+                } catch (_error) {
+                    info = null
+                } finally {
+                    closeSync(fd)
+                }
+            }
+            if (info === null) info = statOrNull(file)
+        } else info = stats ? stats[index] : statOrNull(file)
+        if (info === null) continue
+        if (count < 0) {
+            const list = cached && cached.mtime === info.mtimeMs && cached.size === info.size ? candidatesOfEntry(cached) : null
+            if (list !== null) {
+                for (let k = 0; k < list.length; k++) into.add(list[k])
+                continue
+            }
+            count = scanPathBytes(file, scanner, fresh)
+        }
+        scanned++
+        // Số hiệu của file nằm ở [idStart() - count, idStart()) trong idArena() (ghi xong mới đọc vị trí).
+        cache.set(file, { mtime: info.mtimeMs, size: info.size, candidates: scanner.idArena(), at: scanner.idStart() - count, count, gen: scanner.generation(), scanner })
+        // Token đã gặp ở file quét trước trong lượt này đã có trong `into`: chỉ thêm token mới.
+        for (let k = 0; k < fresh.length; k++) into.add(fresh[k])
+    }
+    return { workers: 0, workerBatches: 0, scanned }
+}
+
 export interface ScanFilesResult {
     workers: number
     workerBatches: number
@@ -552,8 +648,11 @@ export const scanFiles = async (
     files: string[],
     cache: Map<string, CandidateCacheEntry>,
     into: Set<string>,
-    /** Cho test: `mainThread: false` — luồng chính không tự quét lô nào khi có luồng phụ; `minFiles` thay ngưỡng song song. */
-    options: { mainThread?: boolean; minFiles?: number } = {},
+    /**
+     * Cho test: `mainThread: false` — luồng chính không tự quét lô nào khi có luồng phụ; `minFiles` thay ngưỡng song
+     * song; `bytes: false` — quét tuần tự bằng bản JS thay cho bộ quét theo byte.
+     */
+    options: { mainThread?: boolean; minFiles?: number; bytes?: boolean } = {},
 ): Promise<ScanFilesResult> => {
     // Song song khi có ít nhất PARALLEL_MIN_FILES file phải đọc lại: chưa có trong bộ nhớ đệm (build đầu), hoặc đã đổi
     // (đổi nhánh git, công cụ sinh mã ghi lại cả thư mục) — trường hợp sau phải stat trước để biết.
@@ -572,6 +671,10 @@ export const scanFiles = async (
             })
             if (stale < minFiles) workers = 0
         }
+    }
+    if (workers === 0 && options.bytes !== false) {
+        const bytes = loadByteScanner()
+        if (bytes) return scanFilesBytes(files, cache, into, stats, bytes)
     }
     if (workers === 0) {
         let scanned = 0
@@ -602,7 +705,7 @@ export const scanFiles = async (
                 }
                 // Số hiệu của file nằm ở [idStart() - count, idStart()) trong idArena() (ghi xong mới đọc vị trí).
                 const at = mainScanner.idStart() - count
-                cache.set(file, { mtime: info.mtimeMs, size: info.size, candidates: mainScanner.idArena(), at, count, gen: mainScanner.generation() })
+                cache.set(file, { mtime: info.mtimeMs, size: info.size, candidates: mainScanner.idArena(), at, count, gen: mainScanner.generation(), scanner: mainScanner })
                 // Token đã gặp ở file quét trước trong lượt này đã có trong `into`: chỉ thêm token mới.
                 for (let k = 0; k < fresh.length; k++) into.add(fresh[k])
                 continue

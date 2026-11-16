@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { extractCandidates } from '../src/extract'
 import { candidatesOfEntry, createScanner, scanCandidates, scanFiles, type CandidateCacheEntry } from '../src/scan'
+import { createByteScanner, type ByteScanner } from '../src/scan-wasm'
 
 const FIXTURES = join(__dirname, '..', 'eval', 'fixtures')
 const SOURCE = /\.(html|tsx?|jsx?|mjs|md|mdx|vue|svelte)$/
@@ -70,6 +71,75 @@ describe('scanCandidates (bộ quét nhanh cho build Node)', () => {
     it('bỏ qua đầu vào rỗng/không phải chuỗi như extractCandidates', () => {
         expect(scanCandidates('')).toEqual([])
         expect(scanCandidates(undefined as unknown as string)).toEqual([])
+    })
+})
+
+/** Ứng viên (theo thứ tự) của byte `content` qua bộ quét theo byte; `fresh` nhận token mới trong lượt. */
+const scanBytes = (scanner: ByteScanner, content: Uint8Array, fresh: string[] = []): string[] => {
+    const count = scanner.scanBuffer(content, fresh)
+    const arena = scanner.idArena()
+    const end = scanner.idStart()
+    return Array.from(arena.subarray(end - count, end), (id) => scanner.token(id))
+}
+
+describe('bộ quét theo byte (WASM) cho scanFiles', () => {
+    const scanner = createByteScanner()!
+
+    it('nạp được (WebAssembly + SIMD có trên Node >= 20)', () => {
+        expect(scanner).not.toBeNull()
+    })
+
+    it('cho đúng kết quả và thứ tự của extractCandidates trên mọi file fixture (đọc byte, không giải mã)', () => {
+        const files = listSources(FIXTURES)
+        for (const file of files) {
+            const content = readFileSync(file)
+            expect(scanBytes(scanner, content), file).toEqual(extractCandidates(content.toString('utf8')))
+        }
+    })
+
+    it('trùng extractCandidates trên chuỗi ngẫu nhiên, gồm khoảng trắng unicode, ký tự nhiều byte và UTF-8 hỏng', () => {
+        // Mảnh dạng byte: UTF-8 hợp lệ của mọi khoảng trắng `\s`, ký tự nhiều byte gần giống (U+2010, U+3001...), và
+        // dãy hỏng (byte nối tiếp lẻ, byte đầu thiếu đuôi, dạng dài quá mức, BOM).
+        const text = ['"', "'", '`', '\n', ' ', '\t', '\r', '\v', '\f', '\u00a0', '\u1680', '\u2000', '\u2005', '\u200a', '\u200b', '\u2010', '\u2028', '\u2029', '\u202f', '\u205f', '\u3000', '\u3001', '\ufeff', '\ufeef', '\u00a1', '[', ']', '(', ')', '{', '}', ',', ';', ':', '@', '!', '-', '_', '/', '#', '.', 'é', 'ữ', '😀', 'class', 'Name', '=', 'class=', 'className=', 'class = ', 'class\u00a0=\u3000', 'p-4', 'md:flex', 'w-[10px]', 'bg-[url(a.png)]', "cRed')", 'x', 'A1', '[a,b]', '[a b]', "[a'b]", '[a\u2028b]', '[a→b]', '$', '&', '|', '\\', 'flex items-center gap-2 px-[calc(1rem+2px)]']
+        const raw = [[0x80], [0xbf], [0xc2], [0xe2, 0x80], [0xe2], [0xe1, 0x9a], [0xf0, 0x9f], [0xc0, 0xa0], [0xe0, 0x80, 0x80], [0xed, 0xa0, 0x80], [0xff], [0xc2, 0xc2, 0xa0], [0xe2, 0xe2, 0x80, 0xa8], [0xef, 0xbb]]
+        const pieces: Buffer[] = [...text.map((t) => Buffer.from(t, 'utf8')), ...raw.map((b) => Buffer.from(b))]
+        const next = random(7)
+        for (let iteration = 0; iteration < 20000; iteration++) {
+            const parts: Buffer[] = []
+            const length = 1 + Math.floor(next() * 48)
+            for (let i = 0; i < length; i++) parts.push(pieces[Math.floor(next() * pieces.length)])
+            const content = Buffer.concat(parts)
+            const source = content.toString('utf8')
+            expect(scanBytes(scanner, content), JSON.stringify([...content])).toEqual(extractCandidates(source))
+        }
+    })
+
+    it('chuỗi dài (qua bộ ghi nhớ và đường SIMD) lặp lại giữa các file; `fresh` cho đúng hợp các file', () => {
+        const scan = createByteScanner()!
+        const files = listSources(join(FIXTURES, 'hyperui')).slice(0, 80).concat(listSources(join(FIXTURES, 'coss-ui')))
+        const union = new Set<string>()
+        const fresh: string[] = []
+        scan.begin()
+        for (let pass = 0; pass < 2; pass++) {
+            for (const file of files) {
+                const source = readFileSync(file, 'utf8')
+                const repeated = `${source}\n<a class="flex items-center gap-2 px-[calc(1rem+2px)]" title="flex items-center gap-2 px-[calc(1rem+2px)]">'flex items-center gap-2 px-[calc(1rem+2px)]'</a>`
+                for (const text of [source, repeated]) {
+                    const expected = extractCandidates(text)
+                    fresh.length = 0
+                    expect(scanBytes(scan, Buffer.from(text, 'utf8'), fresh), file).toEqual(expected)
+                    if (!pass) {
+                        const before = new Set(union)
+                        for (const token of expected) union.add(token)
+                        expect(fresh).toEqual([...union].filter((token) => !before.has(token)))
+                    } else expect(fresh).toEqual([])
+                }
+            }
+        }
+        // Rỗng và rất dài (vùng nhận lớn lên, bộ nhớ WASM lớn lên giữa chừng).
+        expect(scanBytes(scan, new Uint8Array(0))).toEqual([])
+        const big = Buffer.from(Array.from({ length: 30000 }, (_, i) => `<div class="p-${i} m-[${i}px] flex">x</div>`).join('\n'), 'utf8')
+        expect(scanBytes(scan, big)).toEqual(extractCandidates(big.toString('utf8')))
     })
 })
 
@@ -147,5 +217,36 @@ describe('scanFiles', () => {
             for (const candidate of extractCandidates(readFileSync(file, 'utf8'))) reference.add(candidate)
         }
         expect(edited.list).toEqual([...reference])
+    }, 60_000)
+
+    it('bộ quét theo byte và bản JS cho cùng tập ứng viên, cùng thứ tự, cùng bộ nhớ đệm; dùng lại mục của nhau', async () => {
+        const viaBytes = { cache: new Map<string, CandidateCacheEntry>(), into: new Set<string>(['inline-first']) }
+        const viaJs = { cache: new Map<string, CandidateCacheEntry>(), into: new Set<string>(['inline-first']) }
+        const a = await scanFiles(files, viaBytes.cache, viaBytes.into)
+        const b = await scanFiles(files, viaJs.cache, viaJs.into, { bytes: false })
+        expect(a.scanned).toBe(b.scanned)
+        expect([...viaBytes.into]).toEqual([...viaJs.into])
+        // (Test trước đã sửa files[0]: tính lại kết quả mong đợi từ nội dung hiện tại.)
+        const reference = new Set<string>(['inline-first'])
+        for (const file of files) {
+            if (file === files[5]) continue
+            for (const candidate of extractCandidates(readFileSync(file, 'utf8'))) reference.add(candidate)
+        }
+        expect([...viaBytes.into]).toEqual([...reference])
+        for (const file of files.slice(0, 200)) {
+            if (file === files[5]) continue
+            expect(candidatesOfEntry(viaBytes.cache.get(file)!), file).toEqual(candidatesOfEntry(viaJs.cache.get(file)!))
+        }
+        // Thư mục và file không đọc được: như readFileSync lỗi (không ứng viên, vẫn có mục bộ nhớ đệm).
+        const odd = [join(dir, '0'), files[0], join(dir, 'không-tồn-tại.html')]
+        const oddBytes = new Map<string, CandidateCacheEntry>()
+        const oddJs = new Map<string, CandidateCacheEntry>()
+        const intoBytes = new Set<string>()
+        const intoJs = new Set<string>()
+        await scanFiles(odd, oddBytes, intoBytes)
+        await scanFiles(odd, oddJs, intoJs, { bytes: false })
+        expect([...intoBytes]).toEqual([...intoJs])
+        expect([...oddBytes.keys()]).toEqual([...oddJs.keys()])
+        expect(candidatesOfEntry(oddBytes.get(odd[0])!)).toEqual([])
     }, 60_000)
 })

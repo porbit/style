@@ -19,7 +19,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { candidatesOfEntry, createScanner, scanCandidates, type CandidateCacheEntry } from './scan'
+import { candidatesOfEntry, scannerSource, type CandidateCacheEntry, type TokenSource } from './scan'
 
 declare const __PRESENCE_STYLE_VERSION__: string
 
@@ -33,7 +33,7 @@ let scannerFingerprint: string | undefined
 
 /** Khoá của bộ nhớ đệm: phiên bản gói + mã nguồn bộ quét (đổi cách trích là bỏ cache) + cấu hình. */
 export const scanCacheKey = (config: unknown): string => {
-    scannerFingerprint ??= hash(createScanner.toString())
+    scannerFingerprint ??= hash(scannerSource())
     const version = typeof __PRESENCE_STYLE_VERSION__ === 'string' ? __PRESENCE_STYLE_VERSION__ : 'dev'
     return hash(JSON.stringify([FORMAT, version, scannerFingerprint, config]))
 }
@@ -145,8 +145,9 @@ export const serializeScanCache = (key: string, files: string[], cache: Map<stri
         }
         return id
     }
-    // Mục quét tuần tự giữ số hiệu của bộ quét chính: đổi sang số hiệu trong file đệm qua mảng (-1: chưa gặp).
-    const generation = scanCandidates.generation()
+    // Mục quét tuần tự giữ số hiệu của bộ quét (theo byte, hoặc bản JS): đổi sang số hiệu trong file đệm qua mảng
+    // (-1: chưa gặp). Mảng đổi số theo bộ quét của mục đầu tiên; mục của bộ quét khác (chỉ gặp trong test) giải chuỗi.
+    let scanner: TokenSource | undefined
     let remap = new Int32Array(0)
     const row: string[] = []
     const lines: string[] = []
@@ -155,7 +156,8 @@ export const serializeScanCache = (key: string, files: string[], cache: Map<stri
         if (!entry || path.includes('\n')) continue
         const raw = entry.candidates
         row.length = 0
-        if (raw instanceof Int32Array && entry.gen === generation) {
+        if (raw instanceof Int32Array && entry.scanner) scanner ??= entry.scanner
+        if (raw instanceof Int32Array && scanner && entry.scanner === scanner && entry.gen === scanner.generation()) {
             const at = entry.at ?? 0
             const end = at + (entry.count ?? 0)
             for (let k = at; k < end; k++) {
@@ -166,7 +168,7 @@ export const serializeScanCache = (key: string, files: string[], cache: Map<stri
                     remap = bigger
                 }
                 let id = remap[scannerId]
-                if (id < 0) id = remap[scannerId] = number(scanCandidates.token(scannerId))
+                if (id < 0) id = remap[scannerId] = number(scanner.token(scannerId))
                 row.push(texts[id])
             }
         } else {
