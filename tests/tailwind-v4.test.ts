@@ -180,6 +180,17 @@ describe('phương ngữ Tailwind v4 (sinh từ chính Tailwind)', () => {
         expect(css('outline-2 outline-4 hover:outline').match(/@property --tw-outline-style/g)).toHaveLength(1)
     })
 
+    it('@property của class ngoại lệ đúng như Tailwind: transform, filter, backdrop-filter, text-shadow-none', () => {
+        // Tailwind 4.3.5: `transform` đọc `var(--tw-rotate-x, )` mà vẫn đăng ký 5 biến, `transform-gpu` cùng dạng thì không.
+        const names = (out: string) => [...out.matchAll(/@property (--tw-[\w-]+)/g)].map((m) => m[1]).sort()
+        expect(names(css('transform'))).toEqual(['--tw-rotate-x', '--tw-rotate-y', '--tw-rotate-z', '--tw-skew-x', '--tw-skew-y'])
+        expect(names(css('transform-gpu'))).toEqual([])
+        expect(names(css('hover:filter'))).toHaveLength(13)
+        expect(names(css('filter'))).toContain('--tw-drop-shadow-size')
+        expect(names(css('backdrop-filter'))).toHaveLength(9)
+        expect(names(css('text-shadow-none'))).toEqual(['--tw-text-shadow-alpha', '--tw-text-shadow-color'])
+    })
+
     it('hai at-rule nội tuyến lồng nhau: container trong container, media/supports quanh container query', () => {
         const d = tailwindV4Dialect()
         expect(d('@[300px]:@max-[500px]:p-4')![0]).toMatch(/^\[@container_\(width_>=_300px\)\{@container_\(width_<_500px\)\]:padding/)

@@ -135,6 +135,8 @@ const DATA = TW_DATA as unknown as {
     explicit: Record<string, CompactRule>
     tpl: readonly CompactRule[]
     properties: ReadonlyArray<string | readonly [string, string, number?]>
+    /** class -> biến đại diện của nhóm @property Tailwind đăng ký thêm ngoài quy tắc chung (`transform`, `filter`...). */
+    propertyExtra: Record<string, string>
     syntaxes: readonly string[]
     fallback: readonly [string, string]
     keyframes: readonly string[]
@@ -1508,7 +1510,14 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         const rule = resolveAny(base)
         if (!rule) return null
         const groups = new Set<number>()
-        for (const each of lastBuiltin ? [lastBuiltin, ...(lastBuiltin.more || [])] : []) propertyGroups(each.decls, groups)
+        if (lastBuiltin) {
+            for (const each of [lastBuiltin, ...(lastBuiltin.more || [])]) propertyGroups(each.decls, groups)
+            // Ngoại lệ của Tailwind (`transform` đọc `var(--tw-rotate-x, )` mà vẫn đăng ký, khác `transform-gpu`).
+            for (const name of (Object.hasOwn(DATA.propertyExtra, base) ? DATA.propertyExtra[base] : '').split(' ')) {
+                const entry = PROPERTY_GROUP.get('--tw-' + name)
+                if (entry) groups.add(entry[0])
+            }
+        }
 
         const rules = [rule, ...(rule.more || [])]
         const baseDecls: Array<[string, string]> = rules.flatMap((each) => each.decls)
