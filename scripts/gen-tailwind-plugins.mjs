@@ -27,6 +27,16 @@ const loadModule = async (id, base) => ({ base, path: id, module: require(id) })
 const pkgDir = (id) => path.join(root, 'node_modules', id)
 const versionOf = (id) => JSON.parse(fs.readFileSync(path.join(pkgDir(id), 'package.json'), 'utf8')).version
 
+// Bản plugin được ghim chính xác trong devDependencies: sinh với bản khác (node_modules cũ) sẽ làm
+// dữ liệu đóng gói lệch với package.json, nên dừng lại và yêu cầu `npm ci`.
+const pinned = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).devDependencies
+for (const id of ['@tailwindcss/forms', '@tailwindcss/typography', 'tailwindcss-animate', 'tw-animate-css', 'tailwindcss']) {
+    if (versionOf(id) !== pinned[id]) {
+        console.error(`${id}: node_modules có ${versionOf(id)}, package.json ghim ${pinned[id]} — chạy \`npm ci\` rồi sinh lại.`)
+        process.exit(1)
+    }
+}
+
 const cssEscape = (value) => value.replace(/[^\w-]/g, (ch) => '\\' + ch).replace(/^(\d)/, '\\3$1 ')
 
 /** Khối CSS cấp ngoài: [{ head, body }] hoặc { text } cho câu lệnh. */

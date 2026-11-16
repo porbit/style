@@ -1,5 +1,10 @@
 # Lịch Sử Thay Đổi
 
+## Chưa phát hành
+
+**Sửa**
+- Bản 1.0.0 trên npm đóng gói CSS của `@tailwindcss/typography` 0.5.4 (sinh từ `node_modules` cũ) thay vì 0.5.20 đã khai báo. Plugin đóng gói giờ được ghim đúng phiên bản trong `devDependencies`; `gen:tailwind-plugins` dừng nếu `node_modules` lệch với bản ghim.
+
 ## 1.0.0
 
 Bản phát hành đầu tiên dùng thay Tailwind cho dự án thật: đo trên 4 dự án mã nguồn mở, 8 cấu hình v3, 9 gói plugin JS và một ứng dụng Next.js thật (xem `docs/strategy/danh-gia-1.0.md`).
