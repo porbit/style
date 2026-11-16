@@ -4,16 +4,16 @@
 
 | Chế độ | Chuyển được | Khớp (mặc định) | Khớp (mở) | Khớp (đóng) | Khớp (.dark) | Khớp (:hover) | Khớp (:focus) | Khớp (:focus-visible) | Khớp (:active) | Khớp (375px) | Khớp (768px) | Khớp (1600px) |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| không build (parseTailwindStylesheet) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 409/410 (99.8%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) |
+| không build (parseTailwindStylesheet) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) |
 
 Số class Tailwind đổi style so với lượt mặc định (biến thể được kiểm): mở 5, đóng 0, .dark 29, :hover 5, :focus 6, :focus-visible 13, :active 5, 375px 39, 768px 30, 1600px 23.
 
-Tổ hợp thật (242 chuỗi class của component, nhiều class trên một phần tử): mặc định 242/242 · mở 242/242 · đóng 242/242 · .dark 242/242 · :hover 242/242 · :focus 242/242 · :focus-visible 241/242 · :active 242/242 · 375px 242/242 · 768px 242/242 · 1600px 242/242.
-| plugin PostCSS (@porbit/style/postcss) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 409/410 (99.8%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) |
+Tổ hợp thật (242 chuỗi class của component, nhiều class trên một phần tử): mặc định 242/242 · mở 242/242 · đóng 242/242 · .dark 242/242 · :hover 242/242 · :focus 242/242 · :focus-visible 242/242 · :active 242/242 · 375px 242/242 · 768px 242/242 · 1600px 242/242.
+| plugin PostCSS (@porbit/style/postcss) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) | 410/410 (100.0%) |
 
 Số class Tailwind đổi style so với lượt mặc định (biến thể được kiểm): mở 5, đóng 0, .dark 29, :hover 5, :focus 6, :focus-visible 13, :active 5, 375px 39, 768px 30, 1600px 23.
 
-Tổ hợp thật (242 chuỗi class của component, nhiều class trên một phần tử): mặc định 242/242 · mở 242/242 · đóng 242/242 · .dark 242/242 · :hover 242/242 · :focus 242/242 · :focus-visible 241/242 · :active 242/242 · 375px 242/242 · 768px 242/242 · 1600px 242/242.
+Tổ hợp thật (242 chuỗi class của component, nhiều class trên một phần tử): mặc định 242/242 · mở 242/242 · đóng 242/242 · .dark 242/242 · :hover 242/242 · :focus 242/242 · :focus-visible 242/242 · :active 242/242 · 375px 242/242 · 768px 242/242 · 1600px 242/242.
 
 ### không build (parseTailwindStylesheet) — mặc định: lệch 0
 
@@ -33,9 +33,8 @@ Tổ hợp thật (242 chuỗi class của component, nhiều class trên một 
 ### không build (parseTailwindStylesheet) — :focus: lệch 0
 
 
-### không build (parseTailwindStylesheet) — :focus-visible: lệch 1
+### không build (parseTailwindStylesheet) — :focus-visible: lệch 0
 
-- `diff`: `outline-style: tw=none | ours=solid`
 
 ### không build (parseTailwindStylesheet) — :active: lệch 0
 
@@ -67,9 +66,8 @@ Tổ hợp thật (242 chuỗi class của component, nhiều class trên một 
 ### không build (parseTailwindStylesheet) — tổ hợp, :focus: lệch 0
 
 
-### không build (parseTailwindStylesheet) — tổ hợp, :focus-visible: lệch 1
+### không build (parseTailwindStylesheet) — tổ hợp, :focus-visible: lệch 0
 
-- `diff aspect-16/9`: `outline-style: tw=none | ours=solid`
 
 ### không build (parseTailwindStylesheet) — tổ hợp, :active: lệch 0
 
@@ -104,9 +102,8 @@ Tổ hợp thật (242 chuỗi class của component, nhiều class trên một 
 ### plugin PostCSS (@porbit/style/postcss) — :focus: lệch 0
 
 
-### plugin PostCSS (@porbit/style/postcss) — :focus-visible: lệch 1
+### plugin PostCSS (@porbit/style/postcss) — :focus-visible: lệch 0
 
-- `diff`: `outline-style: tw=none | ours=solid`
 
 ### plugin PostCSS (@porbit/style/postcss) — :active: lệch 0
 
@@ -138,9 +135,8 @@ Tổ hợp thật (242 chuỗi class của component, nhiều class trên một 
 ### plugin PostCSS (@porbit/style/postcss) — tổ hợp, :focus: lệch 0
 
 
-### plugin PostCSS (@porbit/style/postcss) — tổ hợp, :focus-visible: lệch 1
+### plugin PostCSS (@porbit/style/postcss) — tổ hợp, :focus-visible: lệch 0
 
-- `diff aspect-16/9`: `outline-style: tw=none | ours=solid`
 
 ### plugin PostCSS (@porbit/style/postcss) — tổ hợp, :active: lệch 0
 

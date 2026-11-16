@@ -247,6 +247,47 @@ describe('tailwind-plugin-api: theme(), config(), e()', () => {
         expect(css).toMatch(/\.animate-wiggle\{animation:var\(--animate-wiggle, ?wiggle 1s ease-in-out infinite\)\}/)
     })
 
+    it('config.theme.aspectRatio của plugin (@tailwindcss/aspect-ratio: 1…16) -> aspect-1…aspect-16 như Tailwind', async () => {
+        const values = Object.fromEntries(Array.from({ length: 16 }, (_, i) => [String(i + 1), String(i + 1)]))
+        const plugin = createPlugin(() => {}, { theme: { aspectRatio: values }, corePlugins: { aspectRatio: false } })
+        const { css, output } = await cssOf(plugin, ['aspect-1', 'aspect-16', 'md:aspect-4'])
+        expect(output.css).toContain('--aspect-16: 16;')
+        expect(css).toMatch(/\.aspect-1\{aspect-ratio:var\(--aspect-1, ?1\)\}/)
+        expect(css).toMatch(/\.aspect-16\{aspect-ratio:var\(--aspect-16, ?16\)\}/)
+        expect(css).toContain('aspect-ratio:var(--aspect-4')
+    })
+
+    it('matchVariant có sort: giá trị tuỳ ý xếp xen giữa giá trị có tên như Tailwind (thứ tự class và cascade)', async () => {
+        const plugin = createPlugin(({ matchVariant }: TailwindPluginApi) => {
+            matchVariant('mq', (value: string) => `@media (min-width: ${value})`, { values: { big: '1200px', small: '600px' }, sort: (a: { value: string }, b: { value: string }) => parseInt(a.value) - parseInt(b.value) })
+            matchVariant('st', (value: string) => `&[data-st=${value}]`, { values: { on: 'on', off: 'off' } })
+        })
+        const output = runTailwindPlugin(plugin)
+        const sheet = applyTailwindPluginOutput(parseTailwindStylesheet(output.css), output)
+        expect(Object.keys(sheet.variantOrder!)).toEqual(['mq', 'st'])
+        const classes = ['mq-big:p-8', 'mq-[900px]:p-6', 'mq-small:p-4', 'mq-[700px]:p-5', 'mq-[1300px]:p-1']
+        const dialect = tailwindV4Dialect({ variants: sheet.variants, variantOrder: sheet.variantOrder })
+        expect([...classes].sort(dialect.compare)).toEqual(['mq-small:p-4', 'mq-[700px]:p-5', 'mq-[900px]:p-6', 'mq-big:p-8', 'mq-[1300px]:p-1'])
+        // Không `sort`: thứ tự khai báo khoá (`on`, `off`), giá trị tuỳ ý sau, giữa chúng so chuỗi.
+        expect(['st-[b]:p-1', 'st-off:p-1', 'st-[a]:p-1', 'st-on:p-1'].sort(dialect.compare)).toEqual(['st-on:p-1', 'st-off:p-1', 'st-[a]:p-1', 'st-[b]:p-1'])
+        // CSS: rule theo cùng thứ tự (mq-big thắng mq-[900px] ở 1280px).
+        const { css } = await extractFromClasses(classes, { hashClassName: false, silent: true, dialects: [dialect] })
+        expect(css.indexOf('900px')).toBeLessThan(css.indexOf('1200px'))
+        expect(css.indexOf('700px')).toBeGreaterThan(css.indexOf('600px'))
+        // Không truyền `variantOrder`: giá trị tuỳ ý xếp sau mọi giá trị có tên (hành vi cũ).
+        const plain = tailwindV4Dialect({ variants: sheet.variants })
+        expect([...classes].sort(plain.compare).slice(0, 2)).toEqual(['mq-small:p-4', 'mq-big:p-8'])
+    })
+
+    it('matchVariant trùng biến thể sẵn có (`nth`): giữ thứ tự của biến thể sẵn có như Tailwind', () => {
+        const plugin = createPlugin(({ matchVariant }: TailwindPluginApi) => matchVariant('nth', (value: string) => `&:nth-child(${value})`, { values: { odd: 'odd', even: 'even', 3: '3' } }))
+        const output = runTailwindPlugin(plugin)
+        const sheet = applyTailwindPluginOutput(parseTailwindStylesheet(output.css), output)
+        const dialect = tailwindV4Dialect({ variants: sheet.variants, variantOrder: sheet.variantOrder })
+        // Kết quả getClassOrder của Tailwind 4.3.5 với cùng plugin.
+        expect(['md:p-4', 'nth-[2n_+_1]:p-4', 'nth-odd:p-4', 'hover:p-4', 'nth-3:p-4', 'nth-even:p-4'].sort(dialect.compare)).toEqual(['hover:p-4', 'nth-3:p-4', 'nth-even:p-4', 'nth-odd:p-4', 'nth-[2n_+_1]:p-4', 'md:p-4'])
+    })
+
     it('plugin.withOptions, flattenColorPalette, defaultTheme, colors', () => {
         const factory = createPlugin.withOptions((options: { name?: string } = {}) => ({ addUtilities }) => addUtilities({ [`.${options.name ?? 'x'}`]: { color: 'red' } }))
         expect(runTailwindPlugin(factory, { options: { name: 'hello' } }).classes).toEqual(['hello'])

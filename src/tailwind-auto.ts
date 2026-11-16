@@ -20,7 +20,7 @@
 // không phụ thuộc nhau lúc nạp.
 import './tailwind-generated'
 import { TAILWIND_DEFAULT_THEME, tailwindV4Dialect, useTailwindStylesheet } from './tailwind-v4-core'
-import presenceStyle from './core'
+import presenceStyle, { type XCSSPreloadManifest } from './core'
 
 // `document.currentScript` luôn là null với <script type="module">: tìm thẻ theo đường dẫn.
 const script = typeof document !== 'undefined'
@@ -74,12 +74,15 @@ const start = async () => {
         blocklist: sheet?.blocklist,
         css: hybrid ? '' : sheet?.css,
     })
+    // Lai: rule sinh lúc chạy chèn vào khối @layer của CSS tĩnh, đúng thứ tự Tailwind (staticLayerBlock); CSS tĩnh bị
+    // thay sau khi tải (HMR) thì chèn lại vào sheet mới (watchStaticCss).
+    const preload = existing && hybridModule ? { classes: existing.classes, staticBlock: hybridModule.staticLayerBlock(dialect.compare!) } as XCSSPreloadManifest : undefined
+    if (preload && hybridModule) hybridModule.watchStaticCss(preload)
     presenceStyle.cssObserve(document, {
         hashClassName: false,
         // Bản build này không có từ điển x-css (xem đầu file).
         dictionaryImport: false,
-        // Lai: rule sinh lúc chạy chèn vào khối @layer của CSS tĩnh, đúng thứ tự Tailwind (staticLayerBlock).
-        preload: existing && hybridModule ? { classes: existing.classes, staticBlock: hybridModule.staticLayerBlock(dialect.compare!) } : undefined,
+        preload,
         dialects: [dialect],
     })
 }

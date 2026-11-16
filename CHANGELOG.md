@@ -2,6 +2,13 @@
 
 ## Chưa phát hành
 
+**Khớp Tailwind** (phương ngữ v4, mọi chế độ: không build, PostCSS, CDN)
+- `@property` chỉ đăng ký theo utility sẵn có thực sự được dùng (nhóm biến Tailwind đăng ký cùng nhau, quy tắc sinh từ Tailwind và kiểm trên mọi class của `getClassList`), không còn đăng ký sẵn cả 127 biến: CSS của plugin đọc `--tw-*` mà không đặt (daisyUI: `outline-style` ở `:focus-visible`) giờ như Tailwind. daisyUI 409 → 410/410. Engine: `XCSSDialect.baseRules` (rule nền theo class, thêm vào sheet gốc một lần, giữ qua cache).
+- Khoá theme tự định nghĩa ở mọi namespace Tailwind đọc: `--aspect-wide` → `aspect-wide`, `--z-index-*`, `--width-*`, `--margin-*`, `--border-width-*`, `--background-color-*`... (75 namespace, dò bằng chính Tailwind); `@config` v3 đổi khoá theme khác (`zIndex`, `aspectRatio`, `gridTemplateColumns`...) sang namespace kebab-case như Tailwind; `aspect-1`…`aspect-16` của `@tailwindcss/aspect-ratio`. Theme tuỳ chỉnh trong `tailwind-parity` 28 → 50/50.
+- `matchVariant` có `sort`: giá trị tuỳ ý xếp xen giữa giá trị có tên như Tailwind (trước đây luôn xếp sau); trùng biến thể sẵn có (`nth`) giữ thứ tự biến thể đó. Dialect nhận `variantOrder` (từ `sheet.variantOrder`).
+- Hai at-rule nội tuyến lồng nhau: `@[300px]:@max-[500px]:`, `md:@[300px]:`, `supports-[...]:@md:`, `@md:hover:`, `md:not-dark:`... (trước trả null). Độ phủ biến thể 403 → 415/415.
+- Chế độ lai (`data-hybrid`): CSS tĩnh bị thay sau khi tải (HMR của Vite) không còn làm mất rule runtime — chèn lại vào sheet mới đúng thứ tự.
+
 **Giấy phép**
 - Thống nhất giấy phép Apache-2.0 (file `LICENSE` vốn là Apache-2.0; `package.json`, README, crate Rust và extension từng ghi MIT).
 

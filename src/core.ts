@@ -84,6 +84,11 @@ export type XCSSDialect = ((className: string) => string[] | null) & {
     /** CSS nền phương ngữ cần (ví dụ `@property` của Tailwind), đặt ngay sau câu khai báo thứ tự layer. */
     baseCss?: string
     /**
+     * Rule nền riêng của class vừa dịch (một rule mỗi chuỗi, ví dụ `@property` Tailwind chỉ đăng ký khi utility cần
+     * nó được dùng): engine gọi ngay sau lần gọi phương ngữ cho class đó và thêm vào sheet gốc một lần.
+     */
+    baseRules?: (className: string) => string[] | undefined
+    /**
      * Thứ tự rule trong CSS (cascade) giữa các class của phương ngữ, như thứ tự của Tailwind:
      * rule được chèn đúng vị trí thay vì nối theo thứ tự gặp class. Trả số âm nếu `a` đứng trước `b`.
      */
@@ -116,6 +121,11 @@ export type XCSSPreloadManifest = {
      * tĩnh). Không trả gì: dùng sheet riêng như thường. Xem `staticLayerBlock` trong src/hybrid.ts.
      */
     staticBlock?: (layer: number) => XCSSStaticBlock | null | undefined
+    /**
+     * Engine gán khi có `staticBlock`: chèn lại mọi rule runtime đã đặt vào CSS tĩnh, vào khối `staticBlock` trả lúc
+     * gọi. Dùng khi CSS tĩnh bị thay sau khi tải (HMR của Vite thay `<style>`/`<link>`): rule trong sheet cũ mất theo.
+     */
+    reinsert?: () => void
 }
 
 /**
@@ -1698,6 +1708,22 @@ export const xcss = (
             dirtyLegacyMediaKeys.add(mediaKey)
         }
 
+        // Rule nền phát sinh theo class (một rule mỗi chuỗi): nối vào sheet gốc một lần, kể cả khi sheet gốc được
+        // thay bằng CSS từ cache (hydrateCacheAfterInit giữ lại các rule này).
+        const rootExtras = new Set<string>()
+        const addRootRule = (rule: string) => {
+            if (rootExtras.has(rule)) return
+            rootExtras.add(rule)
+            if (getSheetText('root').includes(rule)) return
+            ;(cssStyleSheetsText.root ||= []).push(rule)
+            const sheet = cssStyleSheetsDom.root
+            if (sheet) {
+                try {
+                    sheet.insertRule(rule, sheet.cssRules.length)
+                } catch (_error) {}
+            } else if (legacyStyleEls.root) scheduleLegacyStyleText('root')
+        }
+
         // Cache Key & Logic
         // Chỉ cache dùng (so cấu hình của cache đã lưu): bản build không cache bỏ cả hàm băm.
         let currentConfigHash = CACHE_BUILD ? hashConfig(modules) : ''
@@ -1849,7 +1875,7 @@ export const xcss = (
 
         // Khối @layer trong CSSOM của từng sheet (xem insertIntoLayer). replaceSync xoá các khối đó: lần chèn sau
         // tạo khối mới ở cuối sheet.
-        let layerBlocks: Record<string, { b: CSSStyleSheet | CSSGroupingRule; g: any[]; o: number }> = {}
+        let layerBlocks: Record<string, { b: CSSStyleSheet | CSSGroupingRule; g: any[]; o: number; s?: number }> = {}
         const applySheetText = (mediaKey: string, text: string) => {
             setSheetText(mediaKey, text)
             layerBlocks = {}
@@ -1908,7 +1934,10 @@ export const xcss = (
 
                 if (key === 'root') {
                     const cachedRoot = typeof data.cssText?.root === 'string' ? data.cssText.root : ''
-                    const txt = mergeRootCssText(rootBaseText, cachedRoot)
+                    let txt = mergeRootCssText(rootBaseText, cachedRoot)
+                    rootExtras.forEach((rule) => {
+                        if (!txt.includes(rule)) txt += '\n' + rule
+                    })
                     applySheetText('root', txt)
                     return
                 }
@@ -2010,19 +2039,31 @@ export const xcss = (
         // sẵn ở đầu sheet (CSS nạp từ cache lúc khởi tạo).
         // Chế độ lai (`preload.staticBlock`): "khối" là khối `@layer` của CSS tĩnh, dãy khoá dựng từ rule có sẵn
         // (CSS tĩnh build theo cùng thứ tự nên cả khối là vùng có thứ tự). Dựng lại sau mỗi lần xoá layerBlocks.
+        // Chế độ lai: tham số các rule đã chèn vào khối của CSS tĩnh, để chèn lại khi CSS tĩnh bị thay (`preload.reinsert`).
+        let staticRules: any[][] = []
+        const preloadOptions = modules?.preload
+        if (preloadOptions?.staticBlock) {
+            preloadOptions.reinsert = () => {
+                const list = staticRules
+                staticRules = []
+                for (const key in layerBlocks) if (layerBlocks[key].s) delete layerBlocks[key]
+                for (const args of list) insertIntoLayer(...(args as Parameters<typeof insertIntoLayer>))
+            }
+        }
         const insertIntoLayer = (sheet: CSSStyleSheet, media: string, layer: number, body: string, wrap: string, order?: { compare: (a: string, b: string) => number; name: string }) => {
             const key = '@' + media + (supportsAtLayer ? ' ' + layer : '')
-            let blk = layerBlocks[key]
+            let blk: any = layerBlocks[key]
             let i = -1
             try {
                 if (!blk) {
                     const o = sheet.cssRules.length
-                    const target = supportsAtLayer && !sheet.media.length && modules?.preload?.staticBlock?.(layer)
-                    blk = layerBlocks[key] = target ? { b: target.b, g: target.g, o: 0 } : supportsAtLayer ? { b: sheet.cssRules[sheet.insertRule(`@layer l${layer}{}`, o)] as CSSGroupingRule, g: [], o: 0 } : { b: sheet, g: [], o }
+                    const target = supportsAtLayer && !sheet.media.length && preloadOptions?.staticBlock?.(layer)
+                    blk = layerBlocks[key] = target ? { b: target.b, g: target.g, o: 0, s: 1 } : supportsAtLayer ? { b: sheet.cssRules[sheet.insertRule(`@layer l${layer}{}`, o)] as CSSGroupingRule, g: [], o: 0 } : { b: sheet, g: [], o }
                     orderKeysByMedia[key] = target ? target.k : []
                     orderedCountByMedia[key] = target ? target.k.length : 0
                 }
                 const { b, g } = blk
+                if (blk.s) staticRules.push([sheet, media, layer, body, wrap, order])
                 i = ruleInsertIndex(key, g.length, order)
                 // Vị trí trong khối (mỗi nhóm tính là một rule) và số rule của nhóm đứng trước nằm trước điểm chèn.
                 let top = blk.o
@@ -2064,6 +2105,7 @@ export const xcss = (
 
         const updateRules = (txtCls: string, d: any) => {
             let { media, property, selector, layer, className } = d
+            if (d.base) d.base.forEach(addRootRule)
 
             layer = Number(layer) || 0
             let cssExts = shouldHashOutputClassName ? CSS_KEYS.get(txtCls) : null
@@ -2668,6 +2710,8 @@ export const xcss = (
                 if (tokens && tokens.length) {
                     const order = typeof dialect.compare === 'function' ? { compare: dialect.compare, name: parseTarget } : undefined
                     const resolved = resolveTokenGroup(tokens, className, dialect.trusted === true, order)
+                    // Rule nền riêng của class (`@property` Tailwind đăng ký cho utility đó): xem addRootRule.
+                    if (resolved && dialect.baseRules) resolved.base = dialect.baseRules(parseTarget)
                     if (resolved) return resolved
                 }
             }

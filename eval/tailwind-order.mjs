@@ -69,9 +69,26 @@ const report = {}
     const entry = fs.readFileSync(path.join(fixture, 'app.css'), 'utf8')
     const ds = await __unstable__loadDesignSystem(entry, { base: fixture, loadStylesheet })
     const sheet = tw.parseTailwindStylesheet(entry, { resolve: (id) => (imports[id] ? fs.readFileSync(imports[id], 'utf8') : resolveTailwindPlugin(id)) })
-    const dialect = tw.tailwindV4Dialect({ darkMode: 'class', theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, css: sheet.css })
+    const dialect = tw.tailwindV4Dialect({ darkMode: 'class', theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, variantOrder: sheet.variantOrder, css: sheet.css })
     const found = new Set()
     for (const file of fs.readdirSync(path.join(fixture, 'ui'))) for (const c of extractCandidates(fs.readFileSync(path.join(fixture, 'ui', file), 'utf8'))) found.add(c)
     report.shadcn = measure('shadcn/ui v4 (theme, @utility, @custom-variant của dự án)', ds, dialect, shuffle([...found]))
+}
+{
+    // Plugin JS của cấu hình v3 (`@config`): nhóm `matchVariant` có `sort` — giá trị tuỳ ý xếp xen giữa giá trị có tên.
+    const dir = path.join(root, 'eval/fixtures/v3-config/plugins')
+    const entry = fs.readFileSync(path.join(dir, 'app.css'), 'utf8')
+    const loadModule = async (id, base) => ({ base, path: id, module: require(id.startsWith('.') ? path.resolve(base, id) : require.resolve(id, { paths: [base, root] })) })
+    const ds = await __unstable__loadDesignSystem(entry, { base: dir, loadStylesheet, loadModule })
+    const { createTailwindPluginLoader, createConfigLoader } = await import(path.join(root, 'dist/postcss.mjs'))
+    const jsPlugins = createTailwindPluginLoader(dir)
+    const sheet = jsPlugins.apply(tw.parseTailwindStylesheet(entry, { resolve: (id) => resolveTailwindPlugin(id) || jsPlugins.resolve(id), loadConfig: createConfigLoader(dir, jsPlugins) }))
+    const dialect = tw.tailwindV4Dialect({ darkMode: 'class', theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, variantOrder: sheet.variantOrder, css: sheet.css })
+    const variantList = ['mq-small', 'mq-big', 'mq-[700px]', 'mq-[900px]', 'mq-[1300px]', 'mq-[500px]', 'nth-odd', 'nth-even', 'nth-3', 'nth-[2n_+_1]', 'state-on', 'state-[open]', 'state-[closed]', 'md', 'hover', 'dark']
+    // Không đo `state-[open]/menu` cạnh `state-[open]`: cùng giá trị, khác modifier thì `matchVariant` của Tailwind
+    // không phân thứ tự (so sánh trả 1 cả hai chiều) — kết quả theo thứ tự gặp class, không cố định.
+    const utilities = ['p-4', 'p-2', 'px-3', 'font-bold', 'bg-brand', 'text-white']
+    const list = shuffle([...variantList.flatMap((v) => utilities.map((u) => `${v}:${u}`)), ...variantList.flatMap((v) => variantList.map((w) => `${v}:${w}:p-4`))])
+    report.plugins = measure('Plugin JS của cấu hình v3 (matchVariant có sort)', ds, dialect, list)
 }
 fs.writeFileSync(path.join(root, 'eval/tailwind-order.json'), JSON.stringify(report, null, 2) + '\n')

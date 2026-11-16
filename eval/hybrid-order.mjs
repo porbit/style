@@ -103,11 +103,32 @@ const browser = await launch()
 
 // Phần tử đặt sẵn trong HTML (runtime quét lần đầu) và phần tử chèn lúc chạy (MutationObserver): cả hai đường.
 const markup = PAIRS.map((pair, i) => `<div data-k="${i}" class="${pair[0]} ${pair[1]}"><i>x</i></div>`).join('')
-const run = async ({ head, css = '', inject = false }) => {
+// `hmr`: sau khi runtime đã chèn rule, thay CSS tĩnh như HMR của Vite (`style`: đặt lại textContent của `<style>`;
+// `link`: chèn `<link>` mới, bỏ cái cũ khi nạp xong) rồi mới đo.
+const HMR = {
+    style: () => {
+        const style = document.querySelector('style')
+        style.textContent = style.textContent + '\n/* hmr */'
+    },
+    link: () => new Promise((resolve) => {
+        const old = document.querySelector('link[rel=stylesheet]')
+        const next = document.createElement('link')
+        next.rel = 'stylesheet'
+        next.href = '/app.css?t=' + Date.now()
+        next.onload = () => {
+            old.remove()
+            resolve()
+        }
+        old.after(next)
+    }),
+}
+const run = async ({ head, css = '', inject = false, hmr }) => {
     const page = await browser.newPage({ viewport: { width: 1600, height: 800 } })
     await page.route('http://hybrid.local/**', (route) => {
         const url = new URL(route.request().url())
         if (url.pathname === '/tailwind-auto.mjs') return route.fulfill({ contentType: 'text/javascript', body: auto })
+        // Phần nạp động (`tailwind-hybrid.mjs`, `tailwind-stylesheet.mjs`...) cạnh bản tailwind-auto đang đo.
+        if (url.pathname.endsWith('.mjs')) return route.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(path.join(path.dirname(path.resolve(autoPath)), path.basename(url.pathname)), 'utf8') })
         if (url.pathname === '/app.css') return route.fulfill({ contentType: 'text/css', body: css })
         return route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><head>${head}</head><body><div id="app">${inject ? '' : markup}</div></body></html>` })
     })
@@ -115,6 +136,10 @@ const run = async ({ head, css = '', inject = false }) => {
     await page.waitForTimeout(150)
     if (inject) await page.evaluate((html) => { document.getElementById('app').innerHTML = html }, markup)
     await page.waitForTimeout(150)
+    if (hmr) {
+        await page.evaluate(HMR[hmr])
+        await page.waitForTimeout(150)
+    }
     const sigs = []
     for (let i = 0; i < PAIRS.length; i++) {
         // Rời phần tử trước (bố cục trở về trạng thái thường), rồi rê vào góc trên trái: padding đổi khi hover
@@ -143,6 +168,11 @@ const variants = {
     'lai <style>: B tĩnh, A động (chèn lúc chạy)': { head: `<style>${staticB}</style>${script}`, inject: true },
     'lai <link>: A tĩnh, B động (chèn lúc chạy)': { head: `<link rel="stylesheet" href="/app.css">${script}`, css: staticA, inject: true },
     'lai <link>: B tĩnh, A động (chèn lúc chạy)': { head: `<link rel="stylesheet" href="/app.css">${script}`, css: staticB, inject: true },
+    'lai <style>: A tĩnh, B động, HMR thay <style>': { head: `<style>${staticA}</style>${script}`, inject: true, hmr: 'style' },
+    'lai <style>: B tĩnh, A động, HMR thay <style>': { head: `<style>${staticB}</style>${script}`, hmr: 'style' },
+    'lai <link>: A tĩnh, B động, HMR thay <link>': { head: `<link rel="stylesheet" href="/app.css">${script}`, css: staticA, inject: true, hmr: 'link' },
+    'lai <link>: B tĩnh, A động, HMR thay <link>': { head: `<link rel="stylesheet" href="/app.css">${script}`, css: staticB, inject: true, hmr: 'link' },
+    'lai, CSS Tailwind build: A tĩnh, B động, HMR thay <style>': { head: `<style>${twStaticA}</style>${script}`, inject: true, hmr: 'style' },
     'lai, CSS Tailwind build: A tĩnh, B động': { head: `<style>${twStaticA}</style>${script}`, inject: true },
     'lai, CSS Tailwind build: B tĩnh, A động': { head: `<style>${twStaticB}</style>${script}`, inject: true },
 }

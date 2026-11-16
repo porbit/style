@@ -5,7 +5,8 @@
  * `tailwind-stylesheet.mjs`) khi trang có `<style type="text/tailwindcss">`. Không import dữ liệu Tailwind hay
  * trạng thái của phương ngữ: phần cần từ phương ngữ truyền qua tham số (`StylesheetHost`, theme).
  */
-import { encodeArbitrary, normalizeTailwindPrefix, replaceCssFunction, splitTopLevel, arbitraryInner, type Rule } from './tailwind-css-text'
+import { TW_THEME_ROOTS } from './tailwind-theme-roots-generated'
+import { encodeArbitrary, normalizeTailwindPrefix, replaceCssFunction, splitTopLevel, arbitraryInner, type Rule, type TailwindVariantOrder } from './tailwind-css-text'
 
 type CssItem = { decl: [string, string] } | { head: string; body: string } | { at: string }
 
@@ -280,6 +281,8 @@ export interface TailwindStylesheet {
     variants: Record<string, string>
     /** `@import`/`@plugin` không giải được (ngoài `tailwindcss`). */
     unresolved: string[]
+    /** Thứ tự nhóm biến thể của `matchVariant` (plugin JS, gộp bởi `applyTailwindPluginOutput`): truyền vào `variantOrder`. */
+    variantOrder?: Record<string, TailwindVariantOrder>
     /** Tiền tố (`@import "tailwindcss" prefix(tw)` hoặc `prefix` của `@config`): truyền vào `tailwindV4Dialect({ prefix })`. */
     prefix?: string
     /**
@@ -501,7 +504,7 @@ export const userUtilities = (utilities: Record<string, string>, theme: Record<s
                 let media: string | undefined
                 if (placed.media) {
                     const at = host.atRuleOf(placed.media)
-                    if (!at || !at.startsWith('@media ')) continue
+                    if (!at || !at.startsWith('@media ') || at.includes('{')) continue
                     media = at.slice(7)
                 }
                 const childSel = sel === '&' ? placed.sel : placed.sel.replace(/&/g, sel)
@@ -564,7 +567,8 @@ export const projectCss = (css: string, theme: Record<string, string>, host: Sty
                     inline += `/* @apply ${name}: chưa hỗ trợ */`
                     continue
                 }
-                extra += wrapper ? `${wrapper}{${rule}}` : rule
+                // Chuỗi at-rule lồng (`@media x{@container y`): đóng đủ ngoặc.
+                extra += wrapper ? `${wrapper}{${rule}${'}'.repeat(wrapper.split('{').length)}` : rule
             }
         }
         return { inline, extra }
@@ -612,4 +616,66 @@ export const projectCss = (css: string, theme: Record<string, string>, host: Sty
         return out + text.slice(from)
     }
     return expandThemeFunctions(layerBaseCss(css.includes('@apply') ? expandApply(css) : css), theme)
+}
+
+// ---------------------------------------------------------------------------
+// Khoá theme tự định nghĩa và nhóm `matchVariant` (chỉ cần khi dự án có stylesheet/plugin: bản CDN nạp động phần này)
+// ---------------------------------------------------------------------------
+
+/**
+ * Gốc utility -> [namespace theme, loại mẫu tuỳ ý] đọc khoá tự định nghĩa (`aspect-wide` khi có `--aspect-wide`), giải từ
+ * TW_THEME_ROOTS (`ns:gốc gốc|...`; `m*`/`border-*`: gốc cùng các cạnh; gốc âm đi cùng). Loại: `color` cho namespace màu,
+ * `length` cho độ rộng/độ dày, `image`, còn lại `any` (cùng quy tắc với `themeKind` của scripts/gen-tailwind-map.mjs).
+ */
+export const themeRoots = (): Record<string, Array<[string, string]>> => {
+    const out: Record<string, Array<[string, string]>> = {}
+    for (const part of TW_THEME_ROOTS.split('|')) {
+        const [ns, list] = part.split(':')
+        const kind = /color|fill|stroke$/.test(ns) ? 'color' : /width|thickness|positions/.test(ns) ? 'length' : /image/.test(ns) ? 'image' : 'any'
+        for (const item of list.split(' ')) {
+            const base = item.replace('*', '')
+            const roots = item === base ? [item] : [base.replace(/-$/, ''), ...'b be bs e l r s t x y'.split(' ').map((side) => base + side)]
+            for (const root of roots) for (const each of [root, '-' + root]) (out[each] ||= []).push(['--' + ns, kind])
+        }
+    }
+    return out
+}
+
+/**
+ * Nhóm `matchVariant` (`mq-big`, `mq-small`, `mq-*`): chung thứ tự gốc của thành viên đầu. Trùng biến thể hàm sẵn có
+ * (`matchVariant('nth', ...)`): Tailwind chỉ thay cách áp, giữ thứ tự và cách so của biến thể cũ — bỏ thứ tự riêng để
+ * các giá trị đọc như `nth-*` sẵn có.
+ */
+export const variantGroups = (roots: Record<string, readonly [string, number]>, order: Record<string, TailwindVariantOrder>, builtin: Record<string, readonly [string, number]>): void => {
+    for (const [name, group] of Object.entries(order)) {
+        const members = [`${name}-*`, ...group.keys.map((key) => (key === 'DEFAULT' ? name : `${name}-${key}`))].filter((m) => roots[m] && !(m in builtin))
+        if (builtin[name]?.[0] === 'f') {
+            for (const m of members) delete roots[m]
+            continue
+        }
+        const first = Math.min(...members.map((m) => roots[m][1]))
+        for (const m of members) roots[m] = [roots[m][0], first]
+    }
+}
+
+type GroupVariant = { kind: string; root?: string; value?: { value: string } | null; modifier?: string | null }
+/** Biến thể thuộc nhóm `matchVariant` nào: [tên nhóm, giá trị (khoá có tên/giá trị tuỳ ý, null = DEFAULT), modifier]. */
+const variantGroupOf = (variant: GroupVariant, order: Record<string, TailwindVariantOrder>): [string, { value: string | null; modifier: string | null }] | null => {
+    const root = variant.root || ''
+    if (variant.kind === 'functional' && root.endsWith('-*')) {
+        const name = root.slice(0, -2)
+        return order[name] ? [name, { value: variant.value ? arbitraryInner(variant.value.value) : null, modifier: variant.modifier ?? null }] : null
+    }
+    if (variant.kind !== 'static') return null
+    for (const name in order) {
+        const key = root === name ? 'DEFAULT' : root.startsWith(name + '-') ? root.slice(name.length + 1) : ''
+        if (key && order[name].keys.includes(key)) return [name, { value: key === 'DEFAULT' ? null : key, modifier: null }]
+    }
+    return null
+}
+/** So hai biến thể cùng thứ tự gốc trong một nhóm `matchVariant` (0: không cùng nhóm). */
+export const compareVariantGroups = (a: GroupVariant, b: GroupVariant, order: Record<string, TailwindVariantOrder>): number => {
+    const ga = variantGroupOf(a, order)
+    const gb = variantGroupOf(b, order)
+    return ga && gb && ga[0] === gb[0] ? order[ga[0]].compare(ga[1], gb[1]) : 0
 }

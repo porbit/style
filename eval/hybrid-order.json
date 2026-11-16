@@ -36,6 +36,31 @@
       "total": 34,
       "wrong": []
     },
+    "lai <style>: A tĩnh, B động, HMR thay <style>": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    },
+    "lai <style>: B tĩnh, A động, HMR thay <style>": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    },
+    "lai <link>: A tĩnh, B động, HMR thay <link>": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    },
+    "lai <link>: B tĩnh, A động, HMR thay <link>": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    },
+    "lai, CSS Tailwind build: A tĩnh, B động, HMR thay <style>": {
+      "correct": 34,
+      "total": 34,
+      "wrong": []
+    },
     "lai, CSS Tailwind build: A tĩnh, B động": {
       "correct": 34,
       "total": 34,

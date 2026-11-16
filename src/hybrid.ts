@@ -3,7 +3,10 @@
  * sinh CSS cho class mới. Đọc stylesheet cùng nguồn (class đã có, biến theme) và chỉ cho engine khối `@layer` của
  * CSS tĩnh để chèn rule mới đúng thứ tự Tailwind. Tách khỏi src/tailwind-auto.ts để test được không cần trang.
  */
-import type { XCSSStaticBlock } from './core'
+import type { XCSSPreloadManifest, XCSSStaticBlock } from './core'
+
+// Khối `@layer` của CSS tĩnh mà runtime đã nhận để chèn rule (staticLayerBlock): theo dõi để biết CSS tĩnh bị thay.
+const usedBlocks = new Set<CSSRule>()
 
 // Tên class trong selector đã serialize, bỏ escape: `.md\\:p-4` -> `md:p-4`, `.\\32 xl\\:p-4` -> `2xl:p-4`.
 export const selectorClassNames = (selector: string): string[] =>
@@ -63,6 +66,7 @@ export const staticLayerBlock = (compare: (a: string, b: string) => number) => (
     }
     const b = blocks['l' + layer] || blocks.utilities
     if (!b) return
+    usedBlocks.add(b)
     const g: any[] = []
     const k: XCSSStaticBlock['k'] = []
     for (const rule of Array.from(b.cssRules) as any[]) {
@@ -77,4 +81,29 @@ export const staticLayerBlock = (compare: (a: string, b: string) => number) => (
         }
     }
     return { b, g, k }
+}
+
+/**
+ * HMR của CSS tĩnh (Vite thay `<style>` hoặc chèn `<link>` mới rồi bỏ cái cũ): rule runtime đã chèn vào sheet cũ mất
+ * theo. Theo dõi `<head>` (thêm/bỏ/sửa `<style>`, `<link>`) và sự kiện `load` của `<link>`: khi một khối đã dùng không
+ * còn thuộc stylesheet nào của trang, chèn lại mọi rule runtime vào khối của CSS tĩnh mới (`preload.reinsert`), đúng
+ * vị trí theo thứ tự Tailwind. Trả hàm ngắt theo dõi.
+ */
+export const watchStaticCss = (preload: XCSSPreloadManifest): (() => void) => {
+    const check = () => {
+        const live = new Set(Array.from(document.styleSheets))
+        if (![...usedBlocks].some((block) => !block.parentStyleSheet || !live.has(block.parentStyleSheet))) return
+        usedBlocks.clear()
+        preload.reinsert?.()
+    }
+    const observer = new MutationObserver(check)
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true })
+    const onLoad = (event: Event) => {
+        if ((event.target as Element)?.tagName === 'LINK') check()
+    }
+    document.addEventListener('load', onLoad, true)
+    return () => {
+        observer.disconnect()
+        document.removeEventListener('load', onLoad, true)
+    }
 }

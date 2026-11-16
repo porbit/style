@@ -64,3 +64,9 @@ export const replaceCssFunction = (value: string, name: string, fn: (args: strin
 }
 
 export const encodeArbitrary = (text: string) => `[${text.replace(/_/g, '\\_').replace(/\s+/g, '_')}]`
+
+/** Nhóm biến thể của một `matchVariant`: khoá giá trị có tên, so hai giá trị (khoá/giá trị tuỳ ý thô, `null` = DEFAULT). */
+export interface TailwindVariantOrder {
+    keys: string[]
+    compare: (a: { value: string | null; modifier: string | null }, b: { value: string | null; modifier: string | null }) => number
+}

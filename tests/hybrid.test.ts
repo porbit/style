@@ -169,6 +169,35 @@ describe('chế độ lai: chèn rule vào khối @layer của CSS tĩnh', () =>
         expect(hoverGroups[0].cssRules.length).toBe(3)
     })
 
+    it('CSS tĩnh bị thay sau khi tải (HMR): preload.reinsert chèn lại rule runtime vào sheet mới, đúng thứ tự', async () => {
+        env = createEnv(STATIC)
+        const dialect = tailwindV4Dialect({ preflight: false })
+        const preload: AnyObj = { classes: ['inset-0', 'mt-6', 'rounded-t-none', 'p-2', 'py-5', 'hover:bg-teal-300', 'md:p-8', '2xl:p-10'], staticBlock: staticLayerBlock(dialect.compare!) }
+        const instance = xcss({ hashClassName: false, dictionaryImport: false, dialects: [dialect], preload })
+        const { clsx } = instance.buildCss(env.document as any)
+        const dynamic = ['px-4', 'top-2', 'p-6', 'hover:bg-lime-300', 'md:p-9']
+        for (const name of dynamic) clsx(name)
+        await instance.ready
+        expect(typeof preload.reinsert).toBe('function')
+        // HMR: sheet tĩnh mới (cùng nội dung) thay sheet cũ; rule runtime chỉ còn ở sheet cũ.
+        const fresh = makeSheet(STATIC)
+        env.document.styleSheets = [fresh]
+        expect(blockClasses(fresh.cssRules[1])).not.toContain('px-4')
+        preload.reinsert()
+        const utilities = blockClasses(fresh.cssRules[1]).filter(Boolean)
+        for (const name of dynamic) expect(utilities).toContain(name)
+        expect(utilities).toEqual([...utilities].sort(dialect.compare!))
+        // Class mới sau HMR cũng vào sheet mới; gọi lại khi sheet không đổi không chèn trùng.
+        clsx('m-2')
+        await instance.ready
+        expect(blockClasses(fresh.cssRules[1])).toContain('m-2')
+        const count = blockClasses(fresh.cssRules[1]).length
+        const again = makeSheet(STATIC)
+        env.document.styleSheets = [again]
+        preload.reinsert()
+        expect(blockClasses(again.cssRules[1]).length).toBe(count)
+    })
+
     it('không có khối @layer phù hợp: rule vào sheet riêng như thường', async () => {
         env = createEnv('.p-2{padding:.5rem}')
         const dialect = tailwindV4Dialect({ preflight: false })

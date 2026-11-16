@@ -283,7 +283,7 @@ for (const plugin of PLUGINS) {
     // `bundled`: đo bản đóng gói sẵn (@porbit/style/tailwind-plugins) thay cho đường JS, để so hai đường.
     const resolvePlugin = plugin.bundled ? resolveTailwindPlugin : (id) => loader.resolve(id, plugin.options)
     const sheet = loader.apply(tw.parseTailwindStylesheet(`@import "tailwindcss";\n@plugin "${plugin.id}";`, { resolve: resolvePlugin }))
-    const dialect = tw.tailwindV4Dialect({ preflight: true, darkMode: 'media', theme: sheet.theme, css: sheet.css, utilities: sheet.utilities, variants: sheet.variants })
+    const dialect = tw.tailwindV4Dialect({ preflight: true, darkMode: 'media', theme: sheet.theme, css: sheet.css, utilities: sheet.utilities, variants: sheet.variants, variantOrder: sheet.variantOrder })
     const unsupported = classes.filter((c) => !dialect(c))
     const ours = (await extractFromClasses(classes, { hashClassName: false, silent: true, minify: true, dialects: [dialect] })).css
 

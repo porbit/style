@@ -14,8 +14,8 @@
     "sample": []
   },
   "combos": {
-    "classes": 2305,
-    "pairs": 2304,
+    "classes": 2496,
+    "pairs": 2495,
     "wrong": 0,
     "percent": 100,
     "sample": []
@@ -23,6 +23,13 @@
   "shadcn": {
     "classes": 769,
     "pairs": 768,
+    "wrong": 0,
+    "percent": 100,
+    "sample": []
+  },
+  "plugins": {
+    "classes": 352,
+    "pairs": 351,
     "wrong": 0,
     "percent": 100,
     "sample": []

@@ -218,7 +218,7 @@ const modes = []
 const { createConfigLoader } = await import(path.join(root, 'dist/postcss.mjs'))
 const sheet = jsPlugins.apply(tw.parseTailwindStylesheet(runtimeEntry, { resolve, loadConfig: createConfigLoader(path.dirname(entryPath), jsPlugins) }))
 if (sheet.unresolved.length) console.warn('chưa giải được:', sheet.unresolved)
-modes.push({ name: 'không build (parseTailwindStylesheet)', dialect: tw.tailwindV4Dialect({ preflight: true, darkMode: arg('dark') === 'media' ? 'media' : 'class', theme: sheet.theme, css: sheet.css, utilities: sheet.utilities, variants: sheet.variants, prefix: sheet.prefix, important: sheet.important, blocklist: sheet.blocklist }) })
+modes.push({ name: 'không build (parseTailwindStylesheet)', dialect: tw.tailwindV4Dialect({ preflight: true, darkMode: arg('dark') === 'media' ? 'media' : 'class', theme: sheet.theme, css: sheet.css, utilities: sheet.utilities, variants: sheet.variants, variantOrder: sheet.variantOrder, prefix: sheet.prefix, important: sheet.important, blocklist: sheet.blocklist }) })
 // Plugin PostCSS (thay @tailwindcss/postcss): chạy postcss thật trên file CSS của dự án, tự quét mã nguồn.
 {
     const { default: postcss } = await import('postcss')

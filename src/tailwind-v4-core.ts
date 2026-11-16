@@ -15,7 +15,7 @@ import type { XCSSDialect } from './core'
 declare const __XCSS_EDITOR__: boolean | undefined
 const EDITOR_BUILD = typeof __XCSS_EDITOR__ === 'undefined' || __XCSS_EDITOR__
 import { TW_DATA, TW_ORDER, TW_PREFLIGHT_CSS } from './tailwind-generated'
-import { arbitraryInner, encodeArbitrary, normalizeTailwindPrefix, replaceCssFunction, splitTopLevel, type Rule } from './tailwind-css-text'
+import { arbitraryInner, encodeArbitrary, normalizeTailwindPrefix, replaceCssFunction, splitTopLevel, type Rule, type TailwindVariantOrder } from './tailwind-css-text'
 import type { StylesheetHost } from './tailwind-stylesheet'
 
 export interface TailwindV4DialectOptions {
@@ -33,6 +33,12 @@ export interface TailwindV4DialectOptions {
      * hoặc dạng khối `{ 'data-open': '{ &:where([data-state="open"]) { @slot; } }' }`.
      */
     variants?: Record<string, string>
+    /**
+     * Thứ tự trong nhóm biến thể của `matchVariant` (plugin JS): `{ mq: { keys, compare } }` — giá trị có tên (`mq-big`)
+     * và giá trị tuỳ ý (`mq-[900px]`) chung một nhóm, xếp theo `compare` (`sort` của plugin) như Tailwind. Lấy từ
+     * `sheet.variantOrder` sau `applyTailwindPluginOutput`/`loader.apply(sheet)`.
+     */
+    variantOrder?: Record<string, TailwindVariantOrder>
     /** Thêm preflight (reset) của Tailwind vào base CSS. Mặc định false. */
     preflight?: boolean
     /** `media` (mặc định, như Tailwind v4): theo hệ điều hành. `class`: theo `.dark` ở tổ tiên. */
@@ -56,6 +62,8 @@ export interface TailwindV4DialectOptions {
      */
     blocklist?: string[]
 }
+
+export type { TailwindVariantOrder } from './tailwind-css-text'
 
 // Bảng màu nén (`red:97.1 0.013 17.38,...|...`) -> `--color-red-50: oklch(97.1% 0.013 17.38)`.
 const defaultTheme: Record<string, string> = { ...(TW_DATA.theme as Record<string, string>) }
@@ -191,6 +199,9 @@ for (const root in DATA.roots) {
     if (hints) hintTemplates[root] = Object.fromEntries(Object.entries(hints).map(([hint, spec]) => [hint, one(spec)]))
 }
 for (const name in DATA.explicit) explicit[name] = decodeRule(DATA.explicit[name])
+// Gốc -> [namespace theme, loại mẫu tuỳ ý] cho khoá tự định nghĩa (`aspect-wide`): đến cùng phần đọc stylesheet
+// (useTailwindStylesheet, xem `themeRoots` trong src/tailwind-stylesheet.ts) vì khoá tự định nghĩa chỉ có khi dự án có theme.
+let THEME_ROOTS: Record<string, Array<[string, string]>> = {}
 const valueSetCache: Array<Set<string> | undefined> = []
 /** Bộ giá trị `a b c`; `@--color-` là mọi khoá của namespace đó trong theme mặc định. Không gồm dấu `#...`. */
 const valueSet = (index: number): Set<string> => {
@@ -217,15 +228,43 @@ const acceptsValue = (index: number, value: string): boolean =>
     index === -1 ? BARE_TESTS['#q'](value) : valueSet(index).has(value) || bareKinds(index).some((kind) => BARE_TESTS[kind](value))
 /** Bảng thứ tự thuộc tính của Tailwind (getClassOrder). */
 const ORDER_PROPERTIES = DATA.props.slice(0, TW_ORDER.properties)
-/** @property, dự phòng (trình duyệt chưa hỗ trợ @property) và keyframes Tailwind cần (base CSS của phương ngữ). */
-const PROPERTIES_CSS = (() => {
-    const list = DATA.properties.map((entry) => (typeof entry === 'string' ? [entry] : entry)) as Array<readonly [string, string?, number?]>
-    return [
-        ...list.map(([name, initial, syntax]) => `@property --tw-${name} { syntax: "${DATA.syntaxes[syntax || 0]}"; inherits: false;${initial === undefined ? '' : ` initial-value: ${initial};`} }`),
-        DATA.fallback[0] + list.map(([name, initial]) => `--tw-${name}:${initial ?? 'initial'}`).join(';') + DATA.fallback[1],
-        ...DATA.keyframes,
-    ].join('\n')
-})()
+// @property chỉ đăng ký theo utility sẵn có được dùng, như Tailwind (CSS của plugin đọc `--tw-outline-style` mà không
+// đặt chỉ thấy giá trị khởi tạo khi trang có utility đăng ký biến đó). Bảng xếp theo nhóm biến Tailwind luôn đăng
+// ký cùng nhau (`+` trước tên: mục đầu một nhóm); mỗi nhóm thành các rule `@property` + dự phòng cho trình
+// duyệt chưa hỗ trợ @property. Quy tắc chọn nhóm: xem PROPERTY_NO_SET trong scripts/gen-tailwind-map.mjs.
+// Biến -> [nhóm, dấu sau tên trong bảng (`!` đặt không đăng ký, `?` đọc không đăng ký, `~` đọc kèm dự phòng vẫn đăng ký)].
+const PROPERTY_GROUP = new Map<string, [number, string]>()
+const PROPERTY_GROUP_RULES: string[][] = []
+{
+    const fallbacks: string[] = []
+    for (const entry of DATA.properties) {
+        const [raw, initial, syntax] = typeof entry === 'string' ? [entry] : entry
+        const [, plus, short, flags] = raw.match(/^(\+?)([\w-]+)(.*)$/) as RegExpMatchArray
+        const name = '--tw-' + short
+        if (plus) {
+            fallbacks.push('')
+            PROPERTY_GROUP_RULES.push([])
+        }
+        const group = PROPERTY_GROUP_RULES.length - 1
+        PROPERTY_GROUP.set(name, [group, flags])
+        PROPERTY_GROUP_RULES[group].push(`@property ${name} { syntax: "${DATA.syntaxes[syntax || 0]}"; inherits: false;${initial === undefined ? '' : ` initial-value: ${initial};`} }`)
+        fallbacks[group] += `${fallbacks[group] ? ';' : ''}${name}:${initial ?? 'initial'}`
+    }
+    fallbacks.forEach((decls, group) => PROPERTY_GROUP_RULES[group].push(DATA.fallback[0] + decls + DATA.fallback[1]))
+}
+/** Thêm vào `out` nhóm @property mà các khai báo của một utility sẵn có làm Tailwind đăng ký. */
+const propertyGroups = (decls: ReadonlyArray<readonly [string, string]>, out: Set<number>) => {
+    // `skip`: dấu làm lần đặt/đọc này không đăng ký; `need`: dấu bắt buộc (đọc kèm dự phòng).
+    const add = (name: string, skip: string, need = '') => {
+        const entry = PROPERTY_GROUP.get(name)
+        if (entry && !entry[1].includes(skip) && entry[1].includes(need)) out.add(entry[0])
+    }
+    for (const [prop, value] of decls) {
+        add(prop, '!')
+        for (const m of value.matchAll(/var\((--tw-[\w-]+)\s*([),])/g)) m[2] === ')' ? add(m[1], '?') : add(m[1], '#', '~')
+    }
+}
+const propertyCss = (groups: Set<number>): string[] => [...groups].flatMap((group) => PROPERTY_GROUP_RULES[group])
 
 // ---------------------------------------------------------------------------
 // Tra rule của phần gốc (không biến thể)
@@ -518,8 +557,8 @@ const resolveBase = (name: string, modifier: string | null = null): Rule | null 
             }
             return done(unpack(templates[index], (t) => t.split('{a}').join(raw)))
         }
-        const entries = families[root]
-        if (!entries) continue
+        const entries = families[root] || []
+        if (!entries.length && !THEME_ROOTS[root]) continue
         // Giá trị liệt kê trước giá trị trần: Tailwind viết `mask-linear-45` là `45deg` nhưng số trần là `calc(1deg * 37)`.
         const ordered = [...entries.filter(([, set]) => set !== -1 && valueSet(set).has(value)), ...entries]
         for (const [templateIndex, setIndex] of ordered) {
@@ -555,6 +594,19 @@ const resolveBase = (name: string, modifier: string | null = null): Rule | null 
                     }
                     return done(rule)
                 }
+            }
+            // Khoá theme tự định nghĩa của namespace mà theme mặc định ít/không có khoá (`aspect-wide` khi có
+            // `--aspect-wide`): mẫu giá trị tuỳ ý của họ đọc `var(--ns-x)`, như Tailwind.
+            for (const [ns, kind] of THEME_ROOTS[root] || []) {
+                const options = arbitraryTemplates[root]
+                const key = `${ns}-${value}`
+                if (theme[key] === undefined || options === undefined || KEPT_SUB_NAMESPACES[ns + '-']?.some((sub) => key.startsWith(sub))) continue
+                const index = typeof options === 'number' ? options : options[kind] ?? options.any ?? options.length
+                // Màu + độ mờ (`accent-brand/50`): `color-mix(...)` như giá trị tuỳ ý.
+                const alpha = modifier !== null && kind === 'color' ? alphaOf(modifier) : null
+                if (modifier !== null && kind === 'color' && !alpha) return null
+                const v = alpha ? mixAlpha(`var(${key})`, alpha) : `var(${key})`
+                return alpha ? unpack(templates[index], (t) => t.split('{a}').join(v)) : done(unpack(templates[index], (t) => t.split('{a}').join(v)))
             }
         }
     }
@@ -717,6 +769,8 @@ const VARIANT_VALUE_PLACEHOLDER = '__porbit_variant_value__'
 const VARIANT_MODIFIER_PLACEHOLDER = '__porbit_variant_modifier__'
 /** Biến thể hàm của dialect đang hoạt động: [gốc, thân không modifier, thân có modifier (null: không nhận modifier)], gốc dài trước. */
 let FUNCTIONAL_VARIANTS: Array<[string, string, string | null]> = []
+/** Nhóm thứ tự `matchVariant` của dialect đang hoạt động (xem `variantOrder`). */
+let VARIANT_ORDER: Record<string, TailwindVariantOrder> | undefined
 /**
  * Biến thể tự định nghĩa theo tên, kể cả biến thể hàm với giá trị tuỳ ý (`tab-[2]`, `tab-[2]/x` của `matchVariant`):
  * thay giá trị (đã đổi `_` thành khoảng trắng như Tailwind) vào thân rồi dịch như `@custom-variant` (lưu lại theo tên).
@@ -892,7 +946,10 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
     const media: string[] = []
     // Điều kiện media không có key đăng ký (`[@media_...]`, media riêng của rule): gộp bằng `and`.
     const queries: string[] = extraQuery ? [extraQuery] : []
-    let inline = ''
+    // At-rule khác `@media` gộp được (`@container`, `@supports`, `@starting-style`, `@media not`...), văn bản thô theo
+    // thứ tự áp (trong ra ngoài): lồng thành chuỗi `[@a{@b]` như Tailwind lồng (`@[300px]:@max-[500px]:`, `md:@md:`).
+    const atRules: string[] = []
+    const inline = (encoded: string) => atRules.push(arbitraryInner(encoded.slice(1, -1)))
     let pseudoElement = ''
     const atContainer = (v: string) => {
         const m = v.match(/^@(min-|max-)?([\w]+)$/)
@@ -911,8 +968,7 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
         }
         const atRule = inlineAtRule(variant)
         if (atRule) {
-            if (inline) return null
-            inline = atRule
+            inline(atRule)
             continue
         }
         if (variant === 'dark') {
@@ -945,15 +1001,13 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
         const notMedia = variant.match(/^not-(.+)$/)
         // Biến thể tự định nghĩa cùng tên (`@custom-variant dark (&:is(.dark *))`) thắng media sẵn có.
         if (notMedia && !CUSTOM_VARIANTS[notMedia[1]] && mediaOf(notMedia[1], darkMode)) {
-            if (inline) return null
-            inline = `[${('@media not ' + mediaOf(notMedia[1], darkMode)).replace(/\s+/g, '_')}]`
+            atRules.push('@media not ' + mediaOf(notMedia[1], darkMode))
             continue
         }
         // `not-@md`: `@container not (width >= 28rem)`.
         const notContainer = notMedia && atContainer(notMedia[1])
         if (notContainer) {
-            if (inline) return null
-            inline = encodeArbitrary((MEDIA_QUERY.get(notContainer) as string).replace(/^@container\s+/, '@container not '))
+            atRules.push((MEDIA_QUERY.get(notContainer) as string).replace(/^@container\s+/, '@container not '))
             continue
         }
         const arbitrary = variant.match(/^\[(.+)\]$/)
@@ -967,8 +1021,7 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
             continue
         }
         if (arbitrary && arbitrary[1].startsWith('@')) {
-            if (inline) return null
-            inline = `[${arbitrary[1]}]`
+            inline(variant)
             continue
         }
         // group-*/peer-* (kể cả có tên `group-hover/item`), in-*, has-*, not-*, aria-*, data-*, nth-*...: trạng thái
@@ -981,26 +1034,21 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
             const query = rule.match(/^@media\s+([\s\S]+)$/)
             if (query && query[1] === HOVER_MEDIA) media.push('hover')
             else if (query && !/^not\b/.test(query[1])) queries.push(query[1])
-            else {
-                if (inline) return null
-                inline = encodeArbitrary(rule)
-            }
+            else atRules.push(rule)
         }
         const own = alts[0].sel
         sel = sel.replace('&', () => own)
     }
     if (pseudoElement) sel = sel.replace('&', '&' + pseudoElement)
 
-    const unique = [...new Set(media)]
-    if (inline) return unique.length || queries.length ? null : { media: inline, sel }
     // Mọi điều kiện thành at-rule nội tuyến trong sheet mặc định: thứ tự rule theo `compare` (như Tailwind),
-    // không phụ thuộc thứ tự các sheet media. Nhiều điều kiện media gộp bằng `and` (`md:dark:hover:`).
-    const all = [...new Set([...unique.map((key) => MEDIA_QUERY.get(key)), ...queries])]
-    if (!all.length) return { media: '', sel }
+    // không phụ thuộc thứ tự các sheet media. Nhiều điều kiện media gộp bằng `and` (`md:dark:hover:`) ở ngoài cùng,
+    // container query của breakpoint (`@md`) và at-rule khác lồng bên trong theo thứ tự biến thể (cùng điều kiện).
+    const all = [...new Set([...[...new Set(media)].map((key) => MEDIA_QUERY.get(key)), ...queries])]
     if (all.some((query) => query === undefined)) return null
-    const container = all.filter((query) => (query as string).startsWith('@'))
-    if (container.length) return container.length === 1 && all.length === 1 ? { media: encodeArbitrary(container[0] as string), sel } : null
-    return { media: encodeArbitrary(`@media ${all.join(' and ')}`), sel }
+    const plain = (all as string[]).filter((query) => !query.startsWith('@'))
+    const chain = [...(plain.length ? [`@media ${plain.join(' and ')}`] : []), ...(all as string[]).filter((query) => query.startsWith('@')), ...atRules.reverse()]
+    return { media: chain.length ? encodeArbitrary(chain.join('{')) : '', sel }
 }
 
 // ---------------------------------------------------------------------------
@@ -1141,7 +1189,7 @@ const parseOrderVariant = (variant: string): OrderVariant | null => {
     else if (ORDER_ROOTS[variant] && ORDER_ROOTS[variant][0] === 's') result = { kind: 'static', key: variant, root: variant }
     // Biến thể hàm của plugin (`tab-[2]`): nhóm riêng `tab-*` xếp sau các giá trị có tên, như `matchVariant` của Tailwind.
     for (const [root] of result ? [] : FUNCTIONAL_VARIANTS) {
-        if (!variant.startsWith(root + '-[')) continue
+        if (!variant.startsWith(root + '-[') || !ORDER_ROOTS[root + '-*']) continue
         const [rest, modifier] = splitModifier(variant.slice(root.length + 1))
         if (/^\[.+\]$/.test(rest)) result = { kind: 'functional', key: variant, root: `${root}-*`, value: { kind: 'arbitrary', value: rest.slice(1, -1) }, modifier }
         break
@@ -1197,6 +1245,9 @@ const compareOrderVariants = (a: OrderVariant, b: OrderVariant): number => {
     const oa = ORDER_ROOTS[a.root]?.[1] ?? 0
     const ob = ORDER_ROOTS[b.root]?.[1] ?? 0
     if (oa !== ob) return oa - ob
+    // Nhóm `matchVariant` (plugin JS) xếp theo `sort`: phần đọc stylesheet lo (bản CDN không có plugin JS).
+    const grouped = VARIANT_ORDER && STYLESHEET?.compareVariantGroups(a, b, VARIANT_ORDER)
+    if (grouped) return grouped
     if (a.kind === 'compound' && b.kind === 'compound') {
         const inner = compareOrderVariants(a.variant, b.variant)
         if (inner !== 0) return inner
@@ -1336,12 +1387,16 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         if (!ownRoots[name]) ownRoots[name] = ['s', ++lastOrder]
     }
     functionalVariants.sort((a, b) => b[0].length - a[0].length)
+    // Nhóm `matchVariant` (`mq-big`, `mq-small`, `mq-*`): chung một thứ tự gốc, trong nhóm so bằng `compare`.
+    const variantOrder = options.variantOrder
+    if (variantOrder) stylesheet?.variantGroups(ownRoots, variantOrder, TW_ORDER.variants)
     const ghostBreakpoints: Record<string, string> = resetNamespaces.includes('--breakpoint-')
         ? Object.fromEntries(Object.entries(defaultTheme).filter(([k]) => k.startsWith('--breakpoint-') && ownTheme[k] === undefined).map(([k, v]) => [k.slice(13), v]))
         : {}
     const activate = () => {
         CUSTOM_VARIANTS = ownVariants
         FUNCTIONAL_VARIANTS = functionalVariants
+        VARIANT_ORDER = variantOrder
         RESET_NAMESPACES = resetNamespaces
         MARKER_PREFIX = markerPrefix
         if (ORDER_ROOTS !== ownRoots) {
@@ -1362,7 +1417,16 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
 
     // `@utility name { ... }` / `@utility name-* { --value(...) }`: utility của người dùng (kể cả plugin CSS
     // như tw-animate-css), dịch ở src/tailwind-stylesheet.ts. Trùng tên với utility sẵn có thì cả hai cùng áp (như Tailwind).
-    const host: StylesheetHost = { place: (name, inUtilities) => place(name, inUtilities), atRuleOf, withThemeFallback }
+    let applied: Set<number> | null = null
+    const host: StylesheetHost = {
+        place: (name, inUtilities) => {
+            const result = place(name, inUtilities)
+            if (result && applied) result.groups.forEach((group) => applied!.add(group))
+            return result
+        },
+        atRuleOf,
+        withThemeFallback,
+    }
     const user = stylesheet && options.utilities && Object.keys(options.utilities).length ? stylesheet.userUtilities(options.utilities, ownTheme, host) : null
     const userRules = (name: string): Rule[] | null => (user ? user.rules(name) : null)
     const chain = (rules: Rule[]): Rule => ({ ...rules[0], more: [...(rules[0].more || []), ...rules.slice(1)] })
@@ -1388,15 +1452,20 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     }
     // Utility của dự án/plugin trùng tên utility sẵn có (`@utility container`, `scrollbar-thumb-*` của plugin, kể cả
     // khi có modifier): cả hai cùng áp, phần của dự án đứng sau nên thắng như Tailwind.
+    // Rule sẵn có của lần gọi resolveAny ngoài cùng gần nhất (đặt ngay trước khi trả, sau mọi lần gọi lồng của `@apply`):
+    // nguồn của nhóm @property cần đăng ký.
+    let lastBuiltin: Rule | null = null
     const resolveAny = (name: string): Rule | null => {
         const builtin = resolveBuiltin(name)
         const own = userRules(name)
+        lastBuiltin = builtin
         if (own) return builtin ? chain([builtin, ...own]) : chain(own)
         if (builtin) return builtin
         // Utility của dự án không khai báo `--modifier()` mà class có modifier: áp độ mờ lên kết quả (như trước).
         const [head, modifier] = splitModifier(name)
         if (modifier === null) return null
         const plain = userRules(head)
+        lastBuiltin = null
         return plain && applyModifier(chain(plain), modifier)
     }
 
@@ -1420,7 +1489,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     type Placed = { media: string; sel: string; decls: Array<[string, string]> }
     /** Class Tailwind -> các rule đã đặt chỗ (selector có `&`, media key/at-rule nội tuyến, khai báo). */
     /** `inUtilities`: class sinh utility (áp `important` của dialect); false cho `@apply` (Tailwind không áp). */
-    const place = (fullName: string, inUtilities = true): { placed: Placed[]; important: boolean; base: Array<[string, string]>; signature: string; root: string; variants: string[] } | null => {
+    const place = (fullName: string, inUtilities = true): { placed: Placed[]; important: boolean; base: Array<[string, string]>; signature: string; root: string; variants: string[]; groups: Set<number> } | null => {
         activate()
         // Có tiền tố: chỉ nhận `tw:...` (kể cả trong `@apply`, như Tailwind), tiền tố đứng trước mọi biến thể.
         if (prefix && !fullName.startsWith(prefix + ':')) return null
@@ -1438,6 +1507,8 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
 
         const rule = resolveAny(base)
         if (!rule) return null
+        const groups = new Set<number>()
+        for (const each of lastBuiltin ? [lastBuiltin, ...(lastBuiltin.more || [])] : []) propertyGroups(each.decls, groups)
 
         const rules = [rule, ...(rule.more || [])]
         const baseDecls: Array<[string, string]> = rules.flatMap((each) => each.decls)
@@ -1466,9 +1537,13 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
                 placed.push({ ...at, decls })
             }
         }
-        if (placed.some((p) => /::(before|after)/.test(p.sel)) && !baseDecls.some(([p]) => p === 'content')) baseDecls.unshift(['content', 'var(--tw-content)'])
+        if (placed.some((p) => /::(before|after)/.test(p.sel))) {
+            // before:/after: đọc `--tw-content`: Tailwind đăng ký biến này cả khi utility tự đặt `content`.
+            propertyGroups([['content', 'var(--tw-content)']], groups)
+            if (!baseDecls.some(([p]) => p === 'content')) baseDecls.unshift(['content', 'var(--tw-content)'])
+        }
         if (importantAll && inUtilities) important = true
-        return placed.length ? { placed, important, base: baseDecls, signature: baseSignature, root: base, variants: parts } : null
+        return placed.length ? { placed, important, base: baseDecls, signature: baseSignature, root: base, variants: parts, groups } : null
     }
 
     // Khoá thứ tự kiểu Tailwind cho từng class (null: không phải class của phương ngữ).
@@ -1509,6 +1584,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         lastPlaced.set(className, result)
         // Utility người dùng trùng utility sẵn có cho cùng khai báo (`tab-4`): bỏ token lặp.
         const seen = new Set<string>()
+        lastBase = result.groups.size ? [className, propertyCss(result.groups)] : null
         return result.placed.flatMap(({ media, sel: placedSel, decls }) => {
             const sel = placedSel === '&' ? '' : placedSel.startsWith('&') && placedSel.indexOf('&', 1) === -1 ? placedSel.slice(1) : placedSel
             // Khoảng trắng trong chuỗi có nháy (`[class*=' h-']`) viết `\20 `: engine đọc `';` là dấu `;` thật.
@@ -1524,6 +1600,9 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
             }).filter((token) => !seen.has(token) && !!seen.add(token))
         })
     }) as XCSSDialect
+    // Rule nền class cần (`@property` của utility sẵn có), engine hỏi ngay sau khi dịch class: thêm vào sheet gốc một lần.
+    let lastBase: [string, string[]] | null = null
+    dialect.baseRules = (className) => (lastBase && lastBase[0] === className ? lastBase[1] : undefined)
     // Class có dạng utility Tailwind (gốc là họ/utility của Tailwind hoặc của dự án, giá trị viết kiểu Tailwind) mà
     // phương ngữ không sinh được (giá trị Tailwind không nhận, biến thể chưa hỗ trợ): engine không thử cú pháp x-css,
     // nên `z-1` không thành `z-index:-1`. Class x-css thật (`m-10px`, `dF`, `cRed@:hover`) không bị giữ.
@@ -1589,11 +1668,16 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     // CSS của dự án: mở rộng `@apply`, khai triển `--alpha()`/`--spacing()`/`--theme()`; biến theme mà CSS đó
     // đọc (`--border: var(--color-black)`) được khai báo ở `:root` trong layer thấp nhất, trước preflight và
     // CSS nền (như `@layer theme` của Tailwind). Utility không cần: giá trị theme đã nằm trong `var(--x, …)`.
+    // Nhóm @property của utility được `@apply` trong CSS của dự án: đăng ký sẵn trong CSS nền (như Tailwind).
+    applied = new Set<number>()
     const projectCss = stylesheet && options.css ? stylesheet.projectCss(options.css, ownTheme, host) : ''
+    const appliedGroups = applied
+    applied = null
     const themeCss = stylesheet && projectCss ? stylesheet.usedThemeCss(projectCss, ownTheme) : ''
     dialect.baseCss = [
         BASE_LAYER_ORDER,
-        PROPERTIES_CSS,
+        propertyCss(appliedGroups).join('\n'),
+        DATA.keyframes.join('\n'),
         themeCss ? `@layer l0{@layer theme{${themeCss}}}` : '',
         options.preflight ? themedPreflight().replace(/^@layer l0\{([\s\S]*)\}$/, '@layer l0{@layer base{$1}}') : '',
         projectCss,
@@ -1608,7 +1692,7 @@ const BASE_LAYER_ORDER = '@layer l0{@layer theme, base, components;}'
 export const TAILWIND_DATA_VERSION = TW_DATA.version
 
 /** Phần đọc CSS của người dùng mà phương ngữ cần (src/tailwind-stylesheet.ts). */
-export type TailwindStylesheetSupport = Pick<typeof import('./tailwind-stylesheet'), 'compileCustomVariant' | 'userUtilities' | 'projectCss' | 'usedThemeCss'>
+export type TailwindStylesheetSupport = Pick<typeof import('./tailwind-stylesheet'), 'compileCustomVariant' | 'userUtilities' | 'projectCss' | 'usedThemeCss' | 'themeRoots' | 'variantGroups' | 'compareVariantGroups'>
 let STYLESHEET: TailwindStylesheetSupport | null = null
 /**
  * Bật `@custom-variant`/`@utility`/CSS của dự án (`variants`, `utilities`, `css` của dialect) cho các dialect tạo sau đó.
@@ -1616,6 +1700,7 @@ let STYLESHEET: TailwindStylesheetSupport | null = null
  * `tailwind-stylesheet.mjs`), nên trang chỉ dùng class không tải phần này.
  */
 export const useTailwindStylesheet = (support: TailwindStylesheetSupport): void => {
+    if (STYLESHEET !== support) THEME_ROOTS = support.themeRoots()
     STYLESHEET = support
 }
 /** Theme mặc định của Tailwind (cho `--theme()` khi đọc stylesheet). */
