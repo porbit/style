@@ -1,6 +1,8 @@
 # Lịch Sử Thay Đổi
 
-## Chưa phát hành
+## 1.1.0
+
+Đo lại toàn bộ so với Tailwind 4.3.5: 6 dự án thật (thêm daisyUI 5, TailAdmin), 10 cấu hình v3, mọi bước so sánh đòi khớp 100% (xem `docs/strategy/danh-gia-1.1.md`).
 
 **Khớp Tailwind** (phương ngữ v4, mọi chế độ: không build, PostCSS, CDN)
 - `@property` chỉ đăng ký theo utility sẵn có thực sự được dùng (nhóm biến Tailwind đăng ký cùng nhau, quy tắc sinh từ Tailwind và kiểm trên mọi class của `getClassList`), không còn đăng ký sẵn cả 127 biến: CSS của plugin đọc `--tw-*` mà không đặt (daisyUI: `outline-style` ở `:focus-visible`) giờ như Tailwind. daisyUI 409 → 410/410. Engine: `XCSSDialect.baseRules` (rule nền theo class, thêm vào sheet gốc một lần, giữ qua cache).

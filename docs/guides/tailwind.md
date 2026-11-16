@@ -97,7 +97,7 @@ So **toàn bộ computed style** của phần tử và phần tử con giữa CS
 | Dự án nâng cấp từ v3 (`@config`): extend, thay hẳn theme, `prefix`, `important`, `corePlugins`, `.ts`, cờ CSS v4, `presets` + `blocklist` + `theme.container`, plugin tự viết (`matchVariant` giá trị tuỳ ý, `@apply` trong plugin) | 10 cấu hình, 100% |
 | Ứng dụng Next.js 15 thật (`bash eval/next-parity.sh`) | 0 khác biệt |
 
-Chạy lại: `npm run check:tailwind`. Chi tiết: [eval/TAILWIND-PARITY.md](../../eval/TAILWIND-PARITY.md), [eval/REAL-PROJECTS.md](../../eval/REAL-PROJECTS.md), bản đánh giá [danh-gia-1.0](../strategy/danh-gia-1.0.md). Đo dự án của bạn:
+Chạy lại: `npm run check:tailwind`. Chi tiết: [eval/TAILWIND-PARITY.md](../../eval/TAILWIND-PARITY.md), [eval/REAL-PROJECTS.md](../../eval/REAL-PROJECTS.md), bản đánh giá [danh-gia-1.1](../strategy/danh-gia-1.1.md). Đo dự án của bạn:
 
 ```bash
 npm run build

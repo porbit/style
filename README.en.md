@@ -44,7 +44,7 @@ Any CSS property works by its full name: `view-transition-name[hero]`, `-webkit-
 
 ## Run Tailwind v4 Classes, Rendered Like Tailwind
 
-The v4 dialect is generated from Tailwind's own compiler. Measured in Chromium against tailwindcss 4.3.5: **23,286/23,286 classes**, **956/956** variant combinations (403/403 variants) and **4 real open-source projects** (shadcn/ui, HyperUI, Magic UI, coss ui: 3,305/3,305 classes and 1,650/1,650 real class strings across 11 state/width passes) render identically; 8 v3 configs and arbitrary JS plugins work without installing `tailwindcss`. Full evaluation (Vietnamese): [docs/strategy/danh-gia-1.0.md](./docs/strategy/danh-gia-1.0.md).
+The v4 dialect is generated from Tailwind's own compiler. Measured in Chromium against tailwindcss 4.3.5: **23,286/23,286 classes**, **956/956** variant combinations (415/415 variants) and **6 real open-source projects** (shadcn/ui, HyperUI, Magic UI, coss ui, daisyUI 5, TailAdmin: 4,412/4,412 classes and 2,234/2,234 real class strings across 11 state/width passes) render identically; 10 v3 configs and arbitrary JS plugins work without installing `tailwindcss`. Full evaluation (Vietnamese): [docs/strategy/danh-gia-1.1.md](./docs/strategy/danh-gia-1.1.md).
 
 No build step (replaces `@tailwindcss/browser`: 39.9 KB vs 75.3 KB gzip; inserting elements at runtime up to 5.5× faster):
 

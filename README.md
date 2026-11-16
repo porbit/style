@@ -248,7 +248,7 @@ export function Button({ primary, children }) {
 
 ## Chạy Class Tailwind v4 Như Tailwind
 
-Phương ngữ v4 được sinh từ chính compiler của Tailwind; đo trên Chromium so với Tailwind 4.3.5: khớp **23.286/23.286 class**, **956/956** tổ hợp biến thể (403/403 biến thể), **4 dự án mã nguồn mở thật** (shadcn/ui, HyperUI, Magic UI, coss ui: 3.305/3.305 class, 1.650/1.650 chuỗi class thật, ở 11 lượt trạng thái/độ rộng), 8 cấu hình v3, plugin JS bất kỳ không cần cài `tailwindcss`. Bản đánh giá đầy đủ: [docs/strategy/danh-gia-1.0.md](./docs/strategy/danh-gia-1.0.md).
+Phương ngữ v4 được sinh từ chính compiler của Tailwind; đo trên Chromium so với Tailwind 4.3.5: khớp **23.286/23.286 class**, **956/956** tổ hợp biến thể (415/415 biến thể), **6 dự án mã nguồn mở thật** (shadcn/ui, HyperUI, Magic UI, coss ui, daisyUI 5, TailAdmin: 4.412/4.412 class, 2.234/2.234 chuỗi class thật, ở 11 lượt trạng thái/độ rộng), 10 cấu hình v3, plugin JS bất kỳ không cần cài `tailwindcss`. Bản đánh giá đầy đủ: [docs/strategy/danh-gia-1.1.md](./docs/strategy/danh-gia-1.1.md).
 
 Không build (thay `@tailwindcss/browser`: 39,9 KB so với 75,3 KB gzip; chèn phần tử lúc chạy nhanh hơn tới 5,5 lần):
 
