@@ -85,7 +85,8 @@ describe('phương ngữ Tailwind v4 (sinh từ chính Tailwind)', () => {
         expect(out).toContain('.dark\\:flex:is(.dark *){display:flex}')
         expect(out).toContain('.data-open\\:block:where([data-state="open"]){display:block}')
         expect(out).toContain('.data-open\\:block:where([data-open]:not([data-open="false"])){display:block}')
-        expect(out).toContain(':where(.group):is(*:where([data-state="open"]), *:where([data-open]:not([data-open="false"]))) *')
+        // Như Tailwind: danh sách selector của biến thể thay `&` bằng `:where(.group)` rồi bọc `:is()`.
+        expect(out).toContain(':is(:is(:where(.group):where([data-state="open"]), :where(.group):where([data-open]:not([data-open="false"]))) *)')
         expect(out).toMatch(/@media \(pointer: fine\)\{\.pointer-fine\\:underline\{/)
     })
 
@@ -174,5 +175,120 @@ describe('minify CSS tĩnh', () => {
         const min = minifyCss('@keyframes spin{to{rotate:1turn}}@keyframes ping{}@layer l0{.a{animation:var(--animate-spin, spin 1s linear infinite)}}')
         expect(min).toContain('@keyframes spin')
         expect(min).not.toContain('@keyframes ping')
+    })
+})
+
+describe('biến theme ở :root và hàm theme trong CSS của dự án (như Tailwind)', () => {
+    it('phát biến theme mà CSS của dự án/@apply đọc (cả biến mà giá trị theme đọc), trong layer thấp nhất', () => {
+        const sheet = parseTailwindStylesheet(`
+            @import "tailwindcss";
+            @theme inline { --color-border: var(--border); }
+            @theme { --color-brand: var(--color-pink-500); --color-unused: blue; }
+            :root { --border: --alpha(var(--color-black) / 8%); --foreground: var(--color-neutral-800); }
+            .dark { --border: --alpha(var(--color-white) / 6%); }
+            @layer base { * { @apply border-border; } }
+            .x { color: var(--color-brand); }`)
+        const base = tailwindV4Dialect({ theme: sheet.theme, css: sheet.css }).baseCss as string
+        const root = base.match(/@layer l0\{:root,:host\{([^}]*)\}\}/)
+        expect(root).not.toBeNull()
+        const decls = root![1]
+        expect(decls).toContain('--color-black:#000;')
+        expect(decls).toContain('--color-white:#fff;')
+        expect(decls).toContain('--color-neutral-800:oklch(')
+        // `--color-brand` đọc `--color-pink-500`: phát cả hai.
+        expect(decls).toContain('--color-brand:var(--color-pink-500);')
+        expect(decls).toContain('--color-pink-500:oklch(')
+        expect(decls).not.toContain('--color-unused')
+        expect(decls).not.toContain('--color-red-500')
+        // Khai triển `--alpha()` ngoài `@theme`.
+        expect(base).toContain('--border: color-mix(in oklab, var(--color-black) 8%, transparent)')
+        expect(base).not.toContain('--alpha(')
+        // Khối theme đứng trước CSS nền của dự án (thứ tự trong cùng layer).
+        expect(base.indexOf(':root,:host{')).toBeLessThan(base.indexOf('@layer l0{*{'))
+    })
+
+    it('--spacing(), --theme() (inline, /alpha, dự phòng, trong @media), theme() cũ, @theme static', () => {
+        const sheet = parseTailwindStylesheet(`
+            @theme inline { --color-q: var(--color-green-500); }
+            @theme { --spacing-x: --spacing(3); }
+            @theme static { --color-st: var(--color-orange-500); }
+            .a { margin: --spacing(-2); width: var(--spacing-x); }
+            .b { color: --theme(--color-q); background: --theme(--color-red-500 / 50%); border-color: --theme(--color-nope, blue); }
+            .c { color: theme(--color-red-500); }
+            @media (width >= --theme(--breakpoint-md)) { .d { color: red } }`)
+        expect(sheet.theme['--spacing-x']).toBe('calc(var(--spacing) * 3)')
+        expect(sheet.css).toContain('margin: calc(var(--spacing) * -2)')
+        expect(sheet.css).toContain('color: var(--color-green-500)')
+        expect(sheet.css).toContain('background: color-mix(in oklab, var(--color-red-500) 50%, transparent)')
+        expect(sheet.css).toContain('border-color: blue')
+        expect(sheet.css).toContain('color: oklch(63.7% 0.237 25.331)')
+        expect(sheet.css).toContain('@media (width >= 48rem)')
+        expect(sheet.css.startsWith('@layer theme{:root,:host{--color-st:var(--color-orange-500);}}')).toBe(true)
+        const base = tailwindV4Dialect({ theme: sheet.theme, css: sheet.css }).baseCss as string
+        const decls = base.match(/@layer l0\{:root,:host\{([^}]*)\}\}/)![1]
+        expect(decls).toContain('--spacing:0.25rem;')
+        expect(decls).toContain('--spacing-x:calc(var(--spacing) * 3);')
+        expect(decls).toContain('--color-orange-500:oklch(')
+        expect(decls).toContain('--color-green-500:oklch(')
+        expect(base).toContain('@layer l0{:root,:host{--color-st:var(--color-orange-500);}}')
+    })
+
+    it('không có CSS của dự án: không thêm khối theme', () => {
+        expect(tailwindV4Dialect().baseCss).not.toContain(':root,:host{')
+    })
+})
+
+describe('biến thể ghép như Tailwind (group-/peer-/in-/has-/not- với biến thể nhiều bước)', () => {
+    const variants = parseTailwindStylesheet(`
+        @custom-variant prose-headings (& :is(:where(h1, h2):not(:where([class~="not-prose"], [class~="not-prose"] *))));
+        @custom-variant hover { @media (hover: hover) { &:is(:where([data-rac])[data-hovered], :where(:not([data-rac])):hover) { @slot; } } }
+        @custom-variant rac-hover (&[data-hovered]);
+        @custom-variant pd (&::before);`).variants
+
+    it('has-/in-/not- thay `&` bằng `*`: biến thể hậu duệ giữ `* ` (has-prose-headings)', () => {
+        const out = css('has-prose-headings:flex in-prose-headings:grid not-prose-headings:block', { variants })
+        expect(out).toContain('.has-prose-headings\\:flex:has(* :is(:where(h1, h2):not(:where([class~="not-prose"], [class~="not-prose"] *)))){display:flex}')
+        expect(out).toContain(':where(* :is(:where(h1, h2):not(:where([class~="not-prose"], [class~="not-prose"] *)))) .in-prose-headings\\:grid{display:grid}')
+        expect(out).toContain('.not-prose-headings\\:block:not(* :is(:where(h1, h2):not(:where([class~="not-prose"], [class~="not-prose"] *)))){display:block}')
+    })
+
+    it('biến thể tự định nghĩa @media + selector: giữ @media khi ghép, not- thành hai rule', () => {
+        const out = css('group-hover:flex peer-hover:grid has-hover:block in-hover:inline not-hover:contents', { variants })
+        expect(out).toMatch(/@media \(hover: hover\)\{\.group-hover\\:flex:is\(:where\(\.group\):is\(:where\(\[data-rac\]\)\[data-hovered\], :where\(:not\(\[data-rac\]\)\):hover\) \*\)\{display:flex\}/)
+        expect(out).toMatch(/@media \(hover: hover\)\{\.peer-hover\\:grid:is\(:where\(\.peer\):is\(.*\) ~ \*\)\{display:grid\}/)
+        expect(out).toMatch(/@media \(hover: hover\)\{\.has-hover\\:block:has\(:is\(:where\(\[data-rac\]\)\[data-hovered\]/)
+        expect(out).toMatch(/@media \(hover: hover\)\{:where\(:is\(:where\(\[data-rac\]\)\[data-hovered\], :where\(:not\(\[data-rac\]\)\):hover\)\) \.in-hover\\:inline\{display:inline\}/)
+        expect(out).toContain('.not-hover\\:contents:not(:is(:where([data-rac])[data-hovered], :where(:not([data-rac])):hover)){display:contents}')
+        expect(out).toMatch(/@media not \(hover: hover\)\{\.not-hover\\:contents\{display:contents\}/)
+    })
+
+    it('not- của biến thể tự định nghĩa trùng tên media sẵn có (`dark`) dùng selector của dự án', () => {
+        const dark = parseTailwindStylesheet('@custom-variant dark (&:is(.dark *));').variants
+        const out = css('not-dark:flex', { variants: dark })
+        expect(out).toContain('.not-dark\\:flex:not(:is(.dark *)){display:flex}')
+        expect(out).not.toContain('prefers-color-scheme')
+    })
+
+    it('tên biến thể kết thúc bằng -hover không tự thêm @media (hover: hover)', () => {
+        const out = css('group-rac-hover:flex has-rac-hover:grid', { variants })
+        expect(out).toContain('.group-rac-hover\\:flex:is(:where(.group)[data-hovered] *){display:flex}')
+        expect(out).toContain('.has-rac-hover\\:grid:has([data-hovered]){display:grid}')
+        expect(out).not.toContain('@media (hover: hover)')
+    })
+
+    it('biến thể có giả phần tử không ghép được; has-hover sẵn có có @media', () => {
+        expect(css('group-pd:flex not-pd:flex', { variants })).not.toContain('display:flex')
+        expect(css('has-hover:flex')).toMatch(/@media \(hover: hover\)\{\.has-hover\\:flex:has\(:hover\)\{display:flex\}/)
+        expect(css('group-not-hover:flex has-not-hover:flex')).not.toContain('display:flex')
+    })
+
+    it('biến thể tuỳ ý trong not-/has-/in-/group-: `[&:hover]`, `[.x_&]`, `[>img]`, `[@media...]`', () => {
+        const out = css('not-[&:hover]:flex has-[.x_&]:grid has-[>img]:block in-[&:focus]:inline group-[&:hover,&:focus]:table not-[@media(hover:hover)]:contents')
+        expect(out).toContain('.not-\\[\\&\\:hover\\]\\:flex:not(:hover){display:flex}')
+        expect(out).toContain(':has(.x *){display:grid}')
+        expect(out).toContain(':has(>img){display:block}')
+        expect(out).toContain(':where(:focus) .in-\\[\\&\\:focus\\]\\:inline{display:inline}')
+        expect(out).toContain(':is(:is(:where(.group):hover, :where(.group):focus) *){display:table}')
+        expect(out).toMatch(/@media not \(hover:hover\)\{\.not-\\\[\\@media\\\(hover\\:hover\\\)\\\]\\:contents\{display:contents\}/)
     })
 })

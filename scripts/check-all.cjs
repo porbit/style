@@ -189,7 +189,9 @@ const steps = [
             const mergeReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/merge-accuracy.json'), 'utf8'))
             const jsReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-js-plugins.json'), 'utf8'))
             const jsRows = Object.entries(jsReport.plugins || jsReport).filter(([, r]) => r && typeof r === 'object' && r.classes)
-            const jsOk = jsPlugins.ok && jsRows.every(([, r]) => r.classes.matched / r.classes.cases >= 0.99)
+            // Plugin chỉ có biến thể (tailwindcss-react-aria-components: class 0/0) không bị tính là lệch; biến thể cũng ≥ 99%.
+            const atLeast = (m) => !m || m.cases === 0 || m.matched / m.cases >= 0.99
+            const jsOk = jsPlugins.ok && jsRows.every(([, r]) => atLeast(r.classes) && atLeast(r.variants))
             const mergeOk = merge.ok && Object.values(mergeReport).filter((r) => r && r.methods).every((r) => r.methods['@porbit/style/merge'].correct === r.pairs && r.methods['@porbit/style/merge/lite + bảng'].correct === r.pairs)
             const realMin = Math.min(realReport.converted, ...Object.values(realReport.matched))
             const ok = variants.ok && plugins.ok && real.ok && pluginsOk && report.base.percent >= 99.9 && report.variants.percent === 100 &&

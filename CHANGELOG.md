@@ -1,5 +1,11 @@
 # Lịch Sử Thay Đổi
 
+## Chưa phát hành
+
+**Sửa lỗi (phương ngữ Tailwind v4)**
+- Biến theme mà CSS của dự án đọc (`:root { --border: --alpha(var(--color-black) / 8%) }`) được khai báo ở `:root,:host` trong layer thấp nhất như `@layer theme` của Tailwind; `@theme static` luôn phát. `--alpha()`, `--spacing()`, `--theme()`, `theme()` được khai triển trong mọi CSS của dự án và giá trị `@theme`. coss ui: 0 → 1289/1331 class khớp.
+- Biến thể ghép như Tailwind: `has-`/`in-`/`not-` thay `&` bằng `*` (`has-prose-headings:` → `:has(* :is(...))`); `group-`/`peer-`/`in-`/`has-`/`not-` với biến thể tự định nghĩa nhiều bước (`@media` + selector) giữ at-rule; biến thể tên `...-hover` không còn bị thêm `@media (hover: hover)`; `not-[&:hover]:`, `has-[.x_&]:`, `has-[>img]:`, `not-[@media…]:`; `not-dark` dùng `@custom-variant dark` của dự án. Plugin JS: typography 169 → 198/198, react-aria-components 307 → 312/312 biến thể.
+
 ## 0.10.0
 
 Thay Tailwind và các công cụ quanh nó bằng một dòng cấu hình, có số đo cho từng phần (`npm run check:tailwind`).

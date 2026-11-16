@@ -153,63 +153,15 @@
     },
     "variants": {
       "cases": 312,
-      "matched": 307,
-      "percent": 98.4
+      "matched": 312,
+      "percent": 100
     },
-    "unsupported": [
-      "not-hover:flex",
-      "group-hover:flex",
-      "peer-hover:flex",
-      "in-hover:flex",
-      "has-hover:flex"
-    ],
+    "unsupported": [],
     "tailwindRejected": [],
     "notes": [],
     "failedClasses": [],
-    "failedVariants": [
-      "not-hover:flex",
-      "group-hover:flex",
-      "peer-hover:flex",
-      "in-hover:flex",
-      "has-hover:flex"
-    ],
-    "failedVariantDetails": [
-      {
-        "variant": "not-hover:flex",
-        "diff": [
-          "tw:  | .not-hover\\:flex:not(:is(:where([data-rac])[data-hovered], :where(:not([data-rac])):hover)) | display:flex || @media not (hover: hover) | .not-hover\\:flex | display:flex",
-          "ours: "
-        ]
-      },
-      {
-        "variant": "group-hover:flex",
-        "diff": [
-          "tw: @media (hover: hover) | :is(:where(.group):is(:where([data-rac])[data-hovered], :where(:not([data-rac])):hover) .group-hover\\:flex) | display:flex",
-          "ours: "
-        ]
-      },
-      {
-        "variant": "peer-hover:flex",
-        "diff": [
-          "tw: @media (hover: hover) | :is(:where(.peer):is(:where([data-rac])[data-hovered], :where(:not([data-rac])):hover) ~ .peer-hover\\:flex) | display:flex",
-          "ours: "
-        ]
-      },
-      {
-        "variant": "in-hover:flex",
-        "diff": [
-          "tw: @media (hover: hover) | :where(:is(:where([data-rac])[data-hovered], :where(:not([data-rac])):hover)) .in-hover\\:flex | display:flex",
-          "ours: "
-        ]
-      },
-      {
-        "variant": "has-hover:flex",
-        "diff": [
-          "tw: @media (hover: hover) | .has-hover\\:flex:has(:is(:where([data-rac])[data-hovered], :where(:not([data-rac])):hover)) | display:flex",
-          "ours: "
-        ]
-      }
-    ]
+    "failedVariants": [],
+    "failedVariantDetails": []
   },
   "tailwindcss-react-aria-components (prefix: rac)": {
     "version": "2.2.0",
@@ -220,49 +172,15 @@
     },
     "variants": {
       "cases": 312,
-      "matched": 308,
-      "percent": 98.72
+      "matched": 312,
+      "percent": 100
     },
     "unsupported": [],
     "tailwindRejected": [],
     "notes": [],
     "failedClasses": [],
-    "failedVariants": [
-      "group-rac-hover:flex",
-      "peer-rac-hover:flex",
-      "in-rac-hover:flex",
-      "has-rac-hover:flex"
-    ],
-    "failedVariantDetails": [
-      {
-        "variant": "group-rac-hover:flex",
-        "diff": [
-          "tw:  | :is(:where(.group)[data-hovered] .group-rac-hover\\:flex) | display:flex",
-          "ours: @media (hover: hover) | .group-rac-hover\\:flex:is(:where(.group)[data-hovered] *) | display:flex"
-        ]
-      },
-      {
-        "variant": "peer-rac-hover:flex",
-        "diff": [
-          "tw:  | :is(:where(.peer)[data-hovered] ~ .peer-rac-hover\\:flex) | display:flex",
-          "ours: @media (hover: hover) | .peer-rac-hover\\:flex:is(:where(.peer)[data-hovered] ~ *) | display:flex"
-        ]
-      },
-      {
-        "variant": "in-rac-hover:flex",
-        "diff": [
-          "tw:  | :where([data-hovered]) .in-rac-hover\\:flex | display:flex",
-          "ours: @media (hover: hover) | :where([data-hovered]) .in-rac-hover\\:flex | display:flex"
-        ]
-      },
-      {
-        "variant": "has-rac-hover:flex",
-        "diff": [
-          "tw:  | .has-rac-hover\\:flex:has([data-hovered]) | display:flex",
-          "ours: @media (hover: hover) | .has-rac-hover\\:flex:has([data-hovered]) | display:flex"
-        ]
-      }
-    ]
+    "failedVariants": [],
+    "failedVariantDetails": []
   },
   "@tailwindcss/forms": {
     "version": "0.5.11",
@@ -292,81 +210,15 @@
     },
     "variants": {
       "cases": 198,
-      "matched": 169,
-      "percent": 85.35
+      "matched": 198,
+      "percent": 100
     },
     "unsupported": [],
     "tailwindRejected": [],
     "notes": [],
     "failedClasses": [],
-    "failedVariants": [
-      "has-prose-headings:flex",
-      "has-prose-h1:flex",
-      "has-prose-h2:flex",
-      "has-prose-h3:flex",
-      "has-prose-h4:flex",
-      "has-prose-h5:flex",
-      "has-prose-h6:flex",
-      "has-prose-p:flex",
-      "has-prose-a:flex",
-      "has-prose-blockquote:flex",
-      "has-prose-figure:flex",
-      "has-prose-figcaption:flex",
-      "has-prose-strong:flex",
-      "has-prose-em:flex",
-      "has-prose-kbd:flex",
-      "has-prose-code:flex",
-      "has-prose-pre:flex",
-      "has-prose-ol:flex",
-      "has-prose-ul:flex",
-      "has-prose-li:flex",
-      "has-prose-dl:flex",
-      "has-prose-dt:flex",
-      "has-prose-dd:flex",
-      "has-prose-table:flex",
-      "has-prose-img:flex",
-      "has-prose-picture:flex",
-      "has-prose-video:flex",
-      "has-prose-hr:flex",
-      "has-prose-lead:flex"
-    ],
-    "failedVariantDetails": [
-      {
-        "variant": "has-prose-headings:flex",
-        "diff": [
-          "tw:  | .has-prose-headings\\:flex:has(* :is(:where(h1, h2, h3, h4, h5, h6, th):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
-          "ours:  | .has-prose-headings\\:flex:has(:is(:where(h1, h2, h3, h4, h5, h6, th):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
-        ]
-      },
-      {
-        "variant": "has-prose-h1:flex",
-        "diff": [
-          "tw:  | .has-prose-h1\\:flex:has(* :is(:where(h1):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
-          "ours:  | .has-prose-h1\\:flex:has(:is(:where(h1):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
-        ]
-      },
-      {
-        "variant": "has-prose-h2:flex",
-        "diff": [
-          "tw:  | .has-prose-h2\\:flex:has(* :is(:where(h2):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
-          "ours:  | .has-prose-h2\\:flex:has(:is(:where(h2):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
-        ]
-      },
-      {
-        "variant": "has-prose-h3:flex",
-        "diff": [
-          "tw:  | .has-prose-h3\\:flex:has(* :is(:where(h3):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
-          "ours:  | .has-prose-h3\\:flex:has(:is(:where(h3):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
-        ]
-      },
-      {
-        "variant": "has-prose-h4:flex",
-        "diff": [
-          "tw:  | .has-prose-h4\\:flex:has(* :is(:where(h4):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
-          "ours:  | .has-prose-h4\\:flex:has(:is(:where(h4):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
-        ]
-      }
-    ]
+    "failedVariants": [],
+    "failedVariantDetails": []
   },
   "tailwindcss-animate (bản đóng gói)": {
     "version": "1.0.7",
@@ -428,80 +280,14 @@
     },
     "variants": {
       "cases": 198,
-      "matched": 169,
-      "percent": 85.35
+      "matched": 198,
+      "percent": 100
     },
     "unsupported": [],
     "tailwindRejected": [],
     "notes": [],
     "failedClasses": [],
-    "failedVariants": [
-      "has-prose-headings:flex",
-      "has-prose-h1:flex",
-      "has-prose-h2:flex",
-      "has-prose-h3:flex",
-      "has-prose-h4:flex",
-      "has-prose-h5:flex",
-      "has-prose-h6:flex",
-      "has-prose-p:flex",
-      "has-prose-a:flex",
-      "has-prose-blockquote:flex",
-      "has-prose-figure:flex",
-      "has-prose-figcaption:flex",
-      "has-prose-strong:flex",
-      "has-prose-em:flex",
-      "has-prose-kbd:flex",
-      "has-prose-code:flex",
-      "has-prose-pre:flex",
-      "has-prose-ol:flex",
-      "has-prose-ul:flex",
-      "has-prose-li:flex",
-      "has-prose-dl:flex",
-      "has-prose-dt:flex",
-      "has-prose-dd:flex",
-      "has-prose-table:flex",
-      "has-prose-img:flex",
-      "has-prose-picture:flex",
-      "has-prose-video:flex",
-      "has-prose-hr:flex",
-      "has-prose-lead:flex"
-    ],
-    "failedVariantDetails": [
-      {
-        "variant": "has-prose-headings:flex",
-        "diff": [
-          "tw:  | .has-prose-headings\\:flex:has(* :is(:where(h1, h2, h3, h4, h5, h6, th):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
-          "ours:  | .has-prose-headings\\:flex:has(:is(:where(h1, h2, h3, h4, h5, h6, th):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
-        ]
-      },
-      {
-        "variant": "has-prose-h1:flex",
-        "diff": [
-          "tw:  | .has-prose-h1\\:flex:has(* :is(:where(h1):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
-          "ours:  | .has-prose-h1\\:flex:has(:is(:where(h1):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
-        ]
-      },
-      {
-        "variant": "has-prose-h2:flex",
-        "diff": [
-          "tw:  | .has-prose-h2\\:flex:has(* :is(:where(h2):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
-          "ours:  | .has-prose-h2\\:flex:has(:is(:where(h2):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
-        ]
-      },
-      {
-        "variant": "has-prose-h3:flex",
-        "diff": [
-          "tw:  | .has-prose-h3\\:flex:has(* :is(:where(h3):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
-          "ours:  | .has-prose-h3\\:flex:has(:is(:where(h3):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
-        ]
-      },
-      {
-        "variant": "has-prose-h4:flex",
-        "diff": [
-          "tw:  | .has-prose-h4\\:flex:has(* :is(:where(h4):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
-          "ours:  | .has-prose-h4\\:flex:has(:is(:where(h4):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
-        ]
-      }
-    ]
+    "failedVariants": [],
+    "failedVariantDetails": []
   }
 }
