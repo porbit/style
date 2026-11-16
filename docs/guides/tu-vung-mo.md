@@ -23,7 +23,7 @@ Chỉ cần nhớ ba quy tắc:
 | Custom property | `--brand[#0a64e8]` | `--brand: #0a64e8` |
 | Property có tiền tố nhà cung cấp | `-webkit-line-clamp[3]` | `-webkit-line-clamp: 3` |
 
-Danh sách property chuẩn được chấp nhận nằm ở `src/css-properties.ts` (`STANDARD_CSS_PROPERTIES`). Property không có trong danh sách và không có tiền tố nhà cung cấp sẽ bị từ chối khi từ điển đang bật; đặt `dictionaryImport: false` để bỏ kiểm tra tên property.
+Danh sách property chuẩn được chấp nhận nằm ở `src/css-properties.ts` (`standardCssProperties()`). Property không có trong danh sách và không có tiền tố nhà cung cấp sẽ bị từ chối khi từ điển đang bật; đặt `dictionaryImport: false` để bỏ kiểm tra tên property.
 
 ## 3. Giá Trị Bất Kỳ Trong Ngoặc Vuông
 

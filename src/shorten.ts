@@ -14,6 +14,7 @@
  * Bảng ánh xạ xác định (cùng đầu vào -> cùng tên): class dùng nhiều được tên ngắn trước, hoà thì theo thứ tự mã ký tự.
  */
 import { findClassAttributes, findClassStrings } from './analyze'
+import { longhandsOf } from './merge'
 
 /** Hàm có đối số là chuỗi class (giống `tailwindFunctions` của prettier-plugin-tailwindcss). */
 export const DEFAULT_CLASS_FUNCTIONS: readonly string[] = ['cn', 'clsx', 'cx', 'cva', 'tv', 'tw', 'twMerge', 'twJoin']
@@ -27,6 +28,13 @@ export interface ShortClassNamesOptions {
     prefix?: string
     /** Hàm có đối số là chuỗi class. Mặc định `DEFAULT_CLASS_FUNCTIONS`. */
     functions?: string[]
+    /**
+     * Bảo vệ hàm gộp class lúc chạy (`twMerge`/`cn` của tailwind-merge, `tv` của tailwind-variants,
+     * `@porbit/style/merge`): chúng nhận ra xung đột theo TÊN class (`px-4 px-2` -> `px-2`), tên ngắn thì không. Bật
+     * thì class có "đối thủ" (class khác ghi cùng thuộc tính, cùng selector và điều kiện) giữ nguyên tên. Mặc định
+     * `'auto'`: bật khi mã nguồn dùng một trong các thư viện trên.
+     */
+    merge?: boolean | 'auto'
 }
 
 /** Lý do một class trong CSS không được đổi tên. */
@@ -45,6 +53,8 @@ export type ShortClassSkipReason =
     | 'escape'
     /** Không thấy trong chuỗi class nào của mã nguồn (safelist, class do thư viện gắn...). */
     | 'unused'
+    /** Có class khác cùng ghi một thuộc tính (cùng selector, điều kiện): hàm gộp lúc chạy cần tên gốc. */
+    | 'merge'
 
 export interface ClassToken {
     start: number
@@ -355,6 +365,128 @@ export const renameCssClasses = (css: string, rename: Map<string, string> | ((na
     const fn = typeof rename === 'function' ? rename : (name: string) => rename.get(name)
     return mapCssSelectors(css, (selector) => renameSelectorClasses(selector, fn))
 }
+
+/** Tách theo `sep` ở cấp ngoài cùng (bỏ qua trong ngoặc, `[...]`, chuỗi, chú thích). */
+const splitTopLevel = (text: string, sep: string): string[] => {
+    const out: string[] = []
+    let depth = 0
+    let start = 0
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i]
+        if (c === '"' || c === "'") i = skipQuoted(text, i) - 1
+        else if (c === '\\') i++
+        else if (c === '/' && text[i + 1] === '*') {
+            const close = text.indexOf('*/', i + 2)
+            i = close === -1 ? text.length : close + 1
+        } else if (c === '(' || c === '[' || c === '{') depth++
+        else if ((c === ')' || c === ']' || c === '}') && depth > 0) depth--
+        else if (c === sep && depth === 0) {
+            out.push(text.slice(start, i))
+            start = i + 1
+        }
+    }
+    out.push(text.slice(start))
+    return out
+}
+
+/** Duyệt style rule (kể cả lồng và trong at-rule lồng được): `context` là chuỗi at-rule/selector cha. */
+const walkStyleRules = (css: string, context: string, visit: (context: string, selector: string, body: string) => void): void => {
+    let i = 0
+    const n = css.length
+    while (i < n) {
+        let j = i
+        let depth = 0
+        let stop = ''
+        while (j < n) {
+            const c = css[j]
+            if (c === '"' || c === "'") {
+                j = skipQuoted(css, j)
+                continue
+            }
+            if (c === '/' && css[j + 1] === '*') {
+                const close = css.indexOf('*/', j + 2)
+                j = close === -1 ? n : close + 2
+                continue
+            }
+            if (c === '\\') {
+                j += 2
+                continue
+            }
+            if (c === '(' || c === '[') depth++
+            else if ((c === ')' || c === ']') && depth > 0) depth--
+            else if (depth === 0 && (c === '{' || c === ';' || c === '}')) {
+                stop = c
+                break
+            }
+            j++
+        }
+        if (stop !== '{') {
+            i = j + 1
+            continue
+        }
+        const head = stripLeadingComments(css.slice(i, j)).trim()
+        const end = findBlockEnd(css, j)
+        const inner = css.slice(j + 1, end - 1)
+        if (head.startsWith('@')) {
+            const name = (/^@([\w-]+)/.exec(head)?.[1] ?? '').toLowerCase()
+            if (NESTING_AT_RULES.has(name)) walkStyleRules(inner, context + head.replace(/\s+/g, ' ') + '{', visit)
+        } else {
+            visit(context, head, inner)
+            if (inner.includes('{')) walkStyleRules(inner, context + head + '{', visit)
+        }
+        i = end
+    }
+}
+
+/**
+ * Class có "đối thủ" trong stylesheet: class khác ghi cùng một thuộc tính (longhand, kể cả biến `--tw-*`) trong rule có
+ * cùng điều kiện (at-rule), cùng dạng selector (thay chính class đó bằng một dấu chỗ) và cùng `!important`. Đây là tập
+ * bao của xung đột mà `tailwind-merge`/`@porbit/style/merge` có thể gộp.
+ */
+export const findConflictingClasses = (sheets: string | string[]): Set<string> => {
+    const slots = new Map<string, string>()
+    const out = new Set<string>()
+    for (const css of Array.isArray(sheets) ? sheets : [sheets]) {
+        walkStyleRules(css, '', (context, selectorList, body) => {
+            const props: string[] = []
+            for (const decl of splitTopLevel(body, ';')) {
+                if (decl.includes('{')) continue
+                const colon = decl.indexOf(':')
+                if (colon <= 0) continue
+                const prop = decl.slice(0, colon).trim().toLowerCase()
+                if (!/^-{0,2}[a-z][\w-]*$/.test(prop)) continue
+                const important = /!\s*important\s*$/i.test(decl) ? '!' : ''
+                for (const longhand of prop.startsWith('--') ? [prop] : longhandsOf(prop)) props.push(longhand + important)
+            }
+            if (!props.length) return
+            for (const selector of splitTopLevel(selectorList, ',')) {
+                const names: string[] = []
+                renameSelectorClasses(selector, (name) => {
+                    names.push(name)
+                    return undefined
+                })
+                names.forEach((name, k) => {
+                    let seen = -1
+                    // Dạng selector: chính lần xuất hiện này thay bằng một tên giữ chỗ, class khác giữ nguyên.
+                    const shape = renameSelectorClasses(selector, () => (++seen === k ? '\u0000' : undefined)).trim()
+                    for (const prop of props) {
+                        const key = context + '\u0001' + shape + '\u0001' + prop
+                        const owner = slots.get(key)
+                        if (owner === undefined) slots.set(key, name)
+                        else if (owner !== name) {
+                            out.add(owner)
+                            out.add(name)
+                        }
+                    }
+                })
+            }
+        })
+    }
+    return out
+}
+
+/** Mã nguồn dùng hàm gộp class lúc chạy (nhận diện xung đột theo tên class). */
+export const MERGE_LIBRARY_PATTERN = /["'](?:tailwind-merge|tailwind-variants|@porbit\/style\/merge(?:\/lite)?|virtual:presence-style-merge)["']|\b(?:twMerge|extendTailwindMerge|createTailwindMerge)\s*\(/
 
 // ---------------------------------------------------------------------------
 // Mã nguồn: chuỗi class nhận diện chắc chắn
@@ -783,6 +915,11 @@ export interface ShortClassNamesInput extends ShortClassNamesOptions {
     css: string | string[]
     /** Mã nguồn dùng class: mảng chuỗi hoặc `{ tệp: mã }`. */
     sources: string[] | Record<string, string>
+    /**
+     * Nội dung có thể chứa class nhưng KHÔNG được biến đổi (file tĩnh trong `public/`, Markdown đọc lúc chạy...): mọi
+     * lần class xuất hiện ở đây đều tính là "không nhận diện" nên class đó giữ nguyên tên.
+     */
+    opaqueSources?: string[]
 }
 
 export interface ShortClassNames {
@@ -890,6 +1027,47 @@ const replacementSourceMap = (code: string, list: Replacement[], file: string): 
 const PREFIX = /^[A-Za-z_][\w-]*$/
 const VALUE_KEYWORDS = new Set(['xs', 'sm', 'md', 'lg', 'xl', 'px', 'lh', 'min', 'max', 'fit', 'svh', 'lvh', 'dvh', 'svw', 'lvw', 'dvw', 'auto', 'full', 'none', 'base'])
 
+export type ShortClassRewriter = Pick<ShortClassNames, 'map' | 'rewriteCss' | 'rewriteSource' | 'rewriteSourceWithMap' | 'findUnrecognized'>
+
+/**
+ * Bộ đổi tên dựng lại từ một bảng ánh xạ có sẵn (file JSON do bundler ghi ra, `--map` của CLI): dùng cùng một bảng ở
+ * nhiều nơi (loader JS, plugin PostCSS, tiến trình khác) mà không phải phân tích lại toàn bộ mã nguồn. Bảng phải được
+ * tạo bằng `createShortClassNames` với cùng `functions`.
+ */
+export const shortClassNamesFromMap = (
+    input: Map<string, string> | Record<string, string>,
+    options: Pick<ShortClassNamesOptions, 'functions'> = {},
+): ShortClassRewriter => {
+    const { functions = DEFAULT_CLASS_FUNCTIONS } = options
+    const map = input instanceof Map ? input : new Map(Object.entries(input))
+    const replacements = (code: string): Replacement[] => {
+        const list: Replacement[] = []
+        if (!map.size) return list
+        for (const range of findShortenableClassRanges(code, functions)) {
+            for (const { start, end, token } of range.tokens) {
+                const next = map.get(token)
+                if (next !== undefined) list.push({ start, end, text: next })
+            }
+        }
+        return list
+    }
+    const rewriteSource = (code: string): string => applyReplacements(code, replacements(code))
+    const rewriteSourceWithMap = (code: string, file: string) => {
+        const list = replacements(code)
+        return { code: applyReplacements(code, list), map: list.length ? replacementSourceMap(code, list, file) : null }
+    }
+    const keys = new Set(map.keys())
+    let maxLength = 0
+    for (const key of keys) maxLength = Math.max(maxLength, key.length)
+    const quoted = [...keys].filter((k) => /["'`]/.test(k))
+    const findUnrecognized = (code: string): string[] => {
+        const local: SourceFacts = { unrecognized: new Set(), covered: new Map(), dynamic: new Map(), directives: new Set(), attributes: [], words: new Set() }
+        analyzeSource(code, keys, maxLength, quoted, functions, local)
+        return [...local.unrecognized, ...[...local.directives].filter((d) => keys.has(d))]
+    }
+    return { map, rewriteCss: (css) => (map.size ? renameCssClasses(css, map) : css), rewriteSource, rewriteSourceWithMap, findUnrecognized }
+}
+
 /** Tạo bảng ánh xạ từ CSS và toàn bộ mã nguồn dùng class. */
 export const createShortClassNames = (input: ShortClassNamesInput): ShortClassNames => {
     const { prefix = '', functions = DEFAULT_CLASS_FUNCTIONS } = input
@@ -915,9 +1093,16 @@ export const createShortClassNames = (input: ShortClassNamesInput): ShortClassNa
     }
     const facts: SourceFacts = { unrecognized: new Set(), covered: new Map(), dynamic: new Map(), directives: new Set(), attributes, words: new Set() }
     for (const code of sources) analyzeSource(code, names, maxLength, quoted, functions, facts)
+    for (const code of input.opaqueSources ?? []) {
+        findStandaloneOccurrences(code, names, maxLength, (name) => facts.unrecognized.add(name), quoted)
+        for (const word of code.split(/[\s"'`]+/)) if (word && word.length <= 8) facts.words.add(word)
+    }
     const fragments = [...facts.dynamic.values()]
     const isDynamic = (name: string) => fragments.some(([start, end]) => name.length >= start.length + end.length && name.startsWith(start) && name.endsWith(end))
     const attributesOf = (name: string) => facts.attributes.filter((a) => attributeMatches(a, name))
+
+    const mergeGuard = input.merge === true || ((input.merge ?? 'auto') === 'auto' && sources.some((code) => MERGE_LIBRARY_PATTERN.test(code)))
+    const conflicting = mergeGuard ? findConflictingClasses(sheets) : new Set<string>()
 
     const skipped = new Map<string, ShortClassSkipReason>()
     const chosen: string[] = []
@@ -934,6 +1119,9 @@ export const createShortClassNames = (input: ShortClassNamesInput): ShortClassNa
         else if (isDynamic(name)) reason = 'dynamic'
         else if (facts.unrecognized.has(name)) reason = 'unrecognized'
         else if (!facts.covered.get(name)) reason = 'unused'
+        else if (conflicting.has(name)) reason = 'merge'
+        // Tên mới giữ chuỗi con (`text-a`, `size-b`) trông như utility thật: tailwind-merge sẽ gộp nhầm với class khác.
+        else if (mergeGuard && requirement && requirement.start + requirement.contain + requirement.end) reason = 'merge'
         if (reason) skipped.set(name, reason)
         else {
             chosen.push(name)
@@ -976,29 +1164,7 @@ export const createShortClassNames = (input: ShortClassNamesInput): ShortClassNa
         else skipped.set(name, 'attribute-selector')
     }
 
-    const replacements = (code: string): Replacement[] => {
-        const list: Replacement[] = []
-        if (!map.size) return list
-        for (const range of findShortenableClassRanges(code, functions)) {
-            for (const { start, end, token } of range.tokens) {
-                const next = map.get(token)
-                if (next !== undefined) list.push({ start, end, text: next })
-            }
-        }
-        return list
-    }
-    const rewriteSource = (code: string): string => applyReplacements(code, replacements(code))
-    const rewriteSourceWithMap = (code: string, file: string) => {
-        const list = replacements(code)
-        return { code: applyReplacements(code, list), map: list.length ? replacementSourceMap(code, list, file) : null }
-    }
-    const findUnrecognized = (code: string): string[] => {
-        const keys = new Set(map.keys())
-        const local: SourceFacts = { unrecognized: new Set(), covered: new Map(), dynamic: new Map(), directives: new Set(), attributes: [], words: new Set() }
-        analyzeSource(code, keys, maxLength, [...keys].filter((k) => /["'`]/.test(k)), functions, local)
-        return [...local.unrecognized, ...[...local.directives].filter((d) => keys.has(d))]
-    }
-    return { map, skipped, rewriteCss: (css) => (map.size ? renameCssClasses(css, map) : css), rewriteSource, rewriteSourceWithMap, findUnrecognized, fragments, attributes: facts.attributes }
+    return { ...shortClassNamesFromMap(map, { functions: [...functions] }), skipped, fragments, attributes: facts.attributes }
 }
 
 export interface ShortenClassesResult<C extends string | string[], S extends string[] | Record<string, string>> {
