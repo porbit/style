@@ -1,5 +1,13 @@
 # Lịch Sử Thay Đổi
 
+## Chưa phát hành
+
+**Hiệu năng build tĩnh** (plugin PostCSS, CLI; CSS đầu ra không đổi từng byte)
+- Bộ quét theo byte (WASM) cho `scanFiles`: file đọc thẳng vào bộ nhớ của một module WASM nhỏ (Rust, `wasm/scan/lib.rs`, 9,6 KB nhúng base64 trong `src/scan-wasm-generated.ts`, nạp đồng bộ khi quét lần đầu) và quét trên byte UTF-8, không giải mã cả file thành chuỗi; tìm dấu nháy, xuống dòng và `class` bằng SIMD; bảng intern token và ghi nhớ theo nội dung chuỗi nằm trong WASM, chỉ token mới thành chuỗi JS. Cùng tập và thứ tự ứng viên với bản JS / `extractCandidates` (test trên mọi fixture, 20.000 chuỗi byte ngẫu nhiên gồm khoảng trắng Unicode và UTF-8 hỏng). Không có WebAssembly hoặc `PRESENCE_STYLE_WASM=0`: dùng bản JS như trước. Dựng lại: `node scripts/gen-scan-wasm.mjs` (bước `rust` của `check:all` kiểm file sinh khớp mã Rust).
+- Cùng lần đo (`eval/build-bench.mjs`, trung vị 9 lượt, máy 4 lõi, tải 1,5–2), build trong tiến trình mới chưa có bộ nhớ đệm: 6.000 file 432 → 345 ms (Tailwind CLI v4: 421 ms), 6.273 trang HTML 214 → 170 ms (Tailwind: 197 ms) — trước đây chậm hơn Tailwind 13% ở bộ HTML; build lại trong cùng tiến trình 260 → 212 ms và 152 → 103 ms (Tailwind 321 / 163 ms). Đọc + trích ứng viên: 173 → 90 ms và 125 → 72 ms.
+- Đã đo và bỏ: quét theo byte bằng JS (Buffer thay cho chuỗi) không nhanh hơn bản chuỗi khi JIT nguội; đọc file bất đồng bộ qua thread pool của libuv chậm hơn nhiều lần đọc đồng bộ trên máy đo.
+- Gói npm 1,37 → 1,39 MB giải nén.
+
 ## 1.1.0
 
 Đo lại toàn bộ so với Tailwind 4.3.5: 6 dự án thật (thêm daisyUI 5, TailAdmin), 10 cấu hình v3, mọi bước so sánh đòi khớp 100% (xem `docs/strategy/danh-gia-1.1.md`).

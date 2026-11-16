@@ -1,0 +1,22 @@
+[package]
+name = "presence-style-scan-wasm"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Bộ quét class ứng viên theo byte (WASM) cho build tĩnh trên Node: xem src/scan-wasm.ts"
+
+[lib]
+crate-type = ["cdylib"]
+path = "lib.rs"
+
+# Crate độc lập (không thuộc workspace presence_style).
+[workspace]
+
+[profile.release]
+# "s": ~9,6 KB thay cho ~14,8 KB, cùng tốc độ (đo trên hai bộ bench).
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = false
+strip = true

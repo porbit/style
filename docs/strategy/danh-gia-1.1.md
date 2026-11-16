@@ -15,11 +15,11 @@ Máy đo có 4 lõi và được dùng chung. Mọi số thời gian là trung v
 | Bản không build (CDN, gzip) | **40,9 KB** | **Vượt** (−46%, Tailwind 75,3 KB) | 44,1 → 40,9 KB |
 | Runtime: chèn 2.000 / 10 × 200 phần tử | **54,7 / 172,4 ms** | **Vượt** (10 × 200 nhanh hơn 5,4 lần) | |
 | Class sinh lúc chạy (chế độ lai) | 300/300 sau **2,2 ms**; cascade đúng 476/476 cặp | **Vượt** (Tailwind build 9/300) | cascade 153/272 → 476/476 |
-| Build tĩnh có cache / build lại | 6.000 file: **306 / 295 ms**; HTML: **131 / 162 ms** | **Vượt** (Tailwind 449 / 333 ms; 219 / 190 ms) | cache quét lưu trên đĩa (mới) |
-| Build tĩnh lần đầu, chưa có cache | 6.000 file **429 ms**; HTML 247 ms | 6.000 file **vượt** (−4,5%); HTML **thua** (+13%) | trước đây chậm hơn ~45% |
+| Build tĩnh có cache / build lại | 6.000 file: **307 / 212 ms**; HTML: **127 / 103 ms** | **Vượt** (Tailwind 421 / 321 ms; 197 / 163 ms) | cache quét lưu trên đĩa (mới); build lại nhanh hơn nhờ bộ quét WASM |
+| Build tĩnh lần đầu, chưa có cache | 6.000 file **345 ms**; HTML **170 ms** | **Vượt** (−18%; −13,5%; Tailwind 421 / 197 ms) | bộ quét theo byte (WASM): 432 → 345 ms, 214 → 170 ms cùng lần đo |
 | CSS build ra | 6.000 file: **305,6 KB**; coss ui 204,8 KB; shadcn 94,9 KB | **Vượt** ở đa số dự án (Tailwind 317,0 / 242,2 / 100,0 KB) | bỏ CSS rác của token không phải class |
 | Rút gọn tên class (Tailwind không có) | Next.js 15.5/16, Turbopack và webpack, Vite, Rspack, CLI: CSS gzip −8 … −19%, HTML −22% | **Vượt** | mới |
-| Cài đặt | gói 1,37 MB giải nén | **Vượt** (Tailwind ~25 MB) | |
+| Cài đặt | gói 1,39 MB giải nén | **Vượt** (Tailwind ~25 MB) | +9,6 KB WASM của bộ quét |
 | Gộp class, sắp class | 100%; 46/46 file Prettier | Gộp class **vượt**; sắp class **ngang** | |
 | Editor | LSP cho VS Code, Zed, Neovim, Helix (ô màu, hover, gợi ý, sắp class) | **Ngang** | extension VS Code/Zed mới |
 | Cộng đồng, tài liệu, thời gian có mặt | Mới | **Thua** | |
@@ -59,10 +59,10 @@ Máy đo có 4 lõi và được dùng chung. Mọi số thời gian là trung v
 | Chèn 2.000 phần tử | 85,5 ms | **54,7 ms** | như trên |
 | Chèn 200 phần tử × 10 lần | 935,6 ms | **172,4 ms** | như trên |
 | 300 class sinh lúc chạy (CMS, AI) | build: 9/300; browser: 27,1 ms | **300/300 sau 2,2 ms** | `eval/dynamic-classes.mjs` |
-| Build 6.000 file: lần đầu / có cache / build lại | 449 / 449 / 333 ms | **429 / 306 / 295 ms** | `eval/build-bench.mjs` |
-| Build 6.273 trang HTML: lần đầu / có cache / build lại | **219** / 219 / 190 ms | 247 / **131** / **162** ms | như trên |
+| Build 6.000 file: lần đầu / có cache / build lại | 421 / 421 / 321 ms | **345 / 307 / 212 ms** | `eval/build-bench.mjs` |
+| Build 6.273 trang HTML: lần đầu / có cache / build lại | 197 / 197 / 163 ms | **170 / 127 / 103 ms** | như trên |
 | CSS build 6.000 file | 317,0 KB | **305,6 KB** | như trên |
-| Cài đặt (đường PostCSS) | ~25 MB | **1,37 MB** | `check:all` bước `package` |
+| Cài đặt (đường PostCSS) | ~25 MB | **1,39 MB** | `check:all` bước `package` |
 
 ## 4. Tính Năng Tailwind Không Có
 
@@ -77,11 +77,10 @@ Máy đo có 4 lõi và được dùng chung. Mọi số thời gian là trung v
 
 ## 5. Chỗ Còn Thua Hoặc Chưa Có
 
-- **Build lần đầu, chưa có cache, trên bộ toàn trang HTML: chậm hơn 13%.**
-  - Gần hết thời gian là đọc file và quét bằng JS một luồng; Oxide của Tailwind là Rust đa luồng.
-  - Đã thử song song hoá bằng `worker_threads`, cả ba cách đều chậm hơn.
-  - Muốn vượt cần bộ quét native hoặc WASM.
-  - Với 6.000 file mã nguồn, ta đã nhanh hơn 4,5%. Khi đã có cache, ta nhanh hơn ở mọi bộ đo.
+- **Build lần đầu trên bộ toàn trang HTML chỉ nhanh hơn ~13%** (6.000 file mã nguồn: ~18%).
+  - Bộ quét theo byte (WASM, một luồng) quét 6.273 trang trong ~25 ms; phần còn lại của bước trích là đọc file (mở, fstat, đọc, đóng: ~40 ms). Oxide của Tailwind đọc đa luồng.
+  - Sinh CSS lúc JIT còn nguội vẫn chậm hơn Tailwind (76 vs 60 ms trên bộ HTML).
+  - Đã thử: `worker_threads` (ba cách), quét theo byte bằng JS (không nhanh hơn bản chuỗi khi JIT nguội), đọc bất đồng bộ qua thread pool của libuv (chậm hơn nhiều lần trên máy đo).
 - **Chỉ đo trên Chromium.** Bộ đo đã có `--browser=firefox|webkit`, nhưng máy đo không có hai trình duyệt này.
 - **Rút gọn tên class:** Turbopack dưới Next 15.5 chưa hỗ trợ. Dự án dùng tailwind-merge chỉ giảm khoảng một nửa so với dự án không dùng.
 - **`tailwind-auto.mjs`** không chạy class viết tắt x-css; dùng `index-auto.mjs` cho x-css.

@@ -3,9 +3,9 @@
   "node": "v22.23.4",
   "cpus": 4,
   "loadavgStart": [
-    1.06,
-    1.68,
-    2.9
+    1.83,
+    1.05,
+    1.28
   ],
   "rounds": 9,
   "tailwind": "4.3.5",
@@ -14,9 +14,9 @@
       "files": 6000,
       "warmIterations": 15,
       "loadavgEnd": [
-        1.39,
-        1.69,
-        2.85
+        1.5,
+        1.07,
+        1.27
       ],
       "sides": {
         "Tailwind 4.3.5 (oxide)": {
@@ -25,34 +25,34 @@
           "candidates": 6561,
           "cold": {
             "wall": {
-              "median": 573.3,
-              "min": 544.6,
-              "max": 673.2
+              "median": 536.7,
+              "min": 502.2,
+              "max": 602.5
             },
             "load": {
-              "median": 83.4,
-              "min": 69.9,
-              "max": 94
+              "median": 69.8,
+              "min": 59.2,
+              "max": 84.4
             },
             "total": {
-              "median": 449.3,
-              "min": 414.4,
-              "max": 547.6
+              "median": 420.6,
+              "min": 398,
+              "max": 466.6
             },
             "setup": {
-              "median": 27,
-              "min": 26.5,
-              "max": 31.1
+              "median": 27.1,
+              "min": 21.8,
+              "max": 44.6
             },
             "scan": {
-              "median": 145.6,
-              "min": 141.3,
-              "max": 162.1
+              "median": 147.9,
+              "min": 141.1,
+              "max": 168.2
             },
             "generate": {
-              "median": 277.6,
-              "min": 240.3,
-              "max": 359.5
+              "median": 242.1,
+              "min": 225.1,
+              "max": 295.4
             }
           },
           "warm": {
@@ -62,24 +62,24 @@
               "max": 0.4
             },
             "total": {
-              "median": 332.8,
-              "min": 283.8,
-              "max": 396.1
+              "median": 321,
+              "min": 266.8,
+              "max": 393.4
             },
             "setup": {
-              "median": 37.3,
-              "min": 7.8,
-              "max": 62.5
+              "median": 34.8,
+              "min": 4,
+              "max": 84.5
             },
             "scan": {
-              "median": 155.2,
-              "min": 138.2,
-              "max": 183.2
+              "median": 149.4,
+              "min": 135.9,
+              "max": 176.9
             },
             "generate": {
-              "median": 138.7,
-              "min": 109.6,
-              "max": 193.2
+              "median": 131.9,
+              "min": 105.6,
+              "max": 165.2
             }
           }
         },
@@ -89,103 +89,103 @@
           "candidates": 6553,
           "cold": {
             "wall": {
-              "median": 549,
-              "min": 519.4,
-              "max": 646.1
+              "median": 469.4,
+              "min": 430.2,
+              "max": 522.5
             },
             "load": {
-              "median": 43,
-              "min": 37.3,
-              "max": 51.7
+              "median": 48.4,
+              "min": 41.5,
+              "max": 52.5
             },
             "total": {
-              "median": 429,
-              "min": 403.9,
-              "max": 523
+              "median": 345,
+              "min": 300.9,
+              "max": 398.1
             },
             "setup": {
               "median": 3.2,
-              "min": 2.8,
-              "max": 3.4
+              "min": 3,
+              "max": 4.7
             },
             "scan": {
-              "median": 11.5,
-              "min": 9.7,
-              "max": 12.7
+              "median": 11.4,
+              "min": 11.2,
+              "max": 16.2
             },
             "extract": {
-              "median": 163.7,
-              "min": 155.6,
-              "max": 197.8
+              "median": 90.3,
+              "min": 81.2,
+              "max": 114.9
             },
             "generate": {
-              "median": 258,
-              "min": 226.6,
-              "max": 309.7
+              "median": 239.9,
+              "min": 192.8,
+              "max": 288.7
             }
           },
           "warm": {
             "total": {
-              "median": 294.6,
-              "min": 230.7,
-              "max": 366.1
+              "median": 211.5,
+              "min": 151.1,
+              "max": 244.8
             },
             "setup": {
-              "median": 0.8,
-              "min": 0.4,
-              "max": 4.1
+              "median": 0.9,
+              "min": 0.5,
+              "max": 2.7
             },
             "scan": {
-              "median": 9.4,
-              "min": 6.6,
-              "max": 16.4
+              "median": 9,
+              "min": 6.4,
+              "max": 14.1
             },
             "extract": {
-              "median": 136.2,
-              "min": 106.9,
-              "max": 168.5
+              "median": 68.8,
+              "min": 53.9,
+              "max": 86.7
             },
             "generate": {
-              "median": 140.9,
-              "min": 113.3,
-              "max": 187.3
+              "median": 129.8,
+              "min": 88.2,
+              "max": 160.4
             }
           },
           "cold+cache": {
             "wall": {
-              "median": 396.8,
-              "min": 363.8,
-              "max": 418.6
+              "median": 402.5,
+              "min": 363.7,
+              "max": 543.8
             },
             "load": {
-              "median": 43.9,
-              "min": 40.7,
-              "max": 51.4
+              "median": 45.8,
+              "min": 39.2,
+              "max": 61.8
             },
             "total": {
-              "median": 305.6,
-              "min": 276,
-              "max": 331.9
+              "median": 306.7,
+              "min": 272,
+              "max": 422.6
             },
             "setup": {
-              "median": 3.3,
-              "min": 2.9,
-              "max": 5.4
+              "median": 3.4,
+              "min": 3.2,
+              "max": 4.4
             },
             "scan": {
-              "median": 11.7,
-              "min": 11.1,
-              "max": 13.2
+              "median": 12.7,
+              "min": 11,
+              "max": 17.5
             },
             "extract": {
-              "median": 38.3,
-              "min": 36.4,
-              "max": 40.3
+              "median": 39.7,
+              "min": 36,
+              "max": 55.8
             },
             "generate": {
-              "median": 250.6,
-              "min": 224.7,
-              "max": 279
+              "median": 241.4,
+              "min": 221.3,
+              "max": 344.4
             }
           }
         },
@@ -195,103 +195,103 @@
           "candidates": 6553,
           "cold": {
             "wall": {
-              "median": 557.2,
-              "min": 541.5,
-              "max": 662.4
+              "median": 569.1,
+              "min": 494.2,
+              "max": 729.8
             },
             "load": {
-              "median": 44.4,
-              "min": 40.9,
-              "max": 58.9
+              "median": 53,
+              "min": 38.5,
+              "max": 62.2
             },
             "total": {
-              "median": 442.5,
-              "min": 418,
-              "max": 533.6
+              "median": 431.9,
+              "min": 382.2,
+              "max": 570.1
             },
             "setup": {
-              "median": 3.5,
-              "min": 3,
-              "max": 5.4
+              "median": 3.9,
+              "min": 3.1,
+              "max": 4.7
             },
             "scan": {
-              "median": 11.6,
-              "min": 11.3,
-              "max": 20.8
+              "median": 13.4,
+              "min": 10.2,
+              "max": 16.4
             },
             "extract": {
-              "median": 177.3,
-              "min": 165.8,
-              "max": 230.2
+              "median": 172.5,
+              "min": 137,
+              "max": 214.5
             },
             "generate": {
-              "median": 249.9,
-              "min": 233.4,
-              "max": 323.9
+              "median": 233.6,
+              "min": 205.5,
+              "max": 337.5
             }
           },
           "warm": {
             "total": {
-              "median": 299.6,
-              "min": 252.4,
-              "max": 360.6
+              "median": 259.8,
+              "min": 205.3,
+              "max": 316.9
             },
             "setup": {
               "median": 0.6,
               "min": 0.5,
-              "max": 1.1
+              "max": 2.7
             },
             "scan": {
-              "median": 9.3,
-              "min": 7.5,
-              "max": 14.8
+              "median": 9.1,
+              "min": 6.5,
+              "max": 11.4
             },
             "extract": {
-              "median": 132.1,
-              "min": 105.2,
-              "max": 178
+              "median": 122.1,
+              "min": 98,
+              "max": 156.5
             },
             "generate": {
-              "median": 153.7,
-              "min": 115.9,
-              "max": 226.1
+              "median": 124.3,
+              "min": 98.3,
+              "max": 182.6
             }
           },
           "cold+cache": {
             "wall": {
-              "median": 417.5,
-              "min": 383.6,
-              "max": 466.3
+              "median": 377.5,
+              "min": 344,
+              "max": 456.4
             },
             "load": {
-              "median": 45.2,
-              "min": 40.7,
-              "max": 49.8
+              "median": 40.7,
+              "min": 36.7,
+              "max": 56.9
             },
             "total": {
-              "median": 322,
-              "min": 290.3,
-              "max": 370.6
+              "median": 293,
+              "min": 261,
+              "max": 345.2
             },
             "setup": {
-              "median": 3.2,
-              "min": 2.4,
-              "max": 4.8
+              "median": 3.6,
+              "min": 2.8,
+              "max": 5.3
             },
             "scan": {
               "median": 11.7,
-              "min": 9.9,
-              "max": 18.6
+              "min": 9.3,
+              "max": 26.1
             },
             "extract": {
-              "median": 37.9,
-              "min": 34.6,
-              "max": 57.9
+              "median": 37,
+              "min": 34.1,
+              "max": 45
             },
             "generate": {
-              "median": 268.5,
-              "min": 242.9,
-              "max": 314.1
+              "median": 230.2,
+              "min": 206.7,
+              "max": 290.8
             }
           }
         }
@@ -302,9 +302,9 @@
       "files": 6273,
       "warmIterations": 15,
       "loadavgEnd": [
-        1.29,
-        1.64,
-        2.79
+        2.02,
+        1.21,
+        1.31
       ],
       "sides": {
         "Tailwind 4.3.5 (oxide)": {
@@ -313,61 +313,61 @@
           "candidates": 1128,
           "cold": {
             "wall": {
-              "median": 339.7,
-              "min": 310.4,
-              "max": 371.6
+              "median": 307.2,
+              "min": 277.5,
+              "max": 371.1
             },
             "load": {
-              "median": 74,
-              "min": 72.4,
-              "max": 85.2
+              "median": 69.1,
+              "min": 57.7,
+              "max": 90.6
             },
             "total": {
-              "median": 219,
-              "min": 186,
-              "max": 239.1
+              "median": 196.7,
+              "min": 179.6,
+              "max": 241.2
             },
             "setup": {
-              "median": 29.7,
-              "min": 24.7,
-              "max": 41.5
+              "median": 25.9,
+              "min": 22.9,
+              "max": 31.6
             },
             "scan": {
-              "median": 117.3,
-              "min": 103.7,
-              "max": 129.4
+              "median": 108.6,
+              "min": 102.9,
+              "max": 138.3
             },
             "generate": {
-              "median": 69,
-              "min": 57.7,
-              "max": 80.4
+              "median": 60.4,
+              "min": 53.7,
+              "max": 76.9
             }
           },
           "warm": {
             "load": {
               "median": 0.3,
-              "min": 0.2,
+              "min": 0.1,
               "max": 0.4
             },
             "total": {
-              "median": 190,
-              "min": 158.7,
-              "max": 248.9
+              "median": 162.6,
+              "min": 149.6,
+              "max": 229.7
             },
             "setup": {
-              "median": 12.9,
-              "min": 3,
-              "max": 79
+              "median": 11.1,
+              "min": 3.4,
+              "max": 60.9
             },
             "scan": {
-              "median": 129,
-              "min": 120.6,
-              "max": 172.1
+              "median": 121.8,
+              "min": 112.8,
+              "max": 139.7
             },
             "generate": {
-              "median": 32.6,
-              "min": 22.6,
-              "max": 45.8
+              "median": 31,
+              "min": 22.9,
+              "max": 39.8
             }
           }
         },
@@ -377,103 +377,103 @@
           "candidates": 1621,
           "cold": {
             "wall": {
-              "median": 370,
-              "min": 322.3,
-              "max": 395.4
+              "median": 285.4,
+              "min": 241.9,
+              "max": 314.7
             },
             "load": {
-              "median": 44.7,
-              "min": 37,
-              "max": 57.1
+              "median": 44,
+              "min": 35.3,
+              "max": 54.5
             },
             "total": {
-              "median": 247.1,
-              "min": 211.4,
-              "max": 278.6
+              "median": 170.1,
+              "min": 144.6,
+              "max": 194.2
             },
             "setup": {
-              "median": 3.5,
-              "min": 2.7,
-              "max": 4.6
+              "median": 3.2,
+              "min": 2.6,
+              "max": 3.6
             },
             "scan": {
-              "median": 14.5,
-              "min": 11.2,
-              "max": 21.5
+              "median": 13.1,
+              "min": 10.8,
+              "max": 16.6
             },
             "extract": {
-              "median": 138.1,
-              "min": 118.2,
-              "max": 162.8
+              "median": 71.9,
+              "min": 67.1,
+              "max": 97.6
             },
             "generate": {
-              "median": 89.5,
-              "min": 60.7,
-              "max": 104.5
+              "median": 75.6,
+              "min": 63.8,
+              "max": 83.8
             }
           },
           "warm": {
             "total": {
-              "median": 162.4,
-              "min": 136.6,
-              "max": 237.7
+              "median": 103.3,
+              "min": 94,
+              "max": 129.1
             },
             "setup": {
-              "median": 0.6,
+              "median": 0.5,
               "min": 0.5,
-              "max": 5.8
+              "max": 1.1
             },
             "scan": {
-              "median": 10.3,
-              "min": 8.2,
-              "max": 14
+              "median": 9.3,
+              "min": 8.3,
+              "max": 10.4
             },
             "extract": {
-              "median": 111.8,
-              "min": 96.3,
-              "max": 168.8
+              "median": 61.9,
+              "min": 54.6,
+              "max": 72.5
             },
             "generate": {
-              "median": 42.2,
-              "min": 25.1,
-              "max": 53.9
+              "median": 32.1,
+              "min": 26.3,
+              "max": 47.4
             }
           },
           "cold+cache": {
             "wall": {
-              "median": 225.1,
-              "min": 212.8,
-              "max": 258.9
+              "median": 217.5,
+              "min": 202.9,
+              "max": 265.8
             },
             "load": {
-              "median": 43.3,
-              "min": 40.6,
-              "max": 56.9
+              "median": 44,
+              "min": 39.6,
+              "max": 57.1
             },
             "total": {
-              "median": 130.9,
-              "min": 122.4,
-              "max": 170.8
+              "median": 127.1,
+              "min": 116,
+              "max": 162.7
             },
             "setup": {
-              "median": 3.1,
+              "median": 3.4,
               "min": 2.9,
-              "max": 4.2
+              "max": 4.1
             },
             "scan": {
-              "median": 13.1,
-              "min": 12.5,
-              "max": 17.4
+              "median": 12.8,
+              "min": 12.2,
+              "max": 17.1
             },
             "extract": {
-              "median": 35.6,
-              "min": 34.4,
-              "max": 46.3
+              "median": 36.3,
+              "min": 34,
+              "max": 45.6
             },
             "generate": {
-              "median": 77.4,
-              "min": 72.2,
-              "max": 112.3
+              "median": 75.1,
+              "min": 63.4,
+              "max": 95.3
             }
           }
         },
@@ -483,103 +483,103 @@
           "candidates": 1621,
           "cold": {
             "wall": {
-              "median": 378.5,
-              "min": 341.4,
-              "max": 413.5
+              "median": 328.7,
+              "min": 275.1,
+              "max": 354
             },
             "load": {
-              "median": 45.6,
-              "min": 39.7,
-              "max": 59.7
+              "median": 42.8,
+              "min": 34.5,
+              "max": 47
             },
             "total": {
-              "median": 256.1,
-              "min": 230.1,
-              "max": 268.1
+              "median": 213.9,
+              "min": 182.3,
+              "max": 240.8
             },
             "setup": {
-              "median": 3.8,
-              "min": 3,
-              "max": 5.7
+              "median": 3.1,
+              "min": 2.7,
+              "max": 3.7
             },
             "scan": {
-              "median": 15.3,
-              "min": 11.2,
-              "max": 19.3
+              "median": 13,
+              "min": 10.4,
+              "max": 15.8
             },
             "extract": {
-              "median": 140,
-              "min": 129.8,
-              "max": 153.3
+              "median": 124.6,
+              "min": 106.3,
+              "max": 135.2
             },
             "generate": {
-              "median": 92.1,
-              "min": 83.8,
-              "max": 103.9
+              "median": 71.7,
+              "min": 61,
+              "max": 94.2
             }
           },
           "warm": {
             "total": {
-              "median": 161.8,
-              "min": 137.2,
-              "max": 244.3
+              "median": 152.4,
+              "min": 131.1,
+              "max": 173.2
             },
             "setup": {
-              "median": 0.6,
+              "median": 0.5,
               "min": 0.5,
-              "max": 1.3
+              "max": 0.9
             },
             "scan": {
-              "median": 11.1,
-              "min": 8.8,
-              "max": 13.7
+              "median": 9.6,
+              "min": 8.2,
+              "max": 13.6
             },
             "extract": {
-              "median": 115.1,
-              "min": 92.7,
-              "max": 172.1
+              "median": 104.7,
+              "min": 88.1,
+              "max": 130.9
             },
             "generate": {
-              "median": 41.7,
-              "min": 31.3,
-              "max": 57.6
+              "median": 34,
+              "min": 26.9,
+              "max": 45.9
             }
           },
           "cold+cache": {
             "wall": {
-              "median": 231.3,
-              "min": 192.7,
-              "max": 270.8
+              "median": 215.4,
+              "min": 203.8,
+              "max": 284.5
             },
             "load": {
-              "median": 44.1,
-              "min": 36.8,
-              "max": 54.1
+              "median": 42.5,
+              "min": 41.1,
+              "max": 55.7
             },
             "total": {
-              "median": 137.6,
-              "min": 110.8,
-              "max": 184.9
+              "median": 130.5,
+              "min": 119.7,
+              "max": 155.5
             },
             "setup": {
-              "median": 3.3,
-              "min": 2.6,
-              "max": 4.6
+              "median": 3.2,
+              "min": 2.9,
+              "max": 4.2
             },
             "scan": {
-              "median": 14.8,
-              "min": 11.2,
-              "max": 19.2
+              "median": 13.2,
+              "min": 11.7,
+              "max": 19
             },
             "extract": {
-              "median": 34.3,
-              "min": 30.7,
-              "max": 50.3
+              "median": 36.1,
+              "min": 33.8,
+              "max": 55.8
             },
             "generate": {
-              "median": 85.8,
-              "min": 66,
-              "max": 114.6
+              "median": 76.7,
+              "min": 68.7,
+              "max": 96.9
             }
           }
         }

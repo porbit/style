@@ -145,7 +145,12 @@ const steps = [
             if (!build.ok) return build
             const test = run('cargo', ['test', '--workspace', '-q'], { cwd })
             const passed = (test.out.match(/test result: ok\. (\d+) passed/g) || []).reduce((n, line) => n + Number(line.match(/(\d+) passed/)[1]), 0)
-            return test.ok ? { ...test, detail: `${passed} test pass` } : test
+            if (!test.ok) return test
+            // Bộ quét theo byte (wasm/scan -> src/scan-wasm-generated.ts) khớp mã Rust; cần target wasm32 (không có: bỏ qua).
+            const targets = run('rustup', ['target', 'list', '--installed'])
+            if (!targets.ok || !/wasm32-unknown-unknown/.test(targets.out)) return { ...test, detail: `${passed} test pass · bỏ qua scan wasm (thiếu target wasm32-unknown-unknown)` }
+            const wasm = run('node', ['scripts/gen-scan-wasm.mjs', '--check'])
+            return { ok: wasm.ok, detail: `${passed} test pass · ${tail(wasm.out, 1)}` }
         },
     },
     {
