@@ -178,7 +178,7 @@ const stats = {}
 const animate = fs.readFileSync(path.join(pkgDir('tw-animate-css'), 'dist/tw-animate.css'), 'utf8')
 plugins['tw-animate-css'] = `/* tw-animate-css@${versionOf('tw-animate-css')} (MIT) */\n${animate.replace(/\/\*[\s\S]*?\*\//g, '').trim()}`
 stats['tw-animate-css'] = { bytes: plugins['tw-animate-css'].length }
-for (const id of ['@tailwindcss/forms', '@tailwindcss/typography']) {
+for (const id of ['@tailwindcss/forms', '@tailwindcss/typography', 'tailwindcss-animate']) {
     const result = await fromJsPlugin(id)
     plugins[id] = result.css
     stats[id] = { classes: result.classes, variants: result.variants, bytes: result.css.length }

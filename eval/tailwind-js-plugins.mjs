@@ -66,7 +66,7 @@ const PLUGINS = [
     { id: '@tailwindcss/forms', tree: FORM_TREE, plain: true },
     { id: '@tailwindcss/typography', tree: PROSE_TREE, extra: PROSE_EXTRA },
     // Bản đóng gói sẵn của cùng plugin (tailwindcss-animate -> tw-animate-css) đo trên cùng bộ class, để so hai đường.
-    { id: 'tailwindcss-animate', label: 'tailwindcss-animate (bản đóng gói: tw-animate-css)', bundled: true },
+    { id: 'tailwindcss-animate', label: 'tailwindcss-animate (bản đóng gói)', bundled: true },
     { id: '@tailwindcss/forms', label: '@tailwindcss/forms (bản đóng gói)', bundled: true, tree: FORM_TREE, plain: true },
     { id: '@tailwindcss/typography', label: '@tailwindcss/typography (bản đóng gói)', bundled: true, tree: PROSE_TREE, extra: PROSE_EXTRA },
 ]
@@ -85,7 +85,9 @@ const browser = await launch()
 /** Chữ ký computed style của từng `[data-k]` (phần tử + con + giả phần tử). */
 const signatures = async (css, html, pseudos) => {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
-    await page.setContent(`<!doctype html><html><head><style>${css}</style></head><body>${html}<div data-ref></div></body></html>`)
+    // Dừng animation ở khung đầu (cả hai phía): giá trị đo không phụ thuộc thời điểm chạy.
+    const freeze = '*,*::before,*::after{animation-play-state:paused!important;animation-delay:0s!important}'
+    await page.setContent(`<!doctype html><html><head><style>${css}</style><style>${freeze}</style></head><body>${html}<div data-ref></div></body></html>`)
     const result = await page.evaluate((pseudos) => {
         // Dừng animation ở thời điểm 0: hai bên so được, không phụ thuộc thời gian.
         for (const animation of document.getAnimations()) {

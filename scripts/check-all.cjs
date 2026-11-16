@@ -171,6 +171,8 @@ const steps = [
             const order = run('node', ['eval/tailwind-order.mjs'])
             const prettier = run('node', ['eval/prettier-sort.mjs'])
             const merge = run('node', ['eval/merge-accuracy.mjs'])
+            // Plugin JS tuỳ ý chạy qua API giả lập (không cần cài tailwindcss).
+            const jsPlugins = run('node', ['eval/tailwind-js-plugins.mjs'])
             const report = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-parity.sample.json'), 'utf8'))
             const coverage = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-variants.json'), 'utf8'))
             const pluginReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-plugins.json'), 'utf8'))
@@ -185,15 +187,19 @@ const steps = [
             const prettierReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/prettier-sort.json'), 'utf8'))
             const prettierOk = prettier.ok && prettierReport.identical === prettierReport.files
             const mergeReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/merge-accuracy.json'), 'utf8'))
+            const jsReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-js-plugins.json'), 'utf8'))
+            const jsRows = Object.entries(jsReport.plugins || jsReport).filter(([, r]) => r && typeof r === 'object' && r.classes)
+            const jsOk = jsPlugins.ok && jsRows.every(([, r]) => r.classes.matched / r.classes.cases >= 0.99)
             const mergeOk = merge.ok && Object.values(mergeReport).filter((r) => r && r.methods).every((r) => r.methods['@porbit/style/merge'].correct === r.pairs && r.methods['@porbit/style/merge/lite + bảng'].correct === r.pairs)
             const realMin = Math.min(realReport.converted, ...Object.values(realReport.matched))
             const ok = variants.ok && plugins.ok && real.ok && pluginsOk && report.base.percent >= 99.9 && report.variants.percent === 100 &&
                 report.runtime.percent === 100 && report.theme.matched === report.theme.checked && coverage.percent >= 95 &&
-                realMin / realReport.total >= 0.995 && realOk && v3Ok && orderOk && prettierOk && mergeOk
+                realMin / realReport.total >= 0.995 && realOk && v3Ok && orderOk && prettierOk && mergeOk && jsOk
             return {
                 ok,
                 detail: `class ${report.base.percent}% · biến thể ${report.variants.percent}% · runtime ${report.runtime.percent}% · theme ${report.theme.matched}/${report.theme.checked} · độ phủ biến thể ${coverage.percent}%\n` +
                     `plugin ${Object.entries(pluginReport).map(([id, p]) => `${id} ${p.matched}/${p.cases}`).join(', ')} · shadcn/ui ${realMin}/${realReport.total} (+tổ hợp, PostCSS) ${realOk ? '✓' : '✗'} · cấu hình v3 ${v3Ok ? '✓' : '✗'}\n` +
+                    `plugin JS ${jsRows.map(([id, r]) => `${id} ${r.classes.matched}/${r.classes.cases}`).join(', ') || '✗'} ${jsOk ? '✓' : '✗'}\n` +
                     `thứ tự class ${orderOk ? '100%' : '✗'} · Prettier ${prettierReport.identical}/${prettierReport.files} file · gộp class ${mergeOk ? '100%' : '✗'} (tailwind-merge: ${Object.values(mergeReport).filter((r) => r && r.methods).map((r) => r.methods['tailwind-merge 3.7'].percent + '%').join(' / ')})`,
             }
         },

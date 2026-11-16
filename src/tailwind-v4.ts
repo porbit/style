@@ -1590,7 +1590,8 @@ export const parseTailwindStylesheet = (source: string, options: ParseTailwindOp
                 else if (!/^@(source|config|reference|tailwind|import|plugin)\b/.test(item.at)) sheet.css += item.at + ';\n'
                 continue
             }
-            const utility = item.head.match(/^@utility\s+(-?[\w-]+(?:-\*)?)$/)
+            // Tên có `.`/`/` (`slide-in-from-bottom-0.5`, `-1/2`): chỉ có trong plugin đóng gói sẵn, Tailwind không cho viết trong CSS.
+            const utility = item.head.match(/^@utility\s+(-?[\w./-]+?(?:-\*)?)$/)
             if (utility) {
                 sheet.utilities[utility[1]] = item.body.trim()
                 continue

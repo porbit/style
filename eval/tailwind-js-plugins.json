@@ -368,176 +368,32 @@
       }
     ]
   },
-  "tailwindcss-animate (bản đóng gói: tw-animate-css)": {
+  "tailwindcss-animate (bản đóng gói)": {
     "version": "1.0.7",
     "classes": {
       "cases": 447,
-      "matched": 18,
-      "percent": 4.03
+      "matched": 445,
+      "percent": 99.55
     },
     "variants": {
       "cases": 0,
       "matched": 0,
       "percent": 100
     },
-    "unsupported": [
-      "duration-0",
-      "slide-in-from-bottom-0.5",
-      "slide-in-from-bottom-1.5",
-      "slide-in-from-bottom-2.5",
-      "slide-in-from-bottom-3.5",
-      "slide-in-from-bottom-px",
-      "slide-in-from-left-0.5",
-      "slide-in-from-left-1.5",
-      "slide-in-from-left-2.5",
-      "slide-in-from-left-3.5",
-      "slide-in-from-left-px",
-      "slide-in-from-right-0.5",
-      "slide-in-from-right-1.5",
-      "slide-in-from-right-2.5",
-      "slide-in-from-right-3.5",
-      "slide-in-from-right-px",
-      "slide-in-from-top-0.5",
-      "slide-in-from-top-1.5",
-      "slide-in-from-top-2.5",
-      "slide-in-from-top-3.5",
-      "slide-in-from-top-px",
-      "slide-out-to-bottom-0.5",
-      "slide-out-to-bottom-1.5",
-      "slide-out-to-bottom-2.5",
-      "slide-out-to-bottom-3.5",
-      "slide-out-to-bottom-px",
-      "slide-out-to-left-0.5",
-      "slide-out-to-left-1.5",
-      "slide-out-to-left-2.5",
-      "slide-out-to-left-3.5",
-      "slide-out-to-left-px",
-      "slide-out-to-right-0.5",
-      "slide-out-to-right-1.5",
-      "slide-out-to-right-2.5",
-      "slide-out-to-right-3.5",
-      "slide-out-to-right-px",
-      "slide-out-to-top-0.5",
-      "slide-out-to-top-1.5",
-      "slide-out-to-top-2.5",
-      "slide-out-to-top-3.5",
-      "slide-out-to-top-px"
-    ],
+    "unsupported": [],
     "tailwindRejected": [],
     "notes": [],
     "failedClasses": [
       {
         "class": "animate-in",
         "diff": [
-          "#0 filter: tw=none | ours=blur(0px)"
+          "#0 transform: tw=matrix(1, 0, 0, 1, 0, 0) | ours=none"
         ]
       },
       {
         "class": "animate-out",
         "diff": [
-          "#0 filter: tw=none | ours=blur(0px)"
-        ]
-      },
-      {
-        "class": "duration-0",
-        "diff": [
-          "#0 --tw-duration: tw=0ms | ours=undefined"
-        ]
-      },
-      {
-        "class": "fade-in",
-        "diff": [
-          "#1 --tw-enter-opacity: tw=0 | ours=1",
-          "#2 --tw-enter-opacity: tw=0 | ours=1",
-          "#3 --tw-enter-opacity: tw=0 | ours=1"
-        ]
-      },
-      {
-        "class": "fade-in-0",
-        "diff": [
-          "#1 --tw-enter-opacity: tw=0 | ours=1",
-          "#2 --tw-enter-opacity: tw=0 | ours=1",
-          "#3 --tw-enter-opacity: tw=0 | ours=1"
-        ]
-      },
-      {
-        "class": "fade-in-5",
-        "diff": [
-          "#0 --tw-enter-opacity: tw=0.05 | ours=.05",
-          "#1 --tw-enter-opacity: tw=0.05 | ours=1",
-          "#2 --tw-enter-opacity: tw=0.05 | ours=1"
-        ]
-      },
-      {
-        "class": "fade-in-10",
-        "diff": [
-          "#0 --tw-enter-opacity: tw=0.1 | ours=.1",
-          "#1 --tw-enter-opacity: tw=0.1 | ours=1",
-          "#2 --tw-enter-opacity: tw=0.1 | ours=1"
-        ]
-      },
-      {
-        "class": "fade-in-15",
-        "diff": [
-          "#0 --tw-enter-opacity: tw=0.15 | ours=.15",
-          "#1 --tw-enter-opacity: tw=0.15 | ours=1",
-          "#2 --tw-enter-opacity: tw=0.15 | ours=1"
-        ]
-      },
-      {
-        "class": "fade-in-20",
-        "diff": [
-          "#0 --tw-enter-opacity: tw=0.2 | ours=.2",
-          "#1 --tw-enter-opacity: tw=0.2 | ours=1",
-          "#2 --tw-enter-opacity: tw=0.2 | ours=1"
-        ]
-      },
-      {
-        "class": "fade-in-25",
-        "diff": [
-          "#0 --tw-enter-opacity: tw=0.25 | ours=.25",
-          "#1 --tw-enter-opacity: tw=0.25 | ours=1",
-          "#2 --tw-enter-opacity: tw=0.25 | ours=1"
-        ]
-      },
-      {
-        "class": "fade-in-30",
-        "diff": [
-          "#0 --tw-enter-opacity: tw=0.3 | ours=.3",
-          "#1 --tw-enter-opacity: tw=0.3 | ours=1",
-          "#2 --tw-enter-opacity: tw=0.3 | ours=1"
-        ]
-      },
-      {
-        "class": "fade-in-35",
-        "diff": [
-          "#0 --tw-enter-opacity: tw=0.35 | ours=.35",
-          "#1 --tw-enter-opacity: tw=0.35 | ours=1",
-          "#2 --tw-enter-opacity: tw=0.35 | ours=1"
-        ]
-      },
-      {
-        "class": "fade-in-40",
-        "diff": [
-          "#0 --tw-enter-opacity: tw=0.4 | ours=.4",
-          "#1 --tw-enter-opacity: tw=0.4 | ours=1",
-          "#2 --tw-enter-opacity: tw=0.4 | ours=1"
-        ]
-      },
-      {
-        "class": "fade-in-45",
-        "diff": [
-          "#0 --tw-enter-opacity: tw=0.45 | ours=.45",
-          "#1 --tw-enter-opacity: tw=0.45 | ours=1",
-          "#2 --tw-enter-opacity: tw=0.45 | ours=1"
-        ]
-      },
-      {
-        "class": "fade-in-50",
-        "diff": [
-          "#0 --tw-enter-opacity: tw=0.5 | ours=.5",
-          "#1 --tw-enter-opacity: tw=0.5 | ours=1",
-          "#2 --tw-enter-opacity: tw=0.5 | ours=1"
+          "#0 transform: tw=matrix(1, 0, 0, 1, 0, 0) | ours=none"
         ]
       }
     ],

@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname as dirnamePath, join, join as joinPath, resolve, resolve as resolvePath } from 'node:path'
-import { tailwindConfigToCss } from './tailwind-config'
+import { loadTailwindConfigFile, tailwindConfigToCss } from './tailwind-config'
 import { createTailwindPluginLoader, requireWithTailwindShims, type TailwindPluginLoader } from './tailwind-plugin-api'
 
 export const DEFAULT_EXTENSIONS = ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'vue', 'svelte', 'astro', 'mdx']
@@ -109,7 +109,8 @@ export const createConfigLoader = (baseDir: string, plugins: TailwindPluginLoade
         const req = createRequire(joinPath(baseDir, 'noop.js'))
         delete req.cache[file]
         // `tailwindcss/plugin`, `tailwindcss/colors`... trong cấu hình/plugin: dùng bản thay nếu dự án không cài tailwindcss.
-        const config = requireWithTailwindShims(baseDir, file) as Record<string, any>
+        // Cấu hình `.ts`/`.mts` nạp được cả trên Node chưa chạy thẳng TypeScript (bỏ kiểu rồi chạy).
+        const config = loadTailwindConfigFile(file, (id: string) => requireWithTailwindShims(baseDir, id)) as Record<string, any>
         const knownPlugins: Record<string, unknown> = {}
         for (const name of KNOWN_PLUGINS) {
             try {
