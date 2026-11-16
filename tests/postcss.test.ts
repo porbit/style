@@ -3,7 +3,7 @@ import postcss from 'postcss'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import presenceStylePostcss, { expandBraces } from '../src/postcss'
+import presenceStylePostcss, { compileTailwindCss, expandBraces } from '../src/postcss'
 
 const project = (files: Record<string, string>) => {
     const dir = mkdtempSync(join(tmpdir(), 'ps-postcss-'))
@@ -59,5 +59,24 @@ describe('@porbit/style/postcss', () => {
         expect((await run(dir, '.a { color: red }')).css).toBe('.a { color: red }')
         const result = await run(dir, '@import "tailwindcss";')
         expect(result.messages).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'dir-dependency', dir })]))
+    })
+
+    it('chỉ sinh class Tailwind; cú pháp x-css chỉ khi bật `xcss` (tuỳ chọn hoặc presence-style.config.json)', async () => {
+        const source = '<svg><path d="M0 12h13.496"/></svg><div class="flex dF bottomStickOnMobile"></div>'
+        const dir = project({ 'src/a.html': source })
+        const css = '@import "tailwindcss/utilities";'
+        const plain = (await compileTailwindCss(css, { base: dir, scanCache: false })).css
+        expect(plain).toContain('.flex{display:flex}')
+        // Số trong path SVG, tên biến: không thành rule rác.
+        expect(plain).not.toContain('13\\.496')
+        expect(plain).not.toContain('.dF{')
+        expect(plain).not.toContain('bottomStickOnMobile')
+        const withXcss = (await compileTailwindCss(css, { base: dir, scanCache: false, xcss: true })).css
+        expect(withXcss).toContain('.dF{display:flex}')
+        expect(withXcss).toContain('13\\.496')
+        expect(withXcss).toContain('.flex{display:flex}')
+        const configured = project({ 'src/a.html': source, 'presence-style.config.json': '{ "xcss": true }' })
+        expect((await compileTailwindCss(css, { base: configured, scanCache: false })).css).toContain('.dF{display:flex}')
+        expect((await compileTailwindCss(css, { base: configured, scanCache: false, xcss: false })).css).not.toContain('.dF{')
     })
 })

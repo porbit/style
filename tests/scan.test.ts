@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { extractCandidates } from '../src/extract'
-import { scanCandidates, scanFiles, type CandidateCacheEntry } from '../src/scan'
+import { createScanner, scanCandidates, scanFiles, type CandidateCacheEntry } from '../src/scan'
 
 const FIXTURES = join(__dirname, '..', 'eval', 'fixtures')
 const SOURCE = /\.(html|tsx?|jsx?|mjs|md|mdx|vue|svelte)$/
@@ -42,6 +42,31 @@ describe('scanCandidates (bộ quét nhanh cho build Node)', () => {
         }
     })
 
+    it('bộ ghi nhớ theo chuỗi và bảng token dùng chung giữa các lần gọi không đổi kết quả; `fresh` cho đúng hợp các file', () => {
+        const scan = createScanner()
+        const files = listSources(join(FIXTURES, 'hyperui')).slice(0, 80).concat(listSources(join(FIXTURES, 'coss-ui')))
+        const union = new Set<string>()
+        const fresh: string[] = []
+        scan.begin()
+        for (let pass = 0; pass < 2; pass++) {
+            for (const file of files) {
+                const source = readFileSync(file, 'utf8')
+                // Lặp lại cùng chuỗi dài (gặp lại trong bộ ghi nhớ) ở thuộc tính class, chuỗi thường và sau dấu nháy lẻ.
+                const repeated = `${source}\n<a class="flex items-center gap-2 px-[calc(1rem+2px)]" title="flex items-center gap-2 px-[calc(1rem+2px)]">'flex items-center gap-2 px-[calc(1rem+2px)]'</a>`
+                for (const text of [source, repeated]) {
+                    const expected = extractCandidates(text)
+                    fresh.length = 0
+                    expect(scan(text, pass ? undefined : fresh), file).toEqual(expected)
+                    if (!pass) {
+                        const before = new Set(union)
+                        for (const token of expected) union.add(token)
+                        expect(fresh).toEqual([...union].filter((token) => !before.has(token)))
+                    }
+                }
+            }
+        }
+    })
+
     it('bỏ qua đầu vào rỗng/không phải chuỗi như extractCandidates', () => {
         expect(scanCandidates('')).toEqual([])
         expect(scanCandidates(undefined as unknown as string)).toEqual([])
@@ -52,7 +77,7 @@ describe('scanFiles', () => {
     const dir = mkdtempSync(join(tmpdir(), 'ps-scan-'))
     afterAll(() => rmSync(dir, { recursive: true, force: true }))
     const sources = listSources(join(FIXTURES, 'hyperui')).concat(listSources(join(FIXTURES, 'shadcn-v4')))
-    // Đủ nhiều file để dùng luồng phụ (ngưỡng 1500 file chưa có trong bộ nhớ đệm).
+    // Đủ nhiều file để dùng luồng phụ (ngưỡng hạ xuống 1500 file chưa có trong bộ nhớ đệm cho test).
     const files: string[] = []
     for (let copy = 0; files.length < 1700; copy++) {
         mkdirSync(join(dir, String(copy)))
@@ -80,7 +105,8 @@ describe('scanFiles', () => {
         process.env.PRESENCE_STYLE_WORKERS = workers
         try {
             const into = new Set<string>(['inline-first'])
-            const info = await scanFiles(files, cache, into)
+            // Luồng chính không tự quét lô: luồng phụ chắc chắn làm việc (luồng chính đã nóng thì xong trước khi chúng khởi động).
+            const info = await scanFiles(files, cache, into, { minFiles: 1500, mainThread: false })
             return { info, list: [...into], cache }
         } finally {
             if (previous === undefined) delete process.env.PRESENCE_STYLE_WORKERS

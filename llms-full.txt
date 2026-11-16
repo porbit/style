@@ -679,7 +679,11 @@ Khác `@tailwindcss/browser` (Tailwind ghi rõ "không dùng cho production"), b
 export default { plugins: { '@porbit/style/postcss': {} } }   // thay '@tailwindcss/postcss'
 ```
 
-File CSS giữ nguyên như dự án Tailwind v4 (`@import "tailwindcss"`, `@theme`, `@utility`, `@custom-variant`, `@apply`, `@plugin`, `@config`). Plugin tự quét mã nguồn (bỏ `node_modules` và thư mục trong `.gitignore`), hiểu `@source "../x"`, `@source not`, `@source inline("{hover:,}bg-red-{100..900..100}")`, `source(none)`, và báo dependency cho chế độ watch. Tuỳ chọn: `base`, `optimize` (mặc định bật), `mergeTable` (mục 6).
+File CSS giữ nguyên như dự án Tailwind v4 (`@import "tailwindcss"`, `@theme`, `@utility`, `@custom-variant`, `@apply`, `@plugin`, `@config`). Plugin tự quét mã nguồn (bỏ `node_modules` và thư mục trong `.gitignore`), hiểu `@source "../x"`, `@source not`, `@source inline("{hover:,}bg-red-{100..900..100}")`, `source(none)`, và báo dependency cho chế độ watch. Tuỳ chọn: `base`, `optimize` (mặc định bật), `mergeTable` (mục 6), `xcss`, `scanCache`.
+
+Chỉ class Tailwind (và `@utility`/`@custom-variant`/plugin của dự án) được sinh CSS: token quét được mà không phải class Tailwind — số trong `<path d="...">` của SVG, tên biến, chuỗi trong mã — không thành rule rác. Dự án viết thêm class theo cú pháp x-css (`dF`, `md:bgcRed`) cạnh class Tailwind thì bật `xcss: true` (tuỳ chọn plugin) hoặc `"xcss": true` trong `presence-style.config.json` ở thư mục gốc.
+
+Bộ nhớ đệm quét (`scanCache`, mặc định bật): ứng viên của từng file lưu ở `node_modules/.cache/presence-style/` (theo đường dẫn + mtime + kích thước, khoá theo phiên bản gói, bộ quét và CSS vào), nên build trong tiến trình mới (CI giữ `node_modules/.cache`, khởi động lại dev server) chỉ đọc lại file đã đổi. File xoá/đổi tên, đổi CSS vào hoặc nâng cấp gói thì phần tương ứng bị bỏ. `scanCache: false` hoặc `PRESENCE_STYLE_CACHE=0` để tắt, `scanCache: "<thư mục>"` để đặt chỗ khác.
 
 Đo trên Next.js 15 (build production, cùng một ứng dụng build bằng hai plugin): **0 khác biệt hiển thị** so với `@tailwindcss/postcss` (chỉ lệch dưới 0,02 px do Tailwind làm tròn số), CSS **3,62 KB** so với 3,88 KB gzip. Chạy lại: `bash eval/next-parity.sh`.
 
@@ -748,9 +752,12 @@ node eval/real-project.mjs --css=src/app.css --src=src --import=tw-animate-css=n
 | Runtime: thêm 200 phần tử × 10 lần | 1.148,9 ms | 207,0 ms |
 | Cài đặt cho đường PostCSS | ~25 MB (Oxide, Lightning CSS) | 1,3 MB |
 | Build tĩnh 248 file | 189–242 ms (CLI, Oxide) | 154–208 ms |
-| Build tĩnh 6.200 file (25 MB) | 315–358 ms | 327–399 ms |
+| Build tĩnh 6.000 file nhân bản fixture: tiến trình mới / có bộ nhớ đệm quét / build lại cùng tiến trình | 408 / 408 / 369 ms | 423 / 284 / 288 ms |
+| Build tĩnh 6.273 trang HTML (HyperUI nhân bản): như trên | 202 / 202 / 157 ms | 215 / 127 / 144 ms |
 | CSS tĩnh cùng trang (gzip) | 4,81 KB | 4,70 KB |
 | Next.js 15, cùng ứng dụng (CSS gzip) | 3,88 KB (`@tailwindcss/postcss`) | 3,62 KB |
+
+Build tĩnh: `node eval/build-bench.mjs --tw=<node_modules có @tailwindcss/cli>` (kết quả `eval/build-bench.json`), trung vị 9 lượt, hai phía chạy xen kẽ trên máy 4 lõi đang bận (tải 2–3). Tailwind quét bằng Oxide (Rust, đa luồng), không có bộ nhớ đệm trên đĩa; ta quét một luồng. Build đầu tiên ngang Tailwind (trong dao động đo; khi máy bận hơn ta nhanh hơn), mọi build sau — tiến trình mới có bộ nhớ đệm quét, hoặc build lại trong dev server — nhanh hơn rõ rệt. Phần lớn thời gian còn lại là sinh CSS.
 
 ## 5. Hỗ Trợ Cấu Hình Nâng Cao
 
