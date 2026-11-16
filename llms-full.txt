@@ -816,6 +816,59 @@ Tailwind build chỉ có CSS cho class viết sẵn trong mã nguồn; class gh�
 
 Giới hạn: rule sinh lúc chạy nằm sau CSS tĩnh, nên khi một class động và một class tĩnh cùng phần tử đụng nhau (`p-2` tĩnh, `px-4` động) thứ tự có thể khác Tailwind.
 
+## 8. Rút Gọn Tên Class Lúc Build (Tuỳ Chọn)
+
+Tailwind không có tính năng này: khi build, đổi tên class thành tên ngắn (`inline-flex items-center gap-2` → `a b c`) trong CSS **và** trong mã nguồn. Class dùng nhiều được tên ngắn trước; cùng đầu vào luôn ra cùng bảng ánh xạ. Mặc định tắt.
+
+```js
+// vite.config.js — chỉ chạy khi `vite build`, dev server giữ nguyên tên
+presenceStyle({ dialects: [tailwindV4Dialect(/* ... */)], shortClassNames: true })
+presenceStyle({ shortClassNames: { exclude: ['js-toggle', /^swiper-/], prefix: 'x' } })
+```
+
+```bash
+# Bước build trước bundler: CSS (đã sinh, hoặc file có @import "tailwindcss") + mã nguồn -> bản rút gọn
+npx presence-style shorten src --css src/app.css --out-css build/app.css --out-dir build --map build/class-map.json
+```
+
+```js
+// API thủ công (ví dụ sau plugin PostCSS, hoặc trong script build riêng)
+import { shortenClasses } from '@porbit/style/shorten'
+const out = shortenClasses({ css, sources: { 'src/App.tsx': code }, exclude: [/^js-/] })
+out.css; out.sources['src/App.tsx']; out.map /* tên gốc -> tên ngắn */; out.skipped /* class giữ nguyên -> lý do */
+```
+
+Tuỳ chọn: `exclude` (tên hoặc RegExp; luôn kèm `dark`, `light` vì thư viện theme gắn lúc chạy), `prefix` (đặt trước mọi tên mới, nên dùng khi trang có runtime lai ở mục 7 hoặc CSS ngoài bundle), `functions` (hàm có đối số là chuỗi class, mặc định `cn clsx cx cva tv tw twMerge twJoin`).
+
+**Nguyên tắc an toàn: chỉ đổi tên class mà MỌI lần xuất hiện trong mã đều nằm trong chuỗi class nhận diện chắc chắn.** Chuỗi class nhận diện chắc chắn là thuộc tính `class="..."`/`className="..."` tĩnh, chuỗi trong `className={...}` và đối số của `cn`/`clsx`/`cva`/`tv`..., khoá object của `clsx`/`cn` (`cn({ 'p-4': on })`), prop `classNames={{...}}`/`*ClassName`. Không tính các chuỗi là toán hạng so sánh (`variant === 'outline'`), đối số hàm khác (`buttonVariants({ variant: 'outline' })`), `defaultVariants`/`compoundVariants` (trừ `class`), hay `obj['x']`. Class còn xuất hiện ở bất kỳ chỗ nào khác thì **giữ nguyên tên ở mọi nơi**, trong CSS lẫn mã, nên kết quả luôn nhất quán:
+
+| Trường hợp | Ví dụ | Xử lý |
+| :--- | :--- | :--- |
+| Chuỗi ngoài ngữ cảnh class | `const c = 'hidden'`, `classList.add('open')`, `querySelector('.card')`, `<input hidden>` | giữ tên (`unrecognized`) |
+| Ghép chuỗi động | `` `bg-${c}-500` ``, `'text-' + size`, `p-{size}` (Svelte), `'bg-'` | giữ mọi class khớp đầu/cuối (`dynamic`) |
+| Selector thuộc tính trên class | `[&_svg:not([class*='size-'])]:size-4` của shadcn | tên mới giữ chuỗi con (`size-4` → `size-a`); không giữ được thì giữ tên |
+| Directive Svelte | `class:active={x}` | giữ tên (`directive`) |
+| Selector phức trong CSS | `group-hover:`, `peer-*`, `group/tên`, `in-*`, `has-[...]`, `*:`, `[&_.x]`, `@container/tên`, lồng `&`, `@media`/`@supports`/`@layer` | đổi tên đúng từng class trong selector; `@keyframes`, giá trị khai báo, chuỗi không bị đụng |
+| Tên mới | chỉ `[a-z][a-z0-9]*` (không `-`, không trùng utility như `p-4`, an toàn ở quirks mode), không trùng class/chuỗi đang có, không bắt đầu bằng `ad` (bộ chặn quảng cáo ẩn `.ad`, `.ads`) | |
+
+Đo trên 4 dự án thật (`npm run check:short-classnames`, kết quả `eval/short-classnames.json`): CSS sinh bằng plugin PostCSS, rồi render bản gốc và bản rút gọn bằng Chromium, so TOÀN BỘ computed style của mọi chuỗi class trong mã (11 lượt như mục 3: mặc định, `data-*`/`aria-*` mở/đóng, `.dark`, ép `:hover`/`:focus`/`:focus-visible`/`:active`, 375/768/1600 px) và của mọi phần tử trong 369 trang HTML của HyperUI (1280/375 px, ép `:hover`/`:focus-visible`).
+
+| Dự án | Class đổi tên | CSS thô | CSS gzip | Mã TSX đã minify (esbuild) thô · gzip | Mã nguồn thô · gzip | Computed style khớp |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| shadcn/ui v4 (45 file) | 752 / 789 | 95,0 → 75,9 KB (**−20,1%**) | 13,9 → 11,4 KB (**−18,1%**) | −33,8% · −17,5% | −21,7% · −15,7% | 355 × 11 lượt, 100% |
+| HyperUI (369 trang HTML) | 594 / 775 | 77,6 → 69,9 KB (−10,0%) | 13,0 → 11,7 KB (−9,8%) | — | −19,5% · −12,2% | 882 × 11 lượt + 5.339 phần tử × 4 lượt, 100% |
+| Magic UI (80 file) | 536 / 653 | 83,8 → 73,7 KB (−12,0%) | 15,2 → 13,4 KB (−11,8%) | −8,7% · −4,8% | −4,3% · −3,7% | 320 × 11 lượt, 100% |
+| coss ui (56 file) | 1.203 / 1.352 | 205,2 → 163,8 KB (**−20,2%**) | 27,0 → 21,9 KB (**−18,6%**) | −36,5% · −21,2% | −24,1% · −19,5% | 553 × 11 lượt, 100% |
+
+Không còn tên gốc của class đã đổi tên nằm ngoài chuỗi class trong mã đã biến đổi (kiểm bằng `findUnrecognized`). Class giữ nguyên tên chủ yếu vì xuất hiện ở chỗ khác chuỗi class (HyperUI: "class" sinh từ dữ liệu path SVG; Magic UI: `flex`, `absolute`... trong biến và style), hoặc không có trong mã (safelist, chỉ nằm trong biến thể khác).
+
+Giới hạn đã biết:
+
+- Chỉ phân tích các file đưa vào (`include` của Vite, đường dẫn của CLI, `sources` của API). Class được dùng ở file khác — thư viện trong `node_modules` dùng class Tailwind, file JSON/Markdown/CMS, test e2e chọn theo class, CSS nằm ngoài bundle (CDN, `public/`) — phải đưa vào `include` hoặc `exclude`. Plugin Vite cảnh báo khi một module ngoài `include` có chuỗi nhiều class chứa class đã đổi tên.
+- Mã đọc class theo mẫu (`className.includes('size-')`, RegExp trên class) không nhận diện được: thêm vào `exclude`.
+- Plugin Vite: chỉ lúc `vite build` (module đã đổi kèm sourcemap); CSS nhúng thành chuỗi JS (`?inline`, `?raw`) không được đổi.
+- Plugin PostCSS không thể sửa mã nguồn nên không có tuỳ chọn này: dùng plugin Vite, lệnh `shorten` hoặc `shortenClasses`.
+
 
 ---
 

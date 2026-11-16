@@ -278,6 +278,7 @@ Thay luôn công cụ quanh Tailwind:
 | `prettier-plugin-tailwindcss` | `@porbit/style/prettier` | 46/46 file shadcn/ui giống hệt |
 | Tailwind IntelliSense | `presence-style lsp` | gợi ý class (cả theme dự án), ô màu, hover CSS |
 | Safelist cho class động | `tailwind-auto.mjs data-hybrid` | 300/300 class sinh lúc chạy có style sau 2,3 ms (Tailwind build: 9/300) |
+| (Tailwind không có) | `shortClassNames` (Vite), `presence-style shorten`, `@porbit/style/shorten` | rút gọn tên class lúc build: CSS −18,1%/−18,6% gzip, JS −17,5%/−21,2% gzip (shadcn/ui, coss ui), computed style khớp 100% |
 
 Chi tiết và số đo: [docs/guides/tailwind.md](./docs/guides/tailwind.md).
 
