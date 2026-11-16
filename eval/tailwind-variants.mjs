@@ -34,6 +34,8 @@ for (const v of ds.getVariants()) {
     else names.add(complete(v.name))
 }
 for (const extra of ['not-[.x]', 'in-[.x]', 'has-[.x]', 'group-[.x]', 'peer-[.x]', 'nth-[2n+1]', 'aria-[sort=ascending]', '@sm/main', 'group-hover/item', 'peer-checked/name', 'starting']) names.add(extra)
+// Hai at-rule nội tuyến lồng nhau (container trong container, media/supports/starting quanh container query).
+for (const extra of ['@[300px]:@max-[500px]', 'md:@[300px]', '@md:md', '@md:hover', 'supports-[display:grid]:@md', 'md:supports-[display:grid]', '@sm/main:@max-lg', 'not-dark:@md', 'md:not-@2xl', 'starting:md', 'print:@md', 'supports-grid:not-supports-[display:flex]']) names.add(extra)
 const all = [...names]
 const twCss = ds.candidatesToCss(all.map((n) => `${n}:p-4`))
 const valid = all.filter((_, i) => twCss[i])

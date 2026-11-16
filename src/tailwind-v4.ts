@@ -973,7 +973,10 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
     const media: string[] = []
     // Điều kiện media không có key đăng ký (`[@media_...]`, media riêng của rule): gộp bằng `and`.
     const queries: string[] = extraQuery ? [extraQuery] : []
-    let inline = ''
+    // At-rule khác `@media` gộp được (`@container`, `@supports`, `@starting-style`, `@media not`...), văn bản thô theo
+    // thứ tự áp (trong ra ngoài): lồng thành chuỗi `[@a{@b]` như Tailwind lồng (`@[300px]:@max-[500px]:`, `md:@md:`).
+    const atRules: string[] = []
+    const inline = (encoded: string) => atRules.push(arbitraryInner(encoded.slice(1, -1)))
     let pseudoElement = ''
     const atContainer = (v: string) => {
         const m = v.match(/^@(min-|max-)?([\w]+)$/)
@@ -992,8 +995,7 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
         }
         const atRule = inlineAtRule(variant)
         if (atRule) {
-            if (inline) return null
-            inline = atRule
+            inline(atRule)
             continue
         }
         if (variant === 'dark') {
@@ -1026,15 +1028,13 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
         const notMedia = variant.match(/^not-(.+)$/)
         // Biến thể tự định nghĩa cùng tên (`@custom-variant dark (&:is(.dark *))`) thắng media sẵn có.
         if (notMedia && !CUSTOM_VARIANTS[notMedia[1]] && mediaOf(notMedia[1], darkMode)) {
-            if (inline) return null
-            inline = `[${('@media not ' + mediaOf(notMedia[1], darkMode)).replace(/\s+/g, '_')}]`
+            atRules.push('@media not ' + mediaOf(notMedia[1], darkMode))
             continue
         }
         // `not-@md`: `@container not (width >= 28rem)`.
         const notContainer = notMedia && atContainer(notMedia[1])
         if (notContainer) {
-            if (inline) return null
-            inline = encodeArbitrary((MEDIA_QUERY.get(notContainer) as string).replace(/^@container\s+/, '@container not '))
+            atRules.push((MEDIA_QUERY.get(notContainer) as string).replace(/^@container\s+/, '@container not '))
             continue
         }
         const arbitrary = variant.match(/^\[(.+)\]$/)
@@ -1048,8 +1048,7 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
             continue
         }
         if (arbitrary && arbitrary[1].startsWith('@')) {
-            if (inline) return null
-            inline = `[${arbitrary[1]}]`
+            inline(variant)
             continue
         }
         // group-*/peer-* (kể cả có tên `group-hover/item`), in-*, has-*, not-*, aria-*, data-*, nth-*...: trạng thái
@@ -1062,26 +1061,21 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
             const query = rule.match(/^@media\s+([\s\S]+)$/)
             if (query && query[1] === HOVER_MEDIA) media.push('hover')
             else if (query && !/^not\b/.test(query[1])) queries.push(query[1])
-            else {
-                if (inline) return null
-                inline = encodeArbitrary(rule)
-            }
+            else atRules.push(rule)
         }
         const own = alts[0].sel
         sel = sel.replace('&', () => own)
     }
     if (pseudoElement) sel = sel.replace('&', '&' + pseudoElement)
 
-    const unique = [...new Set(media)]
-    if (inline) return unique.length || queries.length ? null : { media: inline, sel }
     // Mọi điều kiện thành at-rule nội tuyến trong sheet mặc định: thứ tự rule theo `compare` (như Tailwind),
-    // không phụ thuộc thứ tự các sheet media. Nhiều điều kiện media gộp bằng `and` (`md:dark:hover:`).
-    const all = [...new Set([...unique.map((key) => MEDIA_QUERY.get(key)), ...queries])]
-    if (!all.length) return { media: '', sel }
+    // không phụ thuộc thứ tự các sheet media. Nhiều điều kiện media gộp bằng `and` (`md:dark:hover:`) ở ngoài cùng,
+    // container query của breakpoint (`@md`) và at-rule khác lồng bên trong theo thứ tự biến thể (cùng điều kiện).
+    const all = [...new Set([...[...new Set(media)].map((key) => MEDIA_QUERY.get(key)), ...queries])]
     if (all.some((query) => query === undefined)) return null
-    const container = all.filter((query) => (query as string).startsWith('@'))
-    if (container.length) return container.length === 1 && all.length === 1 ? { media: encodeArbitrary(container[0] as string), sel } : null
-    return { media: encodeArbitrary(`@media ${all.join(' and ')}`), sel }
+    const plain = (all as string[]).filter((query) => !query.startsWith('@'))
+    const chain = [...(plain.length ? [`@media ${plain.join(' and ')}`] : []), ...(all as string[]).filter((query) => query.startsWith('@')), ...atRules.reverse()]
+    return { media: chain.length ? encodeArbitrary(chain.join('{')) : '', sel }
 }
 
 // ---------------------------------------------------------------------------
@@ -1741,7 +1735,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
                 let media: string | undefined
                 if (placed.media) {
                     const at = atRuleOf(placed.media)
-                    if (!at || !at.startsWith('@media ')) continue
+                    if (!at || !at.startsWith('@media ') || at.includes('{')) continue
                     media = at.slice(7)
                 }
                 const childSel = sel === '&' ? placed.sel : placed.sel.replace(/&/g, sel)
@@ -1939,7 +1933,8 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
                     inline += `/* @apply ${name}: chưa hỗ trợ */`
                     continue
                 }
-                extra += wrapper ? `${wrapper}{${rule}}` : rule
+                // Chuỗi at-rule lồng (`@media x{@container y`): đóng đủ ngoặc.
+                extra += wrapper ? `${wrapper}{${rule}${'}'.repeat(wrapper.split('{').length)}` : rule
             }
         }
         return { inline, extra }

@@ -180,6 +180,17 @@ describe('phương ngữ Tailwind v4 (sinh từ chính Tailwind)', () => {
         expect(css('outline-2 outline-4 hover:outline').match(/@property --tw-outline-style/g)).toHaveLength(1)
     })
 
+    it('hai at-rule nội tuyến lồng nhau: container trong container, media/supports quanh container query', () => {
+        const d = tailwindV4Dialect()
+        expect(d('@[300px]:@max-[500px]:p-4')![0]).toMatch(/^\[@container_\(width_>=_300px\)\{@container_\(width_<_500px\)\]:padding/)
+        expect(d('md:@[300px]:p-4')![0]).toMatch(/^\[@media_\(width_>=_48rem\)\{@container_\(width_>=_300px\)\]:/)
+        expect(d('supports-[display:grid]:@md:p-4')![0]).toMatch(/^\[@container_\(width_>=_28rem\)\{@supports_\(display:grid\)\]:/)
+        expect(d('@md:hover:p-4')![0]).toMatch(/^\[@media_\(hover:_hover\)\{@container_\(width_>=_28rem\)\]:.*@:hover$/)
+        const out = css('@[300px]:@max-[500px]:p-4 md:supports-[display:grid]:flex')
+        expect(out).toContain('@container (width >= 300px){@container (width < 500px){.\\@\\[300px\\]\\:\\@max-\\[500px\\]\\:p-4{')
+        expect(out).toContain('@media (width >= 48rem){@supports (display:grid){')
+    })
+
     it('khoá theme tự định nghĩa ở mọi namespace Tailwind đọc (`--aspect-*`, `--z-index-*`, `--width-*`...)', () => {
         const theme = {
             '--aspect-wide': '3 / 1', '--z-index-modal': '50', '--width-sidebar': '17rem', '--inset-edge': '7px', '--scale-big': '130%',
