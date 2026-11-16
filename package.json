@@ -1,6 +1,6 @@
 {
   "name": "@porbit/style",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "PresenceStyle: utility CSS engine mở — parse class runtime, sinh CSS theo layer/media, trích xuất CSS tĩnh, bộ component mẫu và MCP server cho agent AI.",
   "type": "commonjs",
   "license": "MIT",
@@ -93,6 +93,12 @@
       "import": "./dist/analyze.mjs",
       "require": "./dist/analyze.js",
       "default": "./dist/analyze.mjs"
+    },
+    "./lsp": {
+      "types": "./dist/lsp.d.ts",
+      "import": "./dist/lsp.mjs",
+      "require": "./dist/lsp.js",
+      "default": "./dist/lsp.mjs"
     },
     "./mcp": {
       "types": "./dist/mcp.d.ts",

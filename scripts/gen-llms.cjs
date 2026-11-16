@@ -27,8 +27,9 @@ const DOCS = [
     ['docs/guides/tu-vung-mo.md', 'Từ vựng mở: viết mọi property/giá trị CSS khi chưa có alias'],
     ['docs/guides/components.md', 'Bộ component mẫu: recipe, theme --ps-*, ghi đè bằng layer'],
     ['docs/guides/static-first.md', 'Static-first và plugin Vite'],
-    ['docs/guides/tailwind.md', 'Dùng thay Tailwind v4: độ khớp đo được, hiệu năng, giới hạn'],
+    ['docs/guides/tailwind.md', 'Dùng thay Tailwind v4: độ khớp đo được, hiệu năng, cấu hình nâng cao, plugin'],
     ['docs/guides/mcp.md', 'MCP server: cài cho từng agent, danh sách tool'],
+    ['docs/guides/editors.md', 'Language server (presence-style lsp): Neovim, Helix, Zed, Sublime, Emacs, VS Code'],
     ['DICTIONARY.md', 'Toàn bộ alias property và value'],
     ['spec/SPEC.md', 'Đặc tả cú pháp chuẩn'],
 ]

@@ -1,5 +1,30 @@
 # Lịch Sử Thay Đổi
 
+## 0.9.0
+
+Đóng các khoảng cách còn lại với Tailwind v4 và đo trên dự án thật. Đo trên Chromium so với tailwindcss 4.3.5 (`npm run check:tailwind`).
+
+**Thêm mới**
+- `parseTailwindStylesheet(source, { resolve })`: `@custom-variant` (dạng ngắn, at-rule, dạng khối `@slot`, danh sách selector), `@utility name-*` với `--value()`/`--modifier()`/`--spacing()`/`--alpha()`, selector và `@media` lồng; `@import`/`@plugin` giải qua `resolve`, trả thêm `variants` và `unresolved`.
+- `tailwindV4Dialect({ variants })`; `@apply` kèm biến thể, độ mờ, `!important`; `@layer base/components` vào layer nền; utility người dùng trùng tên utility sẵn có cùng áp như Tailwind.
+- Một class nhiều rule: `container`, `not-hover`, `not-group-hover`..., ba điều kiện media trở lên (`md:dark:hover`), `not-@md`, quan hệ lồng (`group-peer-hover`, `has-group-hover`...). Độ phủ biến thể 403/403.
+- `@porbit/style/tailwind-plugins`: tw-animate-css (và `tailwindcss-animate`), `@tailwindcss/forms`, `@tailwindcss/typography`, sinh bằng `npm run gen:tailwind-plugins`. `tailwind-auto` chỉ tải khi stylesheet có `@import`/`@plugin`.
+- Class v3 còn hợp lệ ở v4 (`flex-shrink-0`, `bg-gradient-to-r`, `break-words`, `max-w-screen-*`...).
+- `presence-style lsp` và `@porbit/style/lsp` (`startLanguageServer`, `createLanguageService`): language server qua stdio cho mọi editor; hướng dẫn `docs/guides/editors.md`.
+- Cấu hình `"tailwindCss": "src/app.css"`: CLI, LSP đọc `@theme`/`@utility`/`@custom-variant`/plugin của dự án (`resolveConfigFile(config, { readStylesheet })`, `createStylesheetReader`).
+- Bộ đo `eval/real-project.mjs` (fixture shadcn/ui v4, 4 trạng thái), `eval/tailwind-plugins.mjs`; cả hai nằm trong bước `tailwind` của `check:all`. Thêm 3 kịch bản biến thể vào `eval/tailwind-parity.mjs`.
+
+**Sửa lỗi**
+- Engine: class có token khác selector/media bị bỏ cả class; nay sinh nhiều rule. Rule có selector trình duyệt không hỗ trợ bị bỏ riêng thay vì bỏ cả class.
+- Preflight chứa `--theme(...)` chưa dịch (font của `html` không hợp lệ); nay là `var(...)` theo theme của dự án.
+- `@layer base` của dự án nằm sau thứ tự layer của engine nên đè utility.
+- `minify` bỏ `@property` chỉ dùng trong `@keyframes`.
+- `explainClass` báo `p-4` không hợp lệ khi phương ngữ Tailwind đã sinh CSS.
+
+**Kết quả đo**
+- 23.286/23.286 class, 956/956 tổ hợp biến thể, 3.327/3.327 runtime, plugin 528/528, shadcn/ui v4 769/769 ở mỗi trạng thái.
+- `tailwind-auto` 58,0 KB gzip (ngân sách 59 KB); `@tailwindcss/browser` 75,3 KB.
+
 ## 0.8.0
 
 Chạy class Tailwind v4 với kết quả như Tailwind. Đo trên Chromium so với tailwindcss 4.3.5 (`npm run check:tailwind`).

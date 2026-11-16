@@ -7,9 +7,10 @@
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, relative, resolve } from 'node:path'
-import { collectFiles, DEFAULT_EXTENSIONS, readTextSync } from './files'
+import { collectFiles, createStylesheetReader, DEFAULT_EXTENSIONS, readTextSync } from './files'
 import { createPreloadManifest, extractFromClasses, extractCandidates, type ExtractOptions } from './extract'
 import { startMcpServer } from './mcp'
+import { startLanguageServer } from './lsp'
 import { runInit } from './init'
 import { resolveConfigFile } from './config-file'
 import { getComponentClasses } from './components'
@@ -32,6 +33,8 @@ Cách dùng:
                                             bật phương ngữ Tailwind trong cấu hình
   presence-style mcp [--root <thư-mục>]     Chạy MCP server qua stdio cho agent AI
   presence-style mcp-config [client]        In lệnh/cấu hình cài MCP cho từng agent
+  presence-style lsp [--stdio]              Chạy language server (LSP) qua stdio cho editor
+                                            (VS Code, Neovim, Zed, Helix...)
                                             (claude, claude-desktop, codex, cursor, vscode,
                                              windsurf, gemini, cline, zed, opencode, json)
 
@@ -142,7 +145,7 @@ const runSourceCommand = async (command: 'sort' | 'check', argv: string[]): Prom
     }
     if (options.config) {
         try {
-            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions)
+            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions, { readStylesheet: createStylesheetReader(dirname(resolve(options.config))) })
         } catch (error) {
             process.stderr.write(`Không đọc được file cấu hình ${options.config}: ${(error as Error).message}\n`)
             return 1
@@ -229,6 +232,12 @@ export const runCli = async (argv: string[]): Promise<number> => {
         return 0
     }
 
+    if (command === 'lsp') {
+        startLanguageServer()
+        process.stdin.on('end', () => process.exit(0))
+        return new Promise<number>(() => {})
+    }
+
     if (command === 'mcp-config') {
         const client = argv[1]
         if (client && !MCP_CLIENTS.includes(client as any)) {
@@ -290,7 +299,7 @@ export const runCli = async (argv: string[]): Promise<number> => {
     }
     if (options.config) {
         try {
-            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions)
+            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions, { readStylesheet: createStylesheetReader(dirname(resolve(options.config))) })
         } catch (error) {
             process.stderr.write(`Không đọc được file cấu hình ${options.config}: ${(error as Error).message}\n`)
             return 1

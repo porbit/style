@@ -11,6 +11,7 @@ export default defineConfig({
         tailwind: 'src/tailwind-entry.ts',
         vite: 'src/vite.ts',
         analyze: 'src/analyze.ts',
+        lsp: 'src/lsp-entry.ts',
         'tailwind-v4': 'src/tailwind-v4-entry.ts',
         'tailwind-auto': 'src/tailwind-auto.ts',
         'tailwind-plugins': 'src/tailwind-plugins.ts',

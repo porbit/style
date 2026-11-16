@@ -242,6 +242,9 @@ const scenarios = [
     { name: 'print', variants: ['print'], setup: { media: 'print' } },
     { name: 'not-dark ở chế độ sáng / not-md ở 700px', variants: ['not-dark', 'not-md'], setup: { viewport: { width: 700, height: 800 } } },
     { name: 'in-focus / in-[.x]', variants: ['in-focus', 'in-[.x]'], wrap: 'focus', setup: { force: [['.wrap', ['focus']]] } },
+    { name: 'quan hệ lồng group-/peer-/in-/has-/not- (hover ép)', variants: ['group-group-hover', 'group-peer-hover', 'group-in-hover', 'peer-group-hover', 'peer-peer-hover', 'peer-in-hover', 'in-group-hover', 'in-peer-hover', 'in-in-hover', 'has-group-hover', 'has-peer-hover', 'has-in-hover', 'not-group-hover', 'not-peer-hover', 'not-in-hover', 'not-hover'], wrap: 'nested', setup: { force: [['[data-h]', ['hover']]] } },
+    { name: 'not-@md / not-@max-md trong container', variants: ['not-@md', 'not-@max-md', 'not-@min-md', 'not-@2xl'], wrap: 'container' },
+    { name: 'ba điều kiện md:dark:hover ở 1000px', variants: ['md:dark:hover', 'dark:md:hover', 'md:max-xl:hover'], setup: { viewport: { width: 1000, height: 800 }, colorScheme: 'dark', force: [['[data-k]', ['hover']]] } },
     { name: 'độ mờ /50 và !important', base: ['bg-red-500/50', 'text-blue-600/25', 'border-black/10', 'p-4!', '!m-2', 'text-sm/6'] },
     { name: 'giá trị tuỳ ý', base: ['p-[13px]', 'w-[calc(100%-2rem)]', 'bg-[#123456]', 'grid-cols-[1fr_2fr]', 'text-[22px]', 'm-[-5px]', '-m-[3px]', 'top-[10%]', 'shadow-[0_2px_4px_red]', 'bg-(--brand)', '[mask-type:luminance]', 'z-[60]', 'leading-[1.7]', 'tracking-[0.2em]'] },
 ]
@@ -255,6 +258,10 @@ for (const scenario of scenarios) {
         if (scenario.wrap === 'container') return `<div style="container-type:inline-size;width:600px">${el}</div>`
         if (scenario.wrap === 'named-container') return `<div style="container:main / inline-size;width:600px">${el}</div>`
         if (scenario.wrap === 'focus') return `<div class="wrap x" tabindex="0">${el}</div>`
+        if (scenario.wrap === 'nested') {
+            const inner = el.replace('<i>a</i>', '<b class="group peer" data-h><i>x</i></b><i>a</i>')
+            return `<div class="group peer" data-h><span class="peer" data-h></span><div class="group peer" data-h><span class="peer" data-h></span>${inner}</div></div>`
+        }
         return el
     }
     const html = classes.map(item).join('')

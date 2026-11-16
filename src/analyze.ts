@@ -377,7 +377,15 @@ export const suggestClassFix = (token: string, config: XCSSConfig = {}): string 
 export const explainClass = (token: string, config: XCSSConfig = {}): ClassExplanation => {
     const parsed = parseClassName(token)
     const css = generateCssFor([token], config).trim()
-    const valid = css.length > 0 && !looksSemanticallyInvalid(token)
+    // Luật ngữ nghĩa x-css (`p-4` thiếu đơn vị) không áp cho class do phương ngữ (Tailwind) dịch.
+    const fromDialect = !!config.dialects?.some((dialect) => {
+        try {
+            return !!dialect(token)
+        } catch (_error) {
+            return false
+        }
+    })
+    const valid = css.length > 0 && (fromDialect || !looksSemanticallyInvalid(token))
     const hints: string[] = []
 
     if (!valid) {

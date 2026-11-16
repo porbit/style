@@ -347,6 +347,15 @@ const stateFragment = (state: string): string | null => {
     const attr = state.match(/^(aria|data)-(?:\[(.+)\]|([a-z-]+))$/)
     if (attr) return `[${attr[1]}-${attr[2] ? arbitraryInner(attr[2]) : attr[1] === 'aria' ? `${attr[3]}="true"` : attr[3]}]`
     if (state === 'ltr' || state === 'rtl') return `:where(:dir(${state}), [dir="${state}"], [dir="${state}"] *)`
+    // Quan hệ lồng: `group-peer-hover` = .group đứng sau .peer đang hover; `in-hover` = nằm trong phần tử hover.
+    const relation = state.match(/^(group|peer|in)-(.+?)(?:\/([\w-]+))?$/)
+    if (relation) {
+        const inner = stateFragment(relation[2])
+        if (!inner) return null
+        const marker = relation[3] ? `${relation[1]}\\/${relation[3]}` : relation[1]
+        if (relation[1] === 'in') return `:is(:where(${inner}) *)`
+        return relation[1] === 'group' ? `:is(:where(.${marker})${inner} *)` : `:is(:where(.${marker})${inner} ~ *)`
+    }
     const has = state.match(/^has-(.+)$/)
     if (has) {
         const inner = stateFragment(has[1])
@@ -442,12 +451,19 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
             inline = `[${('@media not ' + mediaOf(notMedia[1], darkMode)).replace(/\s+/g, '_')}]`
             continue
         }
+        // `not-@md`: `@container not (width >= 28rem)`.
+        const notContainer = notMedia && atContainer(notMedia[1])
+        if (notContainer) {
+            if (inline) return null
+            inline = encodeArbitrary((MEDIA_QUERY.get(notContainer) as string).replace(/^@container\s+/, '@container not '))
+            continue
+        }
         // group-*/peer-* (kể cả có tên `group-hover/item`), in-*: trạng thái của tổ tiên/anh em.
         const relation = variant.match(/^(group|peer|in)-(.+?)(?:\/([\w-]+))?$/)
         if (relation) {
             const fragment = stateFragment(relation[2])
             if (!fragment) return null
-            if (relation[2] === 'hover') media.push('hover')
+            if (/(^|-)hover$/.test(relation[2])) media.push('hover')
             const marker = relation[3] ? `${relation[1]}\\/${relation[3]}` : relation[1]
             if (relation[1] === 'in') sel = `:where(${fragment}) ` + sel
             else sel = sel.replace('&', relation[1] === 'group' ? `&:is(:where(.${marker})${fragment} *)` : `&:is(:where(.${marker})${fragment} ~ *)`)
@@ -470,6 +486,8 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
         }
         const fragment = stateFragment(variant)
         if (fragment) {
+            // `has-group-hover`: Tailwind bọc trong `@media (hover: hover)`.
+            if (/^has-.*-hover$/.test(variant)) media.push('hover')
             sel = sel.replace('&', '&' + fragment)
             continue
         }
@@ -895,11 +913,13 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         return builtin ? chain([builtin, ...own]) : chain(own)
     }
 
-    /** Mỗi biến thể tự định nghĩa có thể có nhiều phương án; `not-hover` = `:not(:hover)` + `@media not (hover: hover)`. */
+    /** Mỗi biến thể tự định nghĩa có thể có nhiều phương án (danh sách selector = nhiều rule). */
     const expandVariants = (parts: string[]): string[][] => {
         let lists: string[][] = [[]]
         for (const variant of parts) {
-            const alternatives = ownVariants[variant] ?? (variant === 'not-hover' ? [['not-hover'], ['[@media_not_(hover:_hover)]']] : [[variant]])
+            // `not-hover`, `not-group-hover`...: `:not(...)` + `@media not (hover: hover)` như Tailwind.
+            const notHover = /^not-((group|peer|in)-)*hover(\/[\w-]+)?$/.test(variant)
+            const alternatives = ownVariants[variant] ?? (notHover ? [[variant], ['[@media_not_(hover:_hover)]']] : [[variant]])
             lists = lists.flatMap((list) => alternatives.map((steps) => [...list, ...steps]))
         }
         return lists

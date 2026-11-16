@@ -1,6 +1,6 @@
 /** Liệt kê file nguồn cho CLI và MCP server. */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname as dirnamePath, join, join as joinPath, resolve, resolve as resolvePath } from 'node:path'
 
 export const DEFAULT_EXTENSIONS = ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'vue', 'svelte', 'astro', 'mdx']
 // Thư mục không bao giờ cần quét: artifact build và phụ thuộc.
@@ -46,5 +46,46 @@ export const readTextSync = (file: string): string => {
         return readFileSync(file, 'utf8')
     } catch (_error) {
         return ''
+    }
+}
+
+/**
+ * Đọc stylesheet cho `resolveConfigFile({ tailwindCss })`: đường dẫn tương đối với `baseDir`,
+ * hoặc gói trong node_modules (trường `style`/`main` là .css, hoặc `gói/đường/dẫn.css`).
+ */
+export const createStylesheetReader = (baseDir: string) => (id: string): string | null => {
+    const tryRead = (file: string) => {
+        try {
+            return readFileSync(file, 'utf8')
+        } catch (_error) {
+            return null
+        }
+    }
+    if (id.startsWith('.') || id.startsWith('/') || /^[A-Za-z]:[\\/]/.test(id)) return tryRead(resolvePath(baseDir, id))
+    // `src/app.css`: thử đường dẫn tương đối trước, sau đó mới coi là gói.
+    if (id.endsWith('.css')) {
+        const local = tryRead(resolvePath(baseDir, id))
+        if (local !== null) return local
+    }
+    for (let dir = resolvePath(baseDir); ; dir = dirnamePath(dir)) {
+        const pkgDir = joinPath(dir, 'node_modules', ...id.split('/').slice(0, id.startsWith('@') ? 2 : 1))
+        const rest = id.split('/').slice(id.startsWith('@') ? 2 : 1).join('/')
+        if (rest) {
+            const direct = tryRead(joinPath(pkgDir, rest))
+            if (direct !== null) return direct
+        } else {
+            const pkg = tryRead(joinPath(pkgDir, 'package.json'))
+            if (pkg !== null) {
+                try {
+                    const json = JSON.parse(pkg)
+                    const entry = [json.style, json.exports?.['.']?.style, json.main].find((f) => typeof f === 'string' && f.endsWith('.css'))
+                    if (entry) return tryRead(joinPath(pkgDir, entry))
+                } catch (_error) {
+                    // package.json hỏng: bỏ qua
+                }
+                return null
+            }
+        }
+        if (dirnamePath(dir) === dir) return null
     }
 }
