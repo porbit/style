@@ -2,6 +2,13 @@
 
 ## Chưa phát hành
 
+**Hiệu năng build tĩnh** (plugin PostCSS, CLI; CSS đầu ra không đổi từng byte)
+- 6.000 file (fixture nhân bản, `eval/build-bench.mjs`, trung vị, cùng lần đo): build trong tiến trình mới 1147 → 676–707 ms (Tailwind CLI v4: 747 ms), build lại trong cùng tiến trình 747 → 492 ms (Tailwind: 516 ms). Máy 4 lõi đang bận, số đo dao động; xem `eval/build-bench.json`.
+- Trích xuất với `hashClassName: false` không còn dựng engine thứ hai chỉ để đếm class khớp (mỗi class từng được giải và dựng rule hai lần).
+- Bộ quét ứng viên cho Node (`src/scan.ts`) quét theo mã ký tự, cùng kết quả và thứ tự với `extractCandidates`; build lần đầu (hoặc khi nhiều file đổi) có từ 1.500 file thì đọc + quét thêm bằng `worker_threads` nếu máy còn lõi rảnh (`PRESENCE_STYLE_WORKERS=0` để tắt, số khác để ép).
+- `minifyCss` nhanh hơn ~2 lần (tách khối bằng regex, nhớ thân khối giữa hai lượt, tập biến dùng tính một lần); liệt kê file không còn gọi `path.join`/`path.relative` cho từng file.
+- `compileTailwindCss` trả thêm `timings` (thời gian từng pha).
+
 **Sửa**
 - Bản 1.0.0 trên npm đóng gói CSS của `@tailwindcss/typography` 0.5.4 (sinh từ `node_modules` cũ) thay vì 0.5.20 đã khai báo. Plugin đóng gói giờ được ghim đúng phiên bản trong `devDependencies`; `gen:tailwind-plugins` dừng nếu `node_modules` lệch với bản ghim.
 
