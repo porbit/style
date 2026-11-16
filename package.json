@@ -203,6 +203,7 @@
     "gen:llms": "node scripts/gen-llms.cjs",
     "check:all": "node scripts/check-all.cjs",
     "check:quick": "node scripts/check-all.cjs --quick",
+    "check:fast": "node scripts/check-all.cjs --fast",
     "check:browser": "npm run build && node scripts/browser-checks.cjs",
     "hooks:install": "git config core.hooksPath .githooks && echo \"Đã bật git hook trong .githooks\"",
     "gen:tailwind": "node scripts/gen-tailwind-map.mjs",

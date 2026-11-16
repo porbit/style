@@ -4,6 +4,7 @@
  *
  *   npm run check:all            # đầy đủ (dùng cho pre-push và prepublishOnly)
  *   npm run check:quick          # nhanh: typecheck + unit test (dùng cho pre-commit)
+ *   npm run check:fast           # ~1–2 phút: mọi bước trừ tailwind/projects (so Tailwind thật, ~15–20 phút)
  *   node scripts/check-all.cjs --only=rust,browser
  *
  * Bước không có công cụ (cargo, Chromium) được BỎ QUA kèm cảnh báo, trừ khi đặt --strict.
@@ -17,6 +18,9 @@ const zlib = require('zlib')
 const root = path.resolve(__dirname, '..')
 const args = process.argv.slice(2)
 const quick = args.includes('--quick')
+// --fast: bỏ hai bước so với Tailwind thật trên trình duyệt (chậm nhất); vẫn có build, kích thước, gói, Rust, trình duyệt.
+const fast = args.includes('--fast')
+const SLOW_STEPS = ['tailwind', 'projects']
 const strict = args.includes('--strict')
 const only = (args.find((a) => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean)
 
@@ -267,7 +271,7 @@ const steps = [
     },
 ]
 
-const selected = steps.filter((step) => (only.length ? only.includes(step.name) : !quick || step.quick))
+const selected = steps.filter((step) => (only.length ? only.includes(step.name) : quick ? step.quick : !fast || !SLOW_STEPS.includes(step.name)))
 const rows = []
 let failed = 0
 for (const step of selected) {
