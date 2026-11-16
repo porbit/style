@@ -1,0 +1,161 @@
+# Đo Trên Nhiều Dự Án Thật
+
+Sinh bởi `npm run build && node eval/real-project.mjs --all` (tailwindcss@4.3.5, Chromium). Mỗi class hợp lệ của dự án (quét từ mã nguồn, chỉ giữ class mà Tailwind sinh được CSS với chính file CSS của dự án: `@theme`, `@utility`, `@custom-variant`, `@plugin`) được render hai lần — với CSS do Tailwind thật sinh và với CSS do @porbit/style sinh — rồi so TOÀN BỘ computed style của phần tử và hai phần tử con.
+
+Lượt đo: **mặc định** (1280 px) · **mở**/**đóng** (`data-state`, `data-open`, `aria-*`... đặt trên phần tử, cha `.group`, anh `.peer`) · **.dark** · **:hover**, **:focus** (kèm `:focus-within`), **:focus-visible** (kèm `:focus`), **:active** (kèm `:hover`) ép bằng CDP `CSS.forcePseudoState` trên phần tử, cha `.group`, anh `.peer` · **375/768/1600px** (độ rộng khung nhìn). Hai chế độ: "không build" (`parseTailwindStylesheet` + `tailwindV4Dialect`) và plugin PostCSS. Ô **in đậm** là lượt có lệch.
+
+## Từng Class
+
+| Dự án | Chế độ | Class | Chuyển được | mặc định | mở | đóng | .dark | :hover | :focus | :focus-visible | :active | 375px | 768px | 1600px |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| shadcn/ui v4 | không build | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 |
+| shadcn/ui v4 | PostCSS | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 |
+| coss ui | không build | 1331 | **1284** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
+| coss ui | PostCSS | 1331 | **1284** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
+| HyperUI | không build | 619 | **611** | **608** | **608** | **608** | **608** | **607** | **608** | **608** | **607** | **608** | **608** | **608** |
+| HyperUI | PostCSS | 619 | **611** | **608** | **608** | **608** | **608** | **607** | **608** | **608** | **607** | **608** | **608** | **608** |
+| Magic UI | không build | 586 | **572** | **575** | **575** | **575** | **573** | **576** | **575** | **575** | **576** | **575** | **575** | **575** |
+| Magic UI | PostCSS | 586 | **572** | **575** | **575** | **575** | **573** | **576** | **575** | **575** | **576** | **575** | **575** | **575** |
+| v3-extend | không build | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 |
+| v3-extend | PostCSS | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 |
+| v3-replace | không build | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 |
+| v3-replace | PostCSS | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 |
+
+## Tổ Hợp (Chuỗi Class Thật Trên Một Phần Tử)
+
+| Dự án | Chế độ | Tổ hợp | mặc định | mở | đóng | .dark | :hover | :focus | :focus-visible | :active | 375px | 768px | 1600px |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| shadcn/ui v4 | không build | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 |
+| shadcn/ui v4 | PostCSS | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 |
+| coss ui | không build | 379 | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
+| coss ui | PostCSS | 379 | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
+| HyperUI | không build | 766 | **675** | **675** | **675** | **675** | **683** | **675** | **675** | **683** | **673** | **675** | **675** |
+| HyperUI | PostCSS | 766 | **675** | **675** | **675** | **675** | **683** | **675** | **675** | **683** | **673** | **675** | **675** |
+| Magic UI | không build | 245 | **237** | **237** | **237** | **237** | **238** | **237** | **237** | **238** | **237** | **237** | **237** |
+| Magic UI | PostCSS | 245 | **237** | **237** | **237** | **237** | **238** | **237** | **237** | **238** | **237** | **237** | **237** |
+| v3-extend | không build | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 |
+| v3-extend | PostCSS | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 |
+| v3-replace | không build | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 |
+| v3-replace | PostCSS | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 |
+
+## Lượt Có Chạm Biến Thể Không
+
+Số class mà chính Tailwind cho computed style khác lượt mặc định (0 nghĩa là lượt đó không kiểm được biến thể nào của dự án).
+
+| Dự án | mở | đóng | .dark | :hover | :focus | :focus-visible | :active | 375px | 768px | 1600px |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| shadcn/ui v4 | 39 | 18 | 23 | 13 | 6 | 15 | 15 | 20 | 7 | 7 |
+| coss ui | 42 | 17 | 45 | 16 | 3 | 11 | 18 | 70 | 5 | 5 |
+| HyperUI | 0 | 0 | 69 | 28 | 15 | 17 | 30 | 24 | 10 | 3 |
+| Magic UI | 3 | 1 | 28 | 22 | 0 | 1 | 24 | 25 | 18 | 11 |
+| v3-extend | 0 | 0 | 2 | 1 | 4 | 4 | 1 | 11 | 5 | 3 |
+| v3-replace | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 2 | 0 |
+
+## Nguồn
+
+- **shadcn/ui v4** — shadcn/ui `new-york-v4/ui`, MIT. Chi tiết lệch: `eval/REAL-PROJECT.md`.
+- **coss ui** — [coss ui](https://github.com/origin-space/originui) (Origin UI nay là coss.com/ui, dựng trên Base UI) `packages/ui/src/components` + `packages/ui/src/styles/globals.css` (commit 0da83f8), MIT, © coss.com và Origin UI. Chi tiết lệch: `eval/REAL-PROJECT-coss-ui.md`.
+- **HyperUI** — [HyperUI](https://github.com/markmead/hyperui) `public/examples/{application,neobrutalism}` + `src/styles/component.css` (commit 3032a06), MIT, © Mark Mead. Chi tiết lệch: `eval/REAL-PROJECT-hyperui.md`.
+- **Magic UI** — [Magic UI](https://github.com/magicuidesign/magicui) `apps/www/registry/magicui` + `apps/www/styles/globals.css` (commit 6f7b531), MIT, © Magic UI. Chi tiết lệch: `eval/REAL-PROJECT-magicui.md`.
+- **v3-extend** — `tailwind.config.js` kiểu v3 với `theme.extend` (tự viết). Chi tiết lệch: `eval/REAL-PROJECT-v3-extend.md`.
+- **v3-replace** — cấu hình v3 thay hẳn theme (tự viết). Chi tiết lệch: `eval/REAL-PROJECT-v3-replace.md`.
+
+Nguồn, giấy phép và phần đã chỉnh của từng fixture: README trong `eval/fixtures/<tên>/`.
+
+## Phân Tích Lệch
+
+Ghi lại nguyên trạng, **chưa sửa** trong `src/`. Nhóm theo nguyên nhân dự đoán; số liệu từ lượt mặc định, chế độ
+"không build" (chế độ PostCSS cho cùng kết quả). Chi tiết từng class: các file `REAL-PROJECT-*.md`.
+
+### 1. Biến theme chỉ được CSS của dự án đọc không được phát ra (coss ui: lệch 1331/1331)
+
+coss ui khai báo màu ngữ nghĩa ngoài `@theme`: `:root { --border: --alpha(var(--color-black) / 8%); --foreground: var(--color-neutral-800) }`
+rồi `@layer base { * { @apply border-border outline-ring/50 } }`. Tailwind phát `--color-black`, `--color-neutral-800`...
+vào `:root` vì CSS của dự án dùng chúng. @porbit/style chỉ nhúng giá trị dự phòng trong `var()` của utility
+(`border-color: var(--color-border, var(--border))`) nên `--border` tham chiếu biến không tồn tại: mọi phần tử có
+`border-color` = currentColor (đen) thay vì `oklab(0 0 0 / 0.08)`, chữ thành đen. Thêm nữa, `--alpha()` trong CSS ngoài
+`@theme` (`:root`, `.dark`) được giữ nguyên thay vì khai triển thành `color-mix(in oklab, … 8%, transparent)`.
+Hướng sửa: khi dựng `css` của `parseTailwindStylesheet`, khai triển `--alpha()`/`--spacing()`/`--theme()` và phát mọi
+biến theme mà CSS đó (sau `@apply`) đọc qua `var(--…)`.
+
+Đo chẩn đoán (không commit): khai triển `--alpha()` và thêm tay khối `:root` khai báo 25 biến màu đó thì coss ui
+đạt 1288/1331 (96,8%) ở lượt mặc định, 1285–1291 ở các lượt khác, tổ hợp 287/379 (mở: 274/379); phần còn lại thuộc các nhóm dưới.
+
+### 2. Class phương ngữ không nhận rơi xuống cú pháp x-css gốc và sinh CSS sai (nguy hiểm)
+
+`z-1` → `z-index:-1`, `z-2` → `z-index:-2` (Magic UI, coss ui): phần tử bị đẩy ra sau thay vì lên trước.
+`opacity-64` → `opacity:-64` (hiển thị như 0). Tailwind v4 nhận mọi số nguyên trần cho các họ này; phương ngữ dựng từ
+`getClassList()` (z-0/10/…/50, opacity bước 5) nên trả null, rồi `extractFromClasses` hiểu class theo ngữ pháp x-css
+(`z` + `-1`). Nên: khi phương ngữ Tailwind bật, class có dạng utility Tailwind mà phương ngữ không nhận thì không sinh gì
+(hoặc nhận đủ giá trị trần, xem mục 3).
+
+### 3. Giá trị trần ngoài bảng `getClassList()`
+
+`z-1`, `z-2`, `opacity-64`, `scale-84`, `scale-98`, `scale-120`, `rotate-10`, `duration-450`, `duration-0`, `delay-0`
+(coss ui, Magic UI; cả dạng có biến thể `data-disabled:opacity-64`, `sm:data-ending-style:scale-98`...). Tailwind nhận mọi số
+(`z-<integer>`, `opacity-<number>`, `scale-<number>`, `rotate-<number>`, `duration-<number>`).
+
+### 4. `start-*` / `end-*` (inset-inline-start/end)
+
+HyperUI: `start-0`, `start-3`, `end-0`, `peer-checked:start-6/8`, `group-open:start-0` — chỉ 8 class nhưng nằm trong
+**62 tổ hợp** (dropdown, ô nhập có icon, toggle). coss ui: `end-0`, `end-0.5`, `end-2`, `after:start-1/2`.
+Tailwind 4.3.5 vẫn sinh (không còn trong `getClassList()` vì đã có `inset-s-*`/`inset-e-*`).
+
+### 5. `--spacing()` / `--theme()` trong giá trị tuỳ ý
+
+coss ui (~25 class): `px-[calc(--spacing(3)-1px)]`, `py-[max(--spacing(4),4vh)]`, `w-[calc(100%-(--spacing(12)))]`,
+`pb-[calc(env(safe-area-inset-bottom,0px)+--spacing(4))]`, `inset-shadow-[0_1px_--theme(--color-black/4%)]`,
+`[--composer-padding:--spacing(2)]`. Được "chuyển" nhưng giữ nguyên `--spacing(3)` → khai báo không hợp lệ (padding 0).
+Tailwind thay bằng `calc(var(--spacing) * 3)` và `color-mix(...)`.
+
+### 6. Modifier line-height của `text-*`
+
+`text-sm/none`, `text-xs/none` (HyperUI, không chuyển → cỡ chữ 16px), `text-[10px]/6` (modifier bị bỏ, chỉ còn
+`font-size:10px`), `sm:text-xs/(--text-xs--line-height)`, `text-[calc(...)]/none` (coss ui).
+
+### 7. Bóng tuỳ ý không có màu: `shadow-[4px_4px_0_0]`
+
+HyperUI neobrutalism (5 class, 30 tổ hợp với `shadow-black`/`dark:shadow-white`): Tailwind chèn
+`var(--tw-shadow-color, currentcolor)` vào từng lớp bóng (`--tw-shadow: 4px 4px 0 0 var(--tw-shadow-color, currentcolor)`)
+nên `shadow-black` đổi được màu; phương ngữ giữ `--tw-shadow: 4px 4px 0 0` nên `shadow-black` vô tác dụng.
+
+### 8. Modifier độ mờ của bóng: `shadow-xs/5`, `shadow-sm/5`, `shadow-lg/5`
+
+coss ui (cả `data-checked:shadow-sm/5`, `in-data-[variant=card]:shadow-xs/5`...): không chuyển. Tailwind đặt
+`--tw-shadow-alpha: 5%` và màu `oklab(from … l a b / 5%)`.
+
+### 9. Giá trị tuỳ ý của nền
+
+- `bg-[length:200%]` → `background-position:200%`: bỏ qua gợi ý kiểu `length:` (phải là `background-size`). Magic UI.
+- `bg-[linear-gradient(a),linear-gradient(b),linear-gradient(c)]` (nhiều lớp) và
+  `bg-[repeating-linear-gradient(45deg,var(--tw-gradient-from)_0,...)]` → `background-color:…` (không hợp lệ) thay vì
+  `background-image`: suy luận kiểu không nhận ra danh sách ảnh / `repeating-*-gradient`. Magic UI, HyperUI.
+- `bg-size-[…]`, `bg-position-[…]` (`bg-size-[200%_auto]`, `bg-position-[0_0]`, `after:bg-size-[100%_200%]`): không chuyển. Magic UI.
+
+### 10. Cú pháp khác chưa chuyển
+
+`border-(length:--border-beam-width)` và `text-(color:--shiki-dark)!` (gợi ý kiểu trong cú pháp biến `(kiểu:--x)`),
+`filter-[url(#threshold)_blur(0.6px)]` (`filter-[…]` tuỳ ý), `not-[&:hover]:duration-1000` (`not-[…]` với selector
+có `&`), `mask-position-(--x)`/`mask-size-(--x)` (coss ui). Magic UI.
+
+### 11. `@utility container` trùng tên utility có sẵn
+
+Magic UI: `@utility container { @apply 3xl:max-w-screen-2xl mx-auto max-w-[1400px] px-4 lg:px-8 }`. Tailwind gộp với
+`container` có sẵn và phần của dự án thắng (`max-width:1400px` ở 1280 px); @porbit/style cho `1280px` (container có sẵn
+thắng hoặc phần của dự án bị bỏ). coss ui có `@utility container` tương tự (`max-w-[1416px]`).
+
+### 12. Lệch kéo theo (không phải lỗi riêng)
+
+`fixed`, `sr-only`, `absolute start-0 …` lệch `bottom`/`inset-block-end` vài px: vị trí phụ thuộc chiều cao trang, mà
+trang lệch vì các phần tử phía trên lệch chiều cao (mục 4–6, 10). Hết khi các mục kia được sửa.
+
+### Về độ tin cậy của phép đo
+
+- Mỗi lượt tua `transition-*` tới giá trị cuối (`CSSTransition.finish()`) và dừng `animate-*` ở thời điểm 0
+  (`CSSAnimation.pause()`, `currentTime = 0`) trên cả hai phía, nên kết quả không phụ thuộc thời điểm đo mà vẫn so
+  được giá trị `transition-*`/`animation-*` khai báo. Kiểm: chạy bộ đo mặc định 5 lần liên tiếp cho cùng một kết quả.
+- Cột "Lượt có chạm biến thể" trừ phần thay đổi do trình duyệt (outline mặc định của `:focus-visible`, kích thước theo
+  khung nhìn) bằng một phần tử mốc không có class; vẫn chỉ là ước lượng.
+- Lượt `:hover`/`:focus`... ép trạng thái trên mọi phần tử đo cùng lúc, cha `.group` và anh `.peer`; không kiểm
+  `:disabled`, `:checked` thật (phần tử là `div`), `group-hover/tên`, `peer-*/tên` có tên.
+- Tổ hợp chỉ là chuỗi literal (và gốc `cva()` + từng biến thể), không phải toàn bộ class mà component render ra.

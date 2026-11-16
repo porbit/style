@@ -1,0 +1,8 @@
+{
+  "label": "HyperUI",
+  "source": "[HyperUI](https://github.com/markmead/hyperui) `public/examples/{application,neobrutalism}` + `src/styles/component.css` (commit 3032a06)",
+  "license": "MIT, © Mark Mead",
+  "css": "app.css",
+  "src": "examples",
+  "imports": {}
+}

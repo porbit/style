@@ -1,0 +1,8 @@
+{
+  "label": "Magic UI",
+  "source": "[Magic UI](https://github.com/magicuidesign/magicui) `apps/www/registry/magicui` + `apps/www/styles/globals.css` (commit 6f7b531)",
+  "license": "MIT, © Magic UI",
+  "css": "app.css",
+  "src": "components",
+  "imports": { "tw-animate-css": "../../../node_modules/tw-animate-css/dist/tw-animate.css" }
+}
