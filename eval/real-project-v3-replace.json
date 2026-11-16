@@ -9,12 +9,26 @@
         "mặc định": 18,
         "mở": 18,
         "đóng": 18,
-        ".dark": 18
+        ".dark": 18,
+        ":hover": 18,
+        ":focus": 18,
+        ":focus-visible": 18,
+        ":active": 18,
+        "375px": 18,
+        "768px": 18,
+        "1600px": 18
       },
       "exercised": {
         "mở": 0,
         "đóng": 0,
-        ".dark": 0
+        ".dark": 0,
+        ":hover": 0,
+        ":focus": 0,
+        ":focus-visible": 0,
+        ":active": 0,
+        "375px": 5,
+        "768px": 2,
+        "1600px": 0
       },
       "combos": {
         "total": 2,
@@ -22,7 +36,14 @@
           "mặc định": 2,
           "mở": 2,
           "đóng": 2,
-          ".dark": 2
+          ".dark": 2,
+          ":hover": 2,
+          ":focus": 2,
+          ":focus-visible": 2,
+          ":active": 2,
+          "375px": 2,
+          "768px": 2,
+          "1600px": 2
         }
       }
     },
@@ -33,12 +54,26 @@
         "mặc định": 18,
         "mở": 18,
         "đóng": 18,
-        ".dark": 18
+        ".dark": 18,
+        ":hover": 18,
+        ":focus": 18,
+        ":focus-visible": 18,
+        ":active": 18,
+        "375px": 18,
+        "768px": 18,
+        "1600px": 18
       },
       "exercised": {
         "mở": 0,
         "đóng": 0,
-        ".dark": 0
+        ".dark": 0,
+        ":hover": 0,
+        ":focus": 0,
+        ":focus-visible": 0,
+        ":active": 0,
+        "375px": 5,
+        "768px": 2,
+        "1600px": 0
       },
       "combos": {
         "total": 2,
@@ -46,7 +81,14 @@
           "mặc định": 2,
           "mở": 2,
           "đóng": 2,
-          ".dark": 2
+          ".dark": 2,
+          ":hover": 2,
+          ":focus": 2,
+          ":focus-visible": 2,
+          ":active": 2,
+          "375px": 2,
+          "768px": 2,
+          "1600px": 2
         }
       }
     }

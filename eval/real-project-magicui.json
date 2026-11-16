@@ -1,0 +1,96 @@
+{
+  "label": "Magic UI",
+  "candidates": 586,
+  "summary": {
+    "không build (parseTailwindStylesheet)": {
+      "converted": 572,
+      "total": 586,
+      "matched": {
+        "mặc định": 575,
+        "mở": 575,
+        "đóng": 575,
+        ".dark": 573,
+        ":hover": 576,
+        ":focus": 575,
+        ":focus-visible": 575,
+        ":active": 576,
+        "375px": 575,
+        "768px": 575,
+        "1600px": 575
+      },
+      "exercised": {
+        "mở": 3,
+        "đóng": 1,
+        ".dark": 28,
+        ":hover": 22,
+        ":focus": 0,
+        ":focus-visible": 1,
+        ":active": 24,
+        "375px": 25,
+        "768px": 18,
+        "1600px": 11
+      },
+      "combos": {
+        "total": 245,
+        "matched": {
+          "mặc định": 237,
+          "mở": 237,
+          "đóng": 237,
+          ".dark": 237,
+          ":hover": 238,
+          ":focus": 237,
+          ":focus-visible": 237,
+          ":active": 238,
+          "375px": 237,
+          "768px": 237,
+          "1600px": 237
+        }
+      }
+    },
+    "plugin PostCSS (@porbit/style/postcss)": {
+      "converted": 572,
+      "total": 586,
+      "matched": {
+        "mặc định": 575,
+        "mở": 575,
+        "đóng": 575,
+        ".dark": 573,
+        ":hover": 576,
+        ":focus": 575,
+        ":focus-visible": 575,
+        ":active": 576,
+        "375px": 575,
+        "768px": 575,
+        "1600px": 575
+      },
+      "exercised": {
+        "mở": 3,
+        "đóng": 1,
+        ".dark": 28,
+        ":hover": 22,
+        ":focus": 0,
+        ":focus-visible": 1,
+        ":active": 24,
+        "375px": 25,
+        "768px": 18,
+        "1600px": 11
+      },
+      "combos": {
+        "total": 245,
+        "matched": {
+          "mặc định": 237,
+          "mở": 237,
+          "đóng": 237,
+          ".dark": 237,
+          ":hover": 238,
+          ":focus": 237,
+          ":focus-visible": 237,
+          ":active": 238,
+          "375px": 237,
+          "768px": 237,
+          "1600px": 237
+        }
+      }
+    }
+  }
+}

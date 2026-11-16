@@ -39,3 +39,31 @@ Một class được coi là hợp lệ khi engine sinh được CSS trên Chrom
 4. **Rủi ro đã biết**: `opacity-50` hợp lệ trong x-css (`opacity: -50`, hiển thị như 0) nên không được sửa, dù người viết gần như chắc chắn muốn `opc0.5`. Bật phương ngữ Tailwind thì class này được hiểu đúng.
 
 Để có số liệu đại diện hơn: chạy nhiều mô hình khác nhau, mỗi mô hình một lượt có và không có MCP, rồi thêm thư mục vào `runs/`.
+
+## Đo Trên Dự Án Thật
+
+`real-project.mjs` so computed style giữa Tailwind thật (biên dịch từ chính file CSS của dự án) và @porbit/style
+trên mã nguồn của dự án Tailwind v4 có sẵn, ở 11 lượt: mặc định (1280 px), mở/đóng (`data-*`/`aria-*` trên
+phần tử, cha `.group`, anh `.peer`), `.dark`, ép `:hover`/`:focus`/`:focus-visible`/`:active` (CDP
+`CSS.forcePseudoState`, `transition-*` được tua tới cuối trước khi đo), và độ rộng 375/768/1600 px; cùng
+các tổ hợp chuỗi class thật của component. Hai chế độ: "không build" và plugin PostCSS.
+
+```bash
+npm run build
+node eval/real-project.mjs                    # shadcn/ui v4 -> REAL-PROJECT.md, real-project.json
+node eval/real-project.mjs --fixture=hyperui  # fixtures/<tên>/fixture.json -> REAL-PROJECT-<tên>.md/.json
+node eval/real-project.mjs --all              # mọi fixture + hai fixture v3, rồi tổng hợp REAL-PROJECTS.md
+node eval/real-project.mjs --summary          # chỉ dựng lại REAL-PROJECTS.md từ các file JSON
+```
+
+| Fixture | Nguồn | Giấy phép |
+| :--- | :--- | :--- |
+| `fixtures/shadcn-v4` | shadcn/ui `new-york-v4/ui` | MIT |
+| `fixtures/hyperui` | HyperUI `public/examples/{application,neobrutalism}` (HTML) | MIT |
+| `fixtures/magicui` | Magic UI `apps/www/registry/magicui` | MIT |
+| `fixtures/coss-ui` | coss ui / Origin UI `packages/ui/src/components` (Base UI) | MIT |
+| `fixtures/v3-config` | cấu hình `tailwind.config.js` kiểu v3 (tự viết) | — |
+
+Thêm dự án: tạo `fixtures/<tên>/` với file CSS, thư mục nguồn và `fixture.json`
+(`{ "label", "source", "license", "css", "src", "imports": { "gói": "đường/dẫn/tương/đối.css" } }`).
+Kết quả tổng hợp: [REAL-PROJECTS.md](./REAL-PROJECTS.md).
