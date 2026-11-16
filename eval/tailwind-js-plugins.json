@@ -1,0 +1,651 @@
+{
+  "tailwindcss-animate": {
+    "version": "1.0.7",
+    "classes": {
+      "cases": 456,
+      "matched": 455,
+      "percent": 99.78
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [
+      "-slide-in-from-left-2"
+    ],
+    "notes": [],
+    "failedClasses": [
+      {
+        "class": "duration-0",
+        "diff": [
+          "#0 --tw-duration: tw=0ms | ours=undefined"
+        ]
+      }
+    ],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwind-scrollbar": {
+    "version": "4.0.2",
+    "classes": {
+      "cases": 294,
+      "matched": 292,
+      "percent": 99.32
+    },
+    "variants": {
+      "cases": 5,
+      "matched": 5,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [
+      {
+        "class": "scrollbar-thumb-red-500/50",
+        "diff": [
+          "#0 --tw-scrollbar-thumb: tw=oklab(0.637 0.214213 0.1014 / 0.5) | ours=rgba(0, 0, 0, 0)",
+          "#0 scrollbar-color: tw=oklab(0.637 0.214213 0.1014 / 0.5) rgba(0, 0, 0, 0) | ours=auto",
+          "#1 scrollbar-color: tw=oklab(0.637 0.214213 0.1014 / 0.5) rgba(0, 0, 0, 0) | ours=auto"
+        ]
+      },
+      {
+        "class": "scrollbar-thumb-[rgb(1,2,3)]/25",
+        "diff": [
+          "#0 --tw-scrollbar-thumb: tw=oklab(0.0823081 -0.00392239 -0.00700903 / 0.25) | ours=rgba(0, 0, 0, 0)",
+          "#0 scrollbar-color: tw=oklab(0.0823081 -0.00392239 -0.00700903 / 0.25) rgba(0, 0, 0, 0) | ours=auto",
+          "#1 scrollbar-color: tw=oklab(0.0823081 -0.00392239 -0.00700903 / 0.25) rgba(0, 0, 0, 0) | ours=auto"
+        ]
+      }
+    ],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwind-scrollbar (nocompatible)": {
+    "version": "4.0.2",
+    "classes": {
+      "cases": 456,
+      "matched": 456,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 5,
+      "matched": 5,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwind-scrollbar-hide": {
+    "version": "4.0.0",
+    "classes": {
+      "cases": 2,
+      "matched": 2,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwindcss-animated": {
+    "version": "2.1.0",
+    "classes": {
+      "cases": 66,
+      "matched": 66,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwindcss-motion": {
+    "version": "1.1.1",
+    "classes": {
+      "cases": 2228,
+      "matched": 2228,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [
+      "motion-preset-flomoji-👀",
+      "motion-preset-flomoji-👉",
+      "motion-preset-flomoji-👍",
+      "motion-preset-flomoji-🚀"
+    ],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwindcss-react-aria-components": {
+    "version": "2.2.0",
+    "classes": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 312,
+      "matched": 307,
+      "percent": 98.4
+    },
+    "unsupported": [
+      "not-hover:flex",
+      "group-hover:flex",
+      "peer-hover:flex",
+      "in-hover:flex",
+      "has-hover:flex"
+    ],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [
+      "not-hover:flex",
+      "group-hover:flex",
+      "peer-hover:flex",
+      "in-hover:flex",
+      "has-hover:flex"
+    ],
+    "failedVariantDetails": [
+      {
+        "variant": "not-hover:flex",
+        "diff": [
+          "tw:  | .not-hover\\:flex:not(:is(:where([data-rac])[data-hovered], :where(:not([data-rac])):hover)) | display:flex || @media not (hover: hover) | .not-hover\\:flex | display:flex",
+          "ours: "
+        ]
+      },
+      {
+        "variant": "group-hover:flex",
+        "diff": [
+          "tw: @media (hover: hover) | :is(:where(.group):is(:where([data-rac])[data-hovered], :where(:not([data-rac])):hover) .group-hover\\:flex) | display:flex",
+          "ours: "
+        ]
+      },
+      {
+        "variant": "peer-hover:flex",
+        "diff": [
+          "tw: @media (hover: hover) | :is(:where(.peer):is(:where([data-rac])[data-hovered], :where(:not([data-rac])):hover) ~ .peer-hover\\:flex) | display:flex",
+          "ours: "
+        ]
+      },
+      {
+        "variant": "in-hover:flex",
+        "diff": [
+          "tw: @media (hover: hover) | :where(:is(:where([data-rac])[data-hovered], :where(:not([data-rac])):hover)) .in-hover\\:flex | display:flex",
+          "ours: "
+        ]
+      },
+      {
+        "variant": "has-hover:flex",
+        "diff": [
+          "tw: @media (hover: hover) | .has-hover\\:flex:has(:is(:where([data-rac])[data-hovered], :where(:not([data-rac])):hover)) | display:flex",
+          "ours: "
+        ]
+      }
+    ]
+  },
+  "tailwindcss-react-aria-components (prefix: rac)": {
+    "version": "2.2.0",
+    "classes": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 312,
+      "matched": 308,
+      "percent": 98.72
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [
+      "group-rac-hover:flex",
+      "peer-rac-hover:flex",
+      "in-rac-hover:flex",
+      "has-rac-hover:flex"
+    ],
+    "failedVariantDetails": [
+      {
+        "variant": "group-rac-hover:flex",
+        "diff": [
+          "tw:  | :is(:where(.group)[data-hovered] .group-rac-hover\\:flex) | display:flex",
+          "ours: @media (hover: hover) | .group-rac-hover\\:flex:is(:where(.group)[data-hovered] *) | display:flex"
+        ]
+      },
+      {
+        "variant": "peer-rac-hover:flex",
+        "diff": [
+          "tw:  | :is(:where(.peer)[data-hovered] ~ .peer-rac-hover\\:flex) | display:flex",
+          "ours: @media (hover: hover) | .peer-rac-hover\\:flex:is(:where(.peer)[data-hovered] ~ *) | display:flex"
+        ]
+      },
+      {
+        "variant": "in-rac-hover:flex",
+        "diff": [
+          "tw:  | :where([data-hovered]) .in-rac-hover\\:flex | display:flex",
+          "ours: @media (hover: hover) | :where([data-hovered]) .in-rac-hover\\:flex | display:flex"
+        ]
+      },
+      {
+        "variant": "has-rac-hover:flex",
+        "diff": [
+          "tw:  | .has-rac-hover\\:flex:has([data-hovered]) | display:flex",
+          "ours: @media (hover: hover) | .has-rac-hover\\:flex:has([data-hovered]) | display:flex"
+        ]
+      }
+    ]
+  },
+  "@tailwindcss/forms": {
+    "version": "0.5.11",
+    "classes": {
+      "cases": 7,
+      "matched": 7,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "@tailwindcss/typography": {
+    "version": "0.5.20",
+    "classes": {
+      "cases": 35,
+      "matched": 35,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 198,
+      "matched": 169,
+      "percent": 85.35
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [
+      "has-prose-headings:flex",
+      "has-prose-h1:flex",
+      "has-prose-h2:flex",
+      "has-prose-h3:flex",
+      "has-prose-h4:flex",
+      "has-prose-h5:flex",
+      "has-prose-h6:flex",
+      "has-prose-p:flex",
+      "has-prose-a:flex",
+      "has-prose-blockquote:flex",
+      "has-prose-figure:flex",
+      "has-prose-figcaption:flex",
+      "has-prose-strong:flex",
+      "has-prose-em:flex",
+      "has-prose-kbd:flex",
+      "has-prose-code:flex",
+      "has-prose-pre:flex",
+      "has-prose-ol:flex",
+      "has-prose-ul:flex",
+      "has-prose-li:flex",
+      "has-prose-dl:flex",
+      "has-prose-dt:flex",
+      "has-prose-dd:flex",
+      "has-prose-table:flex",
+      "has-prose-img:flex",
+      "has-prose-picture:flex",
+      "has-prose-video:flex",
+      "has-prose-hr:flex",
+      "has-prose-lead:flex"
+    ],
+    "failedVariantDetails": [
+      {
+        "variant": "has-prose-headings:flex",
+        "diff": [
+          "tw:  | .has-prose-headings\\:flex:has(* :is(:where(h1, h2, h3, h4, h5, h6, th):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
+          "ours:  | .has-prose-headings\\:flex:has(:is(:where(h1, h2, h3, h4, h5, h6, th):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
+        ]
+      },
+      {
+        "variant": "has-prose-h1:flex",
+        "diff": [
+          "tw:  | .has-prose-h1\\:flex:has(* :is(:where(h1):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
+          "ours:  | .has-prose-h1\\:flex:has(:is(:where(h1):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
+        ]
+      },
+      {
+        "variant": "has-prose-h2:flex",
+        "diff": [
+          "tw:  | .has-prose-h2\\:flex:has(* :is(:where(h2):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
+          "ours:  | .has-prose-h2\\:flex:has(:is(:where(h2):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
+        ]
+      },
+      {
+        "variant": "has-prose-h3:flex",
+        "diff": [
+          "tw:  | .has-prose-h3\\:flex:has(* :is(:where(h3):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
+          "ours:  | .has-prose-h3\\:flex:has(:is(:where(h3):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
+        ]
+      },
+      {
+        "variant": "has-prose-h4:flex",
+        "diff": [
+          "tw:  | .has-prose-h4\\:flex:has(* :is(:where(h4):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
+          "ours:  | .has-prose-h4\\:flex:has(:is(:where(h4):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
+        ]
+      }
+    ]
+  },
+  "tailwindcss-animate (bản đóng gói: tw-animate-css)": {
+    "version": "1.0.7",
+    "classes": {
+      "cases": 447,
+      "matched": 18,
+      "percent": 4.03
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [
+      "duration-0",
+      "slide-in-from-bottom-0.5",
+      "slide-in-from-bottom-1.5",
+      "slide-in-from-bottom-2.5",
+      "slide-in-from-bottom-3.5",
+      "slide-in-from-bottom-px",
+      "slide-in-from-left-0.5",
+      "slide-in-from-left-1.5",
+      "slide-in-from-left-2.5",
+      "slide-in-from-left-3.5",
+      "slide-in-from-left-px",
+      "slide-in-from-right-0.5",
+      "slide-in-from-right-1.5",
+      "slide-in-from-right-2.5",
+      "slide-in-from-right-3.5",
+      "slide-in-from-right-px",
+      "slide-in-from-top-0.5",
+      "slide-in-from-top-1.5",
+      "slide-in-from-top-2.5",
+      "slide-in-from-top-3.5",
+      "slide-in-from-top-px",
+      "slide-out-to-bottom-0.5",
+      "slide-out-to-bottom-1.5",
+      "slide-out-to-bottom-2.5",
+      "slide-out-to-bottom-3.5",
+      "slide-out-to-bottom-px",
+      "slide-out-to-left-0.5",
+      "slide-out-to-left-1.5",
+      "slide-out-to-left-2.5",
+      "slide-out-to-left-3.5",
+      "slide-out-to-left-px",
+      "slide-out-to-right-0.5",
+      "slide-out-to-right-1.5",
+      "slide-out-to-right-2.5",
+      "slide-out-to-right-3.5",
+      "slide-out-to-right-px",
+      "slide-out-to-top-0.5",
+      "slide-out-to-top-1.5",
+      "slide-out-to-top-2.5",
+      "slide-out-to-top-3.5",
+      "slide-out-to-top-px"
+    ],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [
+      {
+        "class": "animate-in",
+        "diff": [
+          "#0 filter: tw=none | ours=blur(0px)"
+        ]
+      },
+      {
+        "class": "animate-out",
+        "diff": [
+          "#0 filter: tw=none | ours=blur(0px)"
+        ]
+      },
+      {
+        "class": "duration-0",
+        "diff": [
+          "#0 --tw-duration: tw=0ms | ours=undefined"
+        ]
+      },
+      {
+        "class": "fade-in",
+        "diff": [
+          "#1 --tw-enter-opacity: tw=0 | ours=1",
+          "#2 --tw-enter-opacity: tw=0 | ours=1",
+          "#3 --tw-enter-opacity: tw=0 | ours=1"
+        ]
+      },
+      {
+        "class": "fade-in-0",
+        "diff": [
+          "#1 --tw-enter-opacity: tw=0 | ours=1",
+          "#2 --tw-enter-opacity: tw=0 | ours=1",
+          "#3 --tw-enter-opacity: tw=0 | ours=1"
+        ]
+      },
+      {
+        "class": "fade-in-5",
+        "diff": [
+          "#0 --tw-enter-opacity: tw=0.05 | ours=.05",
+          "#1 --tw-enter-opacity: tw=0.05 | ours=1",
+          "#2 --tw-enter-opacity: tw=0.05 | ours=1"
+        ]
+      },
+      {
+        "class": "fade-in-10",
+        "diff": [
+          "#0 --tw-enter-opacity: tw=0.1 | ours=.1",
+          "#1 --tw-enter-opacity: tw=0.1 | ours=1",
+          "#2 --tw-enter-opacity: tw=0.1 | ours=1"
+        ]
+      },
+      {
+        "class": "fade-in-15",
+        "diff": [
+          "#0 --tw-enter-opacity: tw=0.15 | ours=.15",
+          "#1 --tw-enter-opacity: tw=0.15 | ours=1",
+          "#2 --tw-enter-opacity: tw=0.15 | ours=1"
+        ]
+      },
+      {
+        "class": "fade-in-20",
+        "diff": [
+          "#0 --tw-enter-opacity: tw=0.2 | ours=.2",
+          "#1 --tw-enter-opacity: tw=0.2 | ours=1",
+          "#2 --tw-enter-opacity: tw=0.2 | ours=1"
+        ]
+      },
+      {
+        "class": "fade-in-25",
+        "diff": [
+          "#0 --tw-enter-opacity: tw=0.25 | ours=.25",
+          "#1 --tw-enter-opacity: tw=0.25 | ours=1",
+          "#2 --tw-enter-opacity: tw=0.25 | ours=1"
+        ]
+      },
+      {
+        "class": "fade-in-30",
+        "diff": [
+          "#0 --tw-enter-opacity: tw=0.3 | ours=.3",
+          "#1 --tw-enter-opacity: tw=0.3 | ours=1",
+          "#2 --tw-enter-opacity: tw=0.3 | ours=1"
+        ]
+      },
+      {
+        "class": "fade-in-35",
+        "diff": [
+          "#0 --tw-enter-opacity: tw=0.35 | ours=.35",
+          "#1 --tw-enter-opacity: tw=0.35 | ours=1",
+          "#2 --tw-enter-opacity: tw=0.35 | ours=1"
+        ]
+      },
+      {
+        "class": "fade-in-40",
+        "diff": [
+          "#0 --tw-enter-opacity: tw=0.4 | ours=.4",
+          "#1 --tw-enter-opacity: tw=0.4 | ours=1",
+          "#2 --tw-enter-opacity: tw=0.4 | ours=1"
+        ]
+      },
+      {
+        "class": "fade-in-45",
+        "diff": [
+          "#0 --tw-enter-opacity: tw=0.45 | ours=.45",
+          "#1 --tw-enter-opacity: tw=0.45 | ours=1",
+          "#2 --tw-enter-opacity: tw=0.45 | ours=1"
+        ]
+      },
+      {
+        "class": "fade-in-50",
+        "diff": [
+          "#0 --tw-enter-opacity: tw=0.5 | ours=.5",
+          "#1 --tw-enter-opacity: tw=0.5 | ours=1",
+          "#2 --tw-enter-opacity: tw=0.5 | ours=1"
+        ]
+      }
+    ],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "@tailwindcss/forms (bản đóng gói)": {
+    "version": "0.5.11",
+    "classes": {
+      "cases": 7,
+      "matched": 7,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "@tailwindcss/typography (bản đóng gói)": {
+    "version": "0.5.20",
+    "classes": {
+      "cases": 35,
+      "matched": 35,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 198,
+      "matched": 169,
+      "percent": 85.35
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [
+      "has-prose-headings:flex",
+      "has-prose-h1:flex",
+      "has-prose-h2:flex",
+      "has-prose-h3:flex",
+      "has-prose-h4:flex",
+      "has-prose-h5:flex",
+      "has-prose-h6:flex",
+      "has-prose-p:flex",
+      "has-prose-a:flex",
+      "has-prose-blockquote:flex",
+      "has-prose-figure:flex",
+      "has-prose-figcaption:flex",
+      "has-prose-strong:flex",
+      "has-prose-em:flex",
+      "has-prose-kbd:flex",
+      "has-prose-code:flex",
+      "has-prose-pre:flex",
+      "has-prose-ol:flex",
+      "has-prose-ul:flex",
+      "has-prose-li:flex",
+      "has-prose-dl:flex",
+      "has-prose-dt:flex",
+      "has-prose-dd:flex",
+      "has-prose-table:flex",
+      "has-prose-img:flex",
+      "has-prose-picture:flex",
+      "has-prose-video:flex",
+      "has-prose-hr:flex",
+      "has-prose-lead:flex"
+    ],
+    "failedVariantDetails": [
+      {
+        "variant": "has-prose-headings:flex",
+        "diff": [
+          "tw:  | .has-prose-headings\\:flex:has(* :is(:where(h1, h2, h3, h4, h5, h6, th):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
+          "ours:  | .has-prose-headings\\:flex:has(:is(:where(h1, h2, h3, h4, h5, h6, th):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
+        ]
+      },
+      {
+        "variant": "has-prose-h1:flex",
+        "diff": [
+          "tw:  | .has-prose-h1\\:flex:has(* :is(:where(h1):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
+          "ours:  | .has-prose-h1\\:flex:has(:is(:where(h1):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
+        ]
+      },
+      {
+        "variant": "has-prose-h2:flex",
+        "diff": [
+          "tw:  | .has-prose-h2\\:flex:has(* :is(:where(h2):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
+          "ours:  | .has-prose-h2\\:flex:has(:is(:where(h2):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
+        ]
+      },
+      {
+        "variant": "has-prose-h3:flex",
+        "diff": [
+          "tw:  | .has-prose-h3\\:flex:has(* :is(:where(h3):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
+          "ours:  | .has-prose-h3\\:flex:has(:is(:where(h3):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
+        ]
+      },
+      {
+        "variant": "has-prose-h4:flex",
+        "diff": [
+          "tw:  | .has-prose-h4\\:flex:has(* :is(:where(h4):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex",
+          "ours:  | .has-prose-h4\\:flex:has(:is(:where(h4):not(:where([class~=\"not-prose\"], [class~=\"not-prose\"] *)))) | display:flex"
+        ]
+      }
+    ]
+  }
+}
