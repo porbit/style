@@ -94,6 +94,11 @@ export type XCSSDialect = ((className: string) => string[] | null) & {
     variantList?: () => string[]
     /** Khai báo phương ngữ sinh ra đã được kiểm ở nguồn: bỏ qua CSS.supports (selector vẫn được kiểm). */
     trusted?: boolean
+    /**
+     * Class thuộc phương ngữ dù phương ngữ không sinh được CSS (ví dụ `z-1` có dạng utility Tailwind nhưng giá trị
+     * không hợp lệ): engine không hiểu class theo cú pháp x-css nữa, tránh sinh CSS sai (`z-index:-1`).
+     */
+    owns?: (className: string) => boolean
 }
 
 export type XCSSPreloadManifest = {
@@ -2630,6 +2635,15 @@ export const xcss = (
                 }
             }
         }
+        // Class có dạng của phương ngữ mà phương ngữ không nhận: không rơi xuống cú pháp x-css (sinh CSS sai).
+        if (dialectList.some((dialect) => {
+            try {
+                return typeof dialect.owns === 'function' && dialect.owns(parseTarget)
+            } catch (_error) {
+                return false
+            }
+        })) return null
+
 
         // Support chained utilities: "md:dF&fxdC@;li", "dF&fk-fxdC@;li", "md:[grp1]&[grp2]@;li"
         if (parseTarget.includes('&') && !parseTarget.startsWith('&')) {

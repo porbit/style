@@ -3,7 +3,7 @@
   "candidates": 1331,
   "summary": {
     "không build (parseTailwindStylesheet)": {
-      "converted": 1284,
+      "converted": 1331,
       "total": 1331,
       "matched": {
         "mặc định": 0,
@@ -48,7 +48,7 @@
       }
     },
     "plugin PostCSS (@porbit/style/postcss)": {
-      "converted": 1284,
+      "converted": 1331,
       "total": 1331,
       "matched": {
         "mặc định": 0,
