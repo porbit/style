@@ -34,6 +34,14 @@ describe('tailwind.config.js (v3) -> CSS v4', () => {
         expect(unsupported).toEqual([])
     })
 
+
+    it('khoá theme khác (`zIndex`, `aspectRatio`, `gridTemplateColumns`) -> namespace kebab-case như @config của Tailwind', () => {
+        const { css, unsupported } = tailwindConfigToCss({ theme: { extend: { zIndex: { modal: '60' }, aspectRatio: { wide: '3 / 1' }, gridTemplateColumns: { app: '200px 1fr' } } } })
+        expect(unsupported).toEqual([])
+        expect(css).toContain('--z-index-modal: 60;')
+        expect(css).toContain('--aspect-wide: 3 / 1;')
+        expect(css).toContain('--grid-template-columns-app: 200px 1fr;')
+    })
     it('@config trong stylesheet: dialect nhận theme của cấu hình JS', () => {
         const dir = mkdtempSync(join(tmpdir(), 'ps-config-'))
         writeFileSync(join(dir, 'tailwind.config.js'), "module.exports = { darkMode: 'class', theme: { extend: { colors: { brand: { DEFAULT: '#0a64e8', 900: '#06306e' } }, spacing: { 18: '4.5rem' } } } }")

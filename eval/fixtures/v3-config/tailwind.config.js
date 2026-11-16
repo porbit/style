@@ -26,6 +26,10 @@ module.exports = {
       boxShadow: { soft: '0 2px 8px rgb(0 0 0 / 0.08)' },
       maxWidth: { prose2: '70ch' },
       letterSpacing: { loose: '0.08em' },
+      // Namespace mà theme mặc định của v4 ít/không có khoá: Tailwind đặt tên kebab-case (`--z-index-modal`).
+      aspectRatio: { wide: '3 / 1' },
+      zIndex: { modal: '60' },
+      gridTemplateColumns: { app: '200px 1fr' },
     },
   },
   plugins: [require('@tailwindcss/forms'), require('@tailwindcss/typography')],

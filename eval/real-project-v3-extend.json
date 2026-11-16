@@ -1,22 +1,22 @@
 {
   "label": "v3-extend",
-  "candidates": 61,
+  "candidates": 66,
   "summary": {
     "không build (parseTailwindStylesheet)": {
-      "converted": 61,
-      "total": 61,
+      "converted": 66,
+      "total": 66,
       "matched": {
-        "mặc định": 61,
-        "mở": 61,
-        "đóng": 61,
-        ".dark": 61,
-        ":hover": 61,
-        ":focus": 61,
-        ":focus-visible": 61,
-        ":active": 61,
-        "375px": 61,
-        "768px": 61,
-        "1600px": 61
+        "mặc định": 66,
+        "mở": 66,
+        "đóng": 66,
+        ".dark": 66,
+        ":hover": 66,
+        ":focus": 66,
+        ":focus-visible": 66,
+        ":active": 66,
+        "375px": 66,
+        "768px": 66,
+        "1600px": 66
       },
       "exercised": {
         "mở": 0,
@@ -26,42 +26,42 @@
         ":focus": 4,
         ":focus-visible": 4,
         ":active": 1,
-        "375px": 11,
-        "768px": 5,
-        "1600px": 3
+        "375px": 14,
+        "768px": 8,
+        "1600px": 5
       },
       "combos": {
-        "total": 11,
+        "total": 12,
         "matched": {
-          "mặc định": 11,
-          "mở": 11,
-          "đóng": 11,
-          ".dark": 11,
-          ":hover": 11,
-          ":focus": 11,
-          ":focus-visible": 11,
-          ":active": 11,
-          "375px": 11,
-          "768px": 11,
-          "1600px": 11
+          "mặc định": 12,
+          "mở": 12,
+          "đóng": 12,
+          ".dark": 12,
+          ":hover": 12,
+          ":focus": 12,
+          ":focus-visible": 12,
+          ":active": 12,
+          "375px": 12,
+          "768px": 12,
+          "1600px": 12
         }
       }
     },
     "plugin PostCSS (@porbit/style/postcss)": {
-      "converted": 61,
-      "total": 61,
+      "converted": 66,
+      "total": 66,
       "matched": {
-        "mặc định": 61,
-        "mở": 61,
-        "đóng": 61,
-        ".dark": 61,
-        ":hover": 61,
-        ":focus": 61,
-        ":focus-visible": 61,
-        ":active": 61,
-        "375px": 61,
-        "768px": 61,
-        "1600px": 61
+        "mặc định": 66,
+        "mở": 66,
+        "đóng": 66,
+        ".dark": 66,
+        ":hover": 66,
+        ":focus": 66,
+        ":focus-visible": 66,
+        ":active": 66,
+        "375px": 66,
+        "768px": 66,
+        "1600px": 66
       },
       "exercised": {
         "mở": 0,
@@ -71,24 +71,24 @@
         ":focus": 4,
         ":focus-visible": 4,
         ":active": 1,
-        "375px": 11,
-        "768px": 5,
-        "1600px": 3
+        "375px": 14,
+        "768px": 8,
+        "1600px": 5
       },
       "combos": {
-        "total": 11,
+        "total": 12,
         "matched": {
-          "mặc định": 11,
-          "mở": 11,
-          "đóng": 11,
-          ".dark": 11,
-          ":hover": 11,
-          ":focus": 11,
-          ":focus-visible": 11,
-          ":active": 11,
-          "375px": 11,
-          "768px": 11,
-          "1600px": 11
+          "mặc định": 12,
+          "mở": 12,
+          "đóng": 12,
+          ".dark": 12,
+          ":hover": 12,
+          ":focus": 12,
+          ":focus-visible": 12,
+          ":active": 12,
+          "375px": 12,
+          "768px": 12,
+          "1600px": 12
         }
       }
     }

@@ -180,6 +180,31 @@ describe('phương ngữ Tailwind v4 (sinh từ chính Tailwind)', () => {
         expect(css('outline-2 outline-4 hover:outline').match(/@property --tw-outline-style/g)).toHaveLength(1)
     })
 
+    it('khoá theme tự định nghĩa ở mọi namespace Tailwind đọc (`--aspect-*`, `--z-index-*`, `--width-*`...)', () => {
+        const theme = {
+            '--aspect-wide': '3 / 1', '--z-index-modal': '50', '--width-sidebar': '17rem', '--inset-edge': '7px', '--scale-big': '130%',
+            '--border-width-thick': '5px', '--background-color-paper': '#f5f0e1', '--accent-color-x': 'red', '--inset-shadow-zz': '1px',
+        }
+        const d = tailwindV4Dialect({ theme })
+        // Kết quả của Tailwind 4.3.5 (candidatesToCss), giá trị theme nhúng làm dự phòng.
+        expect(d('aspect-wide')).toEqual(['aspect-ratio[var(--aspect-wide,_3_/_1)]'])
+        expect(d('md:aspect-wide')).toEqual(['[@media_(width_>=_48rem)]:aspect-ratio[var(--aspect-wide,_3_/_1)]'])
+        expect(d('z-modal')).toEqual(['z-index[var(--z-index-modal,_50)]'])
+        expect(d('-z-modal')).toEqual(['z-index[calc(var(--z-index-modal,_50)_*_-1)]'])
+        expect(d('w-sidebar')).toEqual(['width[var(--width-sidebar,_17rem)]'])
+        expect(d('-top-edge')).toEqual(['top[calc(var(--inset-edge,_7px)_*_-1)]'])
+        expect(d('scale-big')).toEqual(['--tw-scale-x[var(--scale-big,_130%)]', '--tw-scale-y[var(--scale-big,_130%)]', '--tw-scale-z[var(--scale-big,_130%)]', 'scale[var(--tw-scale-x)_var(--tw-scale-y)]'])
+        expect(d('border-thick')).toEqual(['border-style[var(--tw-border-style)]', 'border-width[var(--border-width-thick,_5px)]'])
+        expect(d('bg-paper')).toEqual(['background-color[var(--background-color-paper,_#f5f0e1)]'])
+        expect(d('accent-x/50')).toEqual(['accent-color[color-mix(in_oklab,_var(--accent-color-x,_red)_50%,_transparent)]'])
+        // Không có biến trong theme: không nhận; theme mặc định giữ nguyên dữ liệu sinh sẵn.
+        expect(d('aspect-tall')).toBeNull()
+        expect(d('z-auto')).toEqual(['z-index[auto]'])
+        expect(tailwindV4Dialect()('aspect-video')).toEqual(['aspect-ratio[var(--aspect-video,_16_/_9)]'])
+        // `--inset-shadow-*` là namespace con, không phải khoá của `--inset`.
+        expect(d('inset-shadow-zz')).not.toEqual(['inset[var(--inset-shadow-zz,_1px)]'])
+    })
+
     it('@property của utility được @apply nằm trong CSS nền; utility của dự án không đăng ký', () => {
         const base = tailwindV4Dialect({ css: '.btn { @apply border-2; }', utilities: { 'my-ring': '--tw-outline-style: dashed;' } })
         expect(base.baseCss).toContain('@property --tw-border-style')

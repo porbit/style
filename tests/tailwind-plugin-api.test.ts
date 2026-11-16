@@ -247,6 +247,16 @@ describe('tailwind-plugin-api: theme(), config(), e()', () => {
         expect(css).toMatch(/\.animate-wiggle\{animation:var\(--animate-wiggle, ?wiggle 1s ease-in-out infinite\)\}/)
     })
 
+    it('config.theme.aspectRatio của plugin (@tailwindcss/aspect-ratio: 1…16) -> aspect-1…aspect-16 như Tailwind', async () => {
+        const values = Object.fromEntries(Array.from({ length: 16 }, (_, i) => [String(i + 1), String(i + 1)]))
+        const plugin = createPlugin(() => {}, { theme: { aspectRatio: values }, corePlugins: { aspectRatio: false } })
+        const { css, output } = await cssOf(plugin, ['aspect-1', 'aspect-16', 'md:aspect-4'])
+        expect(output.css).toContain('--aspect-16: 16;')
+        expect(css).toMatch(/\.aspect-1\{aspect-ratio:var\(--aspect-1, ?1\)\}/)
+        expect(css).toMatch(/\.aspect-16\{aspect-ratio:var\(--aspect-16, ?16\)\}/)
+        expect(css).toContain('aspect-ratio:var(--aspect-4')
+    })
+
     it('plugin.withOptions, flattenColorPalette, defaultTheme, colors', () => {
         const factory = createPlugin.withOptions((options: { name?: string } = {}) => ({ addUtilities }) => addUtilities({ [`.${options.name ?? 'x'}`]: { color: 'red' } }))
         expect(runTailwindPlugin(factory, { options: { name: 'hello' } }).classes).toEqual(['hello'])

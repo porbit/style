@@ -133,6 +133,7 @@ const DATA = TW_DATA as unknown as {
     roots: Record<string, readonly unknown[]>
     explicit: Record<string, CompactRule>
     tpl: readonly CompactRule[]
+    themeRoots: string
     properties: ReadonlyArray<string | readonly [string, string, number?]>
     syntaxes: readonly string[]
     fallback: readonly [string, string]
@@ -198,6 +199,21 @@ for (const root in DATA.roots) {
     if (hints) hintTemplates[root] = Object.fromEntries(Object.entries(hints).map(([hint, spec]) => [hint, one(spec)]))
 }
 for (const name in DATA.explicit) explicit[name] = decodeRule(DATA.explicit[name])
+/**
+ * Gốc -> namespace theme (`--aspect`) đọc qua mẫu giá trị tuỳ ý (`themeRoots`: `ns:gốc gốc|...`; gốc âm `-inset` đi
+ * cùng gốc dương khi có mẫu tuỳ ý). Mẫu: loại `color` cho namespace màu, `length` cho độ rộng/độ dày, `image`, còn lại `any`.
+ */
+const THEME_ROOTS: Record<string, string[]> = {}
+for (const part of DATA.themeRoots.split('|')) {
+    const [ns, list] = part.split(':')
+    for (const item of list.split(' ')) {
+        // `m*`/`border-*`: gốc cùng các cạnh `b be bs e l r s t x y` (gốc có mẫu tuỳ ý).
+        const base = item.replace('*', '')
+        const roots = item === base ? [item] : [base.replace(/-$/, ''), ...'b be bs e l r s t x y'.split(' ').map((side) => base + side)]
+        for (const root of roots) for (const each of [root, '-' + root]) if (arbitraryTemplates[each] !== undefined) (THEME_ROOTS[each] ||= []).push('--' + ns)
+    }
+}
+const themeKind = (ns: string) => (/color|fill|stroke$/.test(ns) ? 'color' : /width|thickness|positions/.test(ns) ? 'length' : /image/.test(ns) ? 'image' : 'any')
 const valueSetCache: Array<Set<string> | undefined> = []
 /** Bộ giá trị `a b c`; `@--color-` là mọi khoá của namespace đó trong theme mặc định. Không gồm dấu `#...`. */
 const valueSet = (index: number): Set<string> => {
@@ -553,8 +569,8 @@ const resolveBase = (name: string, modifier: string | null = null): Rule | null 
             }
             return done(unpack(templates[index], (t) => t.split('{a}').join(raw)))
         }
-        const entries = families[root]
-        if (!entries) continue
+        const entries = families[root] || []
+        if (!entries.length && !THEME_ROOTS[root]) continue
         // Giá trị liệt kê trước giá trị trần: Tailwind viết `mask-linear-45` là `45deg` nhưng số trần là `calc(1deg * 37)`.
         const ordered = [...entries.filter(([, set]) => set !== -1 && valueSet(set).has(value)), ...entries]
         for (const [templateIndex, setIndex] of ordered) {
@@ -590,6 +606,20 @@ const resolveBase = (name: string, modifier: string | null = null): Rule | null 
                     }
                     return done(rule)
                 }
+            }
+            // Khoá theme tự định nghĩa của namespace mà theme mặc định ít/không có khoá (`aspect-wide` khi có
+            // `--aspect-wide`): mẫu giá trị tuỳ ý của họ đọc `var(--ns-x)`, như Tailwind.
+            for (const ns of THEME_ROOTS[root] || []) {
+                const options = arbitraryTemplates[root]
+                const key = `${ns}-${value}`
+                if (theme[key] === undefined || options === undefined || KEPT_SUB_NAMESPACES[ns + '-']?.some((sub) => key.startsWith(sub))) continue
+                const kind = themeKind(ns)
+                const index = typeof options === 'number' ? options : options[kind] ?? options.any ?? options.length
+                // Màu + độ mờ (`accent-brand/50`): `color-mix(...)` như giá trị tuỳ ý.
+                const alpha = modifier !== null && kind === 'color' ? alphaOf(modifier) : null
+                if (modifier !== null && kind === 'color' && !alpha) return null
+                const v = alpha ? mixAlpha(`var(${key})`, alpha) : `var(${key})`
+                return alpha ? unpack(templates[index], (t) => t.split('{a}').join(v)) : done(unpack(templates[index], (t) => t.split('{a}').join(v)))
             }
         }
     }

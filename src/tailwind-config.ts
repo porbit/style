@@ -68,8 +68,13 @@ const flatten = (value: unknown, prefix: string, out: Record<string, string>) =>
     }
 }
 
+// Khoá khác (`zIndex`, `opacity`, `width`, `gridTemplateColumns`...): như `keyPathToCssProperty` của Tailwind, tên
+// kebab-case (`--z-index-*`, `--grid-template-columns-*`), utility sẵn có đọc namespace đó (`z-modal`).
+const namespaceOf = (key: string): string | null =>
+    NAMESPACES[key] || (COLOR_ALIASES.includes(key) ? '--color' : /^[a-zA-Z]+$/.test(key) ? '--' + key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase() : null)
+
 const themeNamespace = (key: string, value: unknown, theme: (path: string) => unknown): Record<string, string> => {
-    const ns = NAMESPACES[key] || (COLOR_ALIASES.includes(key) ? '--color' : null)
+    const ns = namespaceOf(key)
     if (!ns) return {}
     const resolved = typeof value === 'function' ? (value as (helpers: Json) => unknown)({ theme, colors: {} }) : value
     const out: Record<string, string> = {}
@@ -260,8 +265,8 @@ export const tailwindConfigToCss = (config: Json, options: ConvertConfigOptions 
     }
     const decls: string[] = []
     for (const [key, value] of Object.entries(theme)) {
-        if (key === 'extend' || key === 'container') continue
-        const ns = NAMESPACES[key] || (COLOR_ALIASES.includes(key) ? '--color' : null)
+        if (key === 'extend' || key === 'container' || key === 'keyframes') continue
+        const ns = namespaceOf(key)
         if (!ns) {
             unsupported.push(`theme.${key}`)
             continue
@@ -272,8 +277,9 @@ export const tailwindConfigToCss = (config: Json, options: ConvertConfigOptions 
         for (const [name, v] of Object.entries(themeNamespace(key, resolveIn(key, value), lookup))) decls.push(`${name}: ${v};`)
     }
     for (const [key, value] of Object.entries(extend)) {
-        if (!(NAMESPACES[key] || COLOR_ALIASES.includes(key))) {
-            if (key !== 'keyframes' && key !== 'container') unsupported.push(`theme.extend.${key}`)
+        if (key === 'keyframes' || key === 'container') continue
+        if (!namespaceOf(key)) {
+            unsupported.push(`theme.extend.${key}`)
             continue
         }
         for (const [name, v] of Object.entries(themeNamespace(key, resolveIn(key, value), lookup))) decls.push(`${name}: ${v};`)

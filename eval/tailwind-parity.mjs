@@ -196,13 +196,35 @@ const THEME_BLOCK = `@theme {
   --text-shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3);
   --animate-wiggle: wiggle 1s ease-in-out infinite;
   --container-8xl: 96rem;
+  --aspect-wide: 3 / 1;
+  --z-index-modal: 50;
+  --opacity-faint: 15%;
+  --width-sidebar: 17rem;
+  --margin-gutter: 13px;
+  --padding-card: 11px;
+  --inset-edge: 7px;
+  --rotate-tilt: 7deg;
+  --scale-big: 130%;
+  --cursor-hand: pointer;
+  --grid-template-columns-app: 200px 1fr;
+  --border-width-thick: 5px;
+  --background-color-paper: #f5f0e1;
+  --ring-width-thick: 6px;
+  --transition-duration-slow: 700ms;
+  --line-clamp-short: 2;
+  --columns-news: 3;
+  --order-hero: 7;
+  --gap-gutter: 9px;
   @keyframes wiggle { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
 }`
 const CUSTOM_CSS = `@utility tab-4 { tab-size: 4; }
 @utility content-auto { content-visibility: auto; contain-intrinsic-size: auto 500px; }
 .btn { @apply inline-flex items-center px-4 py-2 rounded-lg bg-brand text-white font-semibold shadow-soft; }
 .card { @apply p-6 rounded-blob border border-slate-200; margin-top: 3px; }`
-const themeClasses = ['btn', 'card', 'tab-4', 'content-auto', 'hover:tab-4', 'md:content-auto', 'bg-brand', 'text-brand', 'border-brand/50', 'bg-brand-soft', 'ring-brand', 'rounded-blob', 'rounded-t-blob', 'font-display', 'text-huge', 'shadow-soft', 'inset-shadow-soft', 'drop-shadow-soft', 'drop-shadow-double', 'text-shadow-soft', 'animate-wiggle', '3xl:p-4', '3xl:bg-brand', 'max-3xl:p-2', 'max-w-8xl', 'fill-brand', 'decoration-brand', 'hover:bg-brand']
+const themeClasses = ['btn', 'card', 'tab-4', 'content-auto', 'hover:tab-4', 'md:content-auto', 'bg-brand', 'text-brand', 'border-brand/50', 'bg-brand-soft', 'ring-brand', 'rounded-blob', 'rounded-t-blob', 'font-display', 'text-huge', 'shadow-soft', 'inset-shadow-soft', 'drop-shadow-soft', 'drop-shadow-double', 'text-shadow-soft', 'animate-wiggle', '3xl:p-4', '3xl:bg-brand', 'max-3xl:p-2', 'max-w-8xl', 'fill-brand', 'decoration-brand', 'hover:bg-brand',
+    // Khoá tự định nghĩa của namespace theme mặc định ít/không có khoá (`--aspect-*`, `--z-index-*`, `--width-*`...).
+    'aspect-wide', 'z-modal', 'opacity-faint', 'w-sidebar', 'm-gutter', '-mt-gutter', 'p-card', 'top-edge', '-left-edge', 'rotate-tilt', 'scale-big', 'cursor-hand',
+    'grid-cols-app', 'border-thick', 'bg-paper', 'ring-thick', 'duration-slow', 'line-clamp-short', 'columns-news', 'order-hero', 'gap-gutter', 'md:aspect-wide']
 const themeHtml = themeClasses.map((c) => `<div data-k class="${escapeHtml(c)}"${c.startsWith('animate-') ? ' data-anim="1"' : ''}><i>a</i><i>b</i></div>`).join('')
 const themeSetup = { viewport: { width: 1900, height: 800 }, force: [['[data-k]', ['hover']]] }
 const [twTheme, oursTheme] = await Promise.all([

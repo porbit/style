@@ -353,6 +353,51 @@ for (const kinds of Object.values(arbitrary)) {
     })
 }
 
+// Khoá theme tự định nghĩa (`@theme { --aspect-wide: 3/1 }` -> `aspect-wide`, `--z-index-modal`, `--opacity-x`...):
+// theme mặc định chỉ có vài khoá (`--aspect-video`, lưu tường minh) hoặc không có khoá nào ở nhiều namespace, nên
+// họ chưa có mẫu đọc `var(--ns-{v})`. Dò bằng chính Tailwind: mỗi namespace Tailwind đọc (`themeKeys` trong bản
+// build: mảng `["--x",...]` + namespace của theme.css) với một khoá lạ, trên mọi gốc utility. Mẫu thu được thường là mẫu giá trị tuỳ ý
+// `any` của họ với `{a}` = `var(--ns-{v})`: chỉ ghi namespace (`themeRoots`: `ns:gốc gốc|...`), bộ giải mã dựng lại
+// khi theme của dự án có biến đó; mẫu khác (`scale-*` đặt ba biến) thêm vào họ với bộ giá trị là khoá mặc định.
+const THEME_PROBE = 'zzqprobe'
+const THEME_SIDES = ['b', 'be', 'bs', 'e', 'l', 'r', 's', 't', 'x', 'y']
+// Loại giá trị tuỳ ý dùng làm mẫu theo namespace (cùng quy tắc với `themeKind` trong src/tailwind-v4.ts).
+const themeKind = (ns) => (/color|fill|stroke$/.test(ns) ? 'color' : /width|thickness|positions/.test(ns) ? 'length' : /image/.test(ns) ? 'image' : 'any')
+const defaultThemeVars = {}
+for (const m of readTw('theme.css').matchAll(/(--[\w.-]+(?:\\.[\w-]+)*)\s*:\s*([^;]+);/g)) defaultThemeVars[m[1]] = m[2]
+const themeNamespaces = [...new Set([
+    ...[...readTw('dist/lib.js').matchAll(/\[("--[\w-]+"(?:,"--[\w-]+")*)\]/g)].flatMap((m) => [...m[1].matchAll(/"(--[\w-]+)"/g)].map((k) => k[1])),
+    ...Object.keys(defaultThemeVars).map((k) => k.match(/^(--[a-z]+(?:-[a-z]+)*?)-[^-]/)?.[1]).filter(Boolean),
+])].filter((ns) => !/^--(spacing|default-.*|modifier|value)$/.test(ns))
+const themeFamilies = []
+const themeRoots = {} // ns (không `--`) -> [gốc]
+{
+    const probeValue = (ns) => (/color/.test(ns) ? '#123456' : ns === '--aspect' ? '3 / 1' : '7px')
+    const rootList = [...new Set([...Object.keys(families), ...FUNCTIONAL_ROOTS])]
+    for (const ns of themeNamespaces) {
+        const probeDs = await __unstable__loadDesignSystem(`@import "tailwindcss";\n@theme { ${ns}-${THEME_PROBE}: ${probeValue(ns)}; }`, { base: twDir, loadStylesheet })
+        const out = probeDs.candidatesToCss(rootList.map((r) => `${r}-${THEME_PROBE}`))
+        rootList.forEach((rootName, index) => {
+            const rule = out[index] && parseClassCss(`${rootName}-${THEME_PROBE}`, out[index])
+            if (!rule) return
+            const template = ruleKey(rule).split(THEME_PROBE).join('{v}')
+            if (!template.includes(`var(${ns}-{v})`)) return
+            // Họ đã có mẫu đọc namespace này (`text-*` bỏ `--line-height` khi thiếu, bóng đổ dựng lại): bộ giải mã lo.
+            if ((families[rootName] || []).some(([t]) => templates[t].includes(`var(${ns}-{v})`)) || /shadow/.test(ns)) return
+            const kinds = arbitrary[rootName] || {}
+            // Bộ giải mã chọn mẫu `color` cho namespace màu (`--background-color`, `--fill`), còn lại `any`.
+            const any = kinds[themeKind(ns)] ?? kinds.any ?? kinds.length
+            if (any !== undefined && templates[any].split('{a}').join(`var(${ns}-{v})`) === template) {
+                ;(themeRoots[ns.slice(2)] ||= []).push(rootName)
+                return
+            }
+            const keys = Object.keys(defaultThemeVars).filter((k) => k.startsWith(ns + '-') && !k.slice(ns.length + 1).includes('--')).map((k) => k.slice(ns.length + 1))
+            ;(families[rootName] ||= []).push([internTemplate(template), internValues(keys)])
+            themeFamilies.push(`${rootName}(${ns})`)
+        })
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Theme, @property, keyframes, preflight
 // ---------------------------------------------------------------------------
@@ -494,6 +539,8 @@ const stats = {
     explicit: Object.keys(explicit).length,
     arbitraryRoots: Object.keys(arbitrary).length,
     properties: propertyBlocks.size,
+    themeFamilies: themeFamilies.length,
+    themeRoots: Object.values(themeRoots).flat().length,
     propertyMismatch: propertyMismatch.length,
     approximate: approximateClasses.size,
 }
@@ -681,6 +728,17 @@ const compactData = () => {
         hints: hintsOut,
         explicit: Object.fromEntries(Object.entries(explicitRules).map(([name, rule]) => [name, pack(rule)])),
         tpl: tplRules.map(pack),
+        // Gốc âm (`-inset`) không ghi: bộ giải mã thêm khi gốc dương có trong danh sách và gốc âm có mẫu tuỳ ý.
+        themeRoots: Object.entries(themeRoots).map(([ns, list]) => {
+            for (const r of list) if (!r.startsWith('-') && arbitrary['-' + r] && !list.includes('-' + r)) throw new Error(`themeRoots: thiếu gốc âm -${r} (${ns})`)
+            let rest = list.filter((r) => !(r.startsWith('-') && list.includes(r.slice(1))))
+            // `m*` = `m mb mbe ... my`, `border-*` = `border border-b ... border-y` (chỉ gốc có mẫu tuỳ ý).
+            for (const r of [...rest]) for (const sep of ['', '-']) {
+                const group = [r, ...THEME_SIDES.map((side) => r + sep + side)].filter((x) => arbitrary[x])
+                if (group.length > 3 && group.every((x) => rest.includes(x))) rest = [...rest.filter((x) => !group.includes(x)), r + sep + '*']
+            }
+            return `${ns}:${rest.join(' ')}`
+        }).join('|'),
         properties: groupedProperties,
         syntaxes: propertySyntaxes,
         fallback: FALLBACK_WRAP,
@@ -724,4 +782,5 @@ export const TW_UNSUPPORTED: readonly string[] = ${JSON.stringify(unsupported)}
 fs.writeFileSync(path.join(root, 'src/tailwind-generated.ts'), body)
 console.log(`[gen-tailwind-map] tailwindcss@${twVersion} -> src/tailwind-generated.ts`)
 console.log('  ' + JSON.stringify(stats))
+console.log('  họ thêm mẫu khoá theme tự định nghĩa: ' + themeFamilies.join(' '))
 console.log(`  kích thước: ${(body.length / 1024).toFixed(1)} KB`)
