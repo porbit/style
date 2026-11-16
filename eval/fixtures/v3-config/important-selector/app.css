@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@config "./tailwind.config.js";
+
+@utility tab-4 {
+  tab-size: 4;
+}
+
+.card {
+  @apply p-2 hover:bg-brand;
+}
