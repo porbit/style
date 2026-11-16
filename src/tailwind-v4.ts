@@ -281,16 +281,16 @@ const mixAlpha = (color: string, alpha: string) => `color-mix(in oklab, ${color}
  * `--alpha(red / 50%)` -> `color-mix(...)`, `--theme(--color-black/4%)` -> `color-mix(in oklab, var(--color-black) 4%, transparent)`,
  * `--theme(--x, dự phòng)`. Null khi `--theme()` đọc biến không có trong theme mà không có dự phòng (Tailwind bỏ class).
  */
-const expandThemeFunctions = (value: string): string | null => {
+const expandValueThemeFunctions = (value: string): string | null => {
     if (!value.includes('--')) return value
     let out: string | null = replaceCssFunction(value, '--spacing', (args) => {
-        const inner = expandThemeFunctions(args.trim())
+        const inner = expandValueThemeFunctions(args.trim())
         if (inner === null) return null
         return inner === '0' ? '0px' : inner === '1' ? 'var(--spacing)' : `calc(var(--spacing) * ${inner})`
     })
     if (out === null) return null
     out = replaceCssFunction(out, '--alpha', (args) => {
-        const inner = expandThemeFunctions(args)
+        const inner = expandValueThemeFunctions(args)
         const parts = inner === null ? [] : splitTopLevel(inner, '/')
         const alpha = parts[1] && (NUMBER_VALUE.test(parts[1]) ? `${Number(parts[1]) * 100}%` : parts[1])
         return parts.length === 2 && alpha ? mixAlpha(parts[0], alpha) : null
@@ -298,7 +298,7 @@ const expandThemeFunctions = (value: string): string | null => {
     if (out === null) return null
     return replaceCssFunction(out, '--theme', (args) => {
         const [head, ...rest] = splitTopLevel(args)
-        const fallback = rest.length ? expandThemeFunctions(rest.join(', ')) : undefined
+        const fallback = rest.length ? expandValueThemeFunctions(rest.join(', ')) : undefined
         const [name, alphaText] = splitTopLevel(head, '/')
         if (!/^--[\w.-]+$/.test(name) || fallback === null) return null
         const alpha = alphaText === undefined ? null : NUMBER_VALUE.test(alphaText) ? `${Number(alphaText) * 100}%` : alphaText
@@ -309,7 +309,7 @@ const expandThemeFunctions = (value: string): string | null => {
 }
 /** Giá trị tuỳ ý theo quy ước Tailwind (`_` là khoảng trắng, hàm `--spacing()`/`--theme()`/`--alpha()`, khoảng trắng quanh `+`/`-`). */
 const decodeArbitrary = (raw: string): string | null => {
-    const expanded = expandThemeFunctions(underscoreToSpace(raw))
+    const expanded = expandValueThemeFunctions(underscoreToSpace(raw))
     return expanded === null ? null : spaceMathOperators(expanded)
 }
 
