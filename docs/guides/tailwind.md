@@ -28,7 +28,7 @@
 
 Thuộc tính thẻ script: `data-preflight="false"` (tắt reset), `data-dark="class"` (dark theo `.dark`), `data-hybrid` (trang đã có CSS tĩnh: chỉ sinh CSS cho class mới xuất hiện lúc chạy, xem mục 7).
 
-Plugin có sẵn (`@porbit/style/tailwind-plugins`): `tw-animate-css` (và tên cũ `tailwindcss-animate`), `@tailwindcss/forms`, `@tailwindcss/typography` (kể cả biến thể `prose-headings:`...). Chúng được sinh bằng cách chạy chính Tailwind kèm plugin (`npm run gen:tailwind-plugins`) và nằm ở file riêng (8,3 KB gzip), chỉ tải khi stylesheet có `@import`/`@plugin` tương ứng.
+Plugin có sẵn (`@porbit/style/tailwind-plugins`): `tw-animate-css` (và tên cũ `tailwindcss-animate`), `@tailwindcss/forms`, `@tailwindcss/typography` (kể cả biến thể `prose-headings:`...). Chúng được sinh bằng cách chạy chính Tailwind kèm plugin (`npm run gen:tailwind-plugins`) và nằm ở file riêng (11,7 KB gzip), chỉ tải khi stylesheet có `@import`/`@plugin` tương ứng.
 
 Khác `@tailwindcss/browser` (Tailwind ghi rõ "không dùng cho production"), bản này nhẹ hơn và nhanh hơn, xem mục 4.
 
@@ -104,11 +104,11 @@ node eval/real-project.mjs --css=src/app.css --src=src --import=tw-animate-css=n
 
 | Tiêu chí | Tailwind 4.3.5 | @porbit/style |
 | :--- | ---: | ---: |
-| Runtime không build (gzip) | 75,3 KB (`@tailwindcss/browser`) | 44,1 KB (+ file plugin khi dùng) |
+| Runtime không build (gzip) | 75,3 KB (`@tailwindcss/browser`) | 39,9 KB (+ 4,8 KB khi trang có `<style type="text/tailwindcss">`, + file plugin khi dùng) |
 | Runtime: tới khi có style, 973 phần tử (trung vị) | 257,8 ms | 231,8 ms |
 | Runtime: thêm 2.000 phần tử | 95,9 ms | 66,9 ms |
 | Runtime: thêm 200 phần tử × 10 lần | 1.148,9 ms | 207,0 ms |
-| Cài đặt cho đường PostCSS | ~25 MB (Oxide, Lightning CSS) | 1,6 MB |
+| Cài đặt cho đường PostCSS | ~25 MB (Oxide, Lightning CSS) | 1,3 MB |
 | Build tĩnh 248 file | 189–242 ms (CLI, Oxide) | 154–208 ms |
 | Build tĩnh 6.200 file (25 MB) | 315–358 ms | 327–399 ms |
 | CSS tĩnh cùng trang (gzip) | 4,81 KB | 4,70 KB |
@@ -194,7 +194,7 @@ Tailwind build chỉ có CSS cho class viết sẵn trong mã nguồn; class gh�
 | :--- | ---: | ---: | ---: |
 | Tailwind build (CSS tĩnh) | 9 / 300 | — | 0 KB |
 | `@tailwindcss/browser` | 300 / 300 | 38,2 ms | 73,9 KB |
-| CSS tĩnh + `tailwind-auto data-hybrid` | 300 / 300 | 2,3 ms | 44,6 KB + 1,4 KB (`tailwind-hybrid.mjs`) |
+| CSS tĩnh + `tailwind-auto data-hybrid` | 300 / 300 | 2,3 ms | 39,9 KB + 1,4 KB (`tailwind-hybrid.mjs`) |
 
 **Thứ tự cascade như Tailwind.** Khi một class động và một class tĩnh cùng phần tử đụng nhau (cùng thuộc tính, cùng specificity), Tailwind quyết định bên thắng bằng thứ tự rule: `px-4` đứng sau `p-2` nên thắng, dù class nào có trong mã nguồn. Rule sinh lúc chạy vì thế không nằm ở sheet riêng (luôn đứng sau CSS tĩnh, nên `p-2` động sẽ đè `px-4` tĩnh) mà được chèn bằng CSSOM vào khối `@layer` của CSS tĩnh cùng nguồn, đúng vị trí theo thứ tự Tailwind:
 

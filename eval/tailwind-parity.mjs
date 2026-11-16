@@ -101,6 +101,8 @@ const renderRuntime = async (html, setup = {}, headExtra = '') => {
     await page.route('http://parity.local/**', (route) => {
         const url = new URL(route.request().url())
         if (url.pathname === '/tailwind-auto.mjs') return route.fulfill({ contentType: 'text/javascript', body: autoCode })
+        // File tailwind-auto nạp động (`tailwind-stylesheet.mjs` khi có <style type="text/tailwindcss">, plugin, lai).
+        if (/^\/tailwind-[\w-]+\.mjs$/.test(url.pathname)) return route.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(path.join(root, 'dist', url.pathname.slice(1)), 'utf8') })
         route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><head>${headExtra}<script type="module" src="/tailwind-auto.mjs" data-preflight="false"></script></head><body>${html}<div id="sentinel" class="mt-[7px]"></div></body></html>` })
     })
     await page.goto('http://parity.local/')

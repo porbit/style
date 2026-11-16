@@ -311,7 +311,7 @@ for (const group of usedGroups) {
 const PROBES = { length: '3px', color: '#123456', number: '7', any: 'probe', image: 'url(probe)', position: 'left_3px', size: '3px_auto', var: 'var(--probe)' }
 // Gợi ý kiểu (`bg-[length:200%]`, `border-(length:--x)`): Tailwind dùng thẳng loại được gợi ý.
 const HINT_PROBES = { color: '#123456', length: '3px', percentage: '3%', number: '7', integer: '7', url: 'url(probe)', image: 'url(probe)', position: '3px', 'bg-size': '3px', size: '3px', 'line-width': '3px', 'family-name': 'probe', 'absolute-size': 'probe', 'relative-size': 'probe', angle: '7deg' }
-// Loại mà bộ giải mã dùng khi gặp gợi ý (khớp `arbitraryKind` trong src/tailwind-v4.ts); mẫu gợi ý chỉ lưu khi khác.
+// Loại mà bộ giải mã dùng khi gặp gợi ý (khớp `arbitraryKind` trong src/tailwind-v4-core.ts); mẫu gợi ý chỉ lưu khi khác.
 const HINT_KIND = { color: 'color', number: 'number', integer: 'number', length: 'length', percentage: 'length', 'line-width': 'length', url: 'image', image: 'image', position: 'position', 'bg-size': 'size', size: 'size' }
 // Gốc utility chỉ nhận giá trị tuỳ ý (`bg-size-[...]`, `filter-[...]`, `mask-size-(--x)`) không có trong getClassList.
 const roots = new Set([...Object.keys(families), ...classList.map((n) => splitsOf(n)[0]?.[0]).filter(Boolean), ...FUNCTIONAL_ROOTS])
@@ -507,7 +507,7 @@ const ORDER = { properties: propertyOrder, variants: variantRoots, groups: group
 console.log(`  thứ tự: ${Object.keys(sortOverrides).length} chữ ký, ${Object.keys(classSort).length} class riêng`)
 
 // ---------------------------------------------------------------------------
-// Nén cho bản phân phối (bộ giải mã ở đầu src/tailwind-v4.ts dựng lại đúng các bảng trên)
+// Nén cho bản phân phối (bộ giải mã ở đầu src/tailwind-v4-core.ts dựng lại đúng các bảng trên)
 // ---------------------------------------------------------------------------
 // 1. Khai báo tách thành [chỉ số thuộc tính, chỉ số giá trị] và nằm thẳng trong rule: rule gọn là
 //    [selector?, prop, value, prop, value...] (độ dài lẻ thì phần tử đầu là selector, vắng là selector 0).
@@ -641,7 +641,14 @@ const compactData = () => {
         keyframes,
     }
 }
-const DIST = compactData()
+// Thứ tự khoá chỉ ảnh hưởng kích thước nén: gzip chỉ nhìn lại 32 KB nên đặt các bảng giống nhau gần nhau.
+// Thứ tự dưới đây tìm bằng thử (gzip của dist/tailwind-auto.mjs nhỏ hơn ~0,6 KB so với thứ tự dựng); bộ giải mã đọc theo tên.
+const DIST_KEY_ORDER = ['version', 'palette', 'tpl', 'roots', 'explicit', 'hints', 'props', 'properties', 'xs', 'vals', 'syntaxes', 'lits', 'valueSets', 'fallback', 'theme', 'keyframes', 'sels']
+const DIST = (() => {
+    const data = compactData()
+    if (Object.keys(data).sort().join() !== [...DIST_KEY_ORDER].sort().join()) throw new Error('DIST_KEY_ORDER thiếu/thừa khoá của dữ liệu nén')
+    return Object.fromEntries(DIST_KEY_ORDER.map((key) => [key, data[key]]))
+})()
 // Bộ giải mã dựng lại CSS @property từ dạng gọn: kiểm khớp từng ký tự.
 {
     const list = DIST.properties.map((e) => (typeof e === 'string' ? [e] : e))
@@ -656,7 +663,7 @@ const DIST_ORDER = { ...ORDER, properties: propertyOrder.length }
 
 const header = `// @generated bởi scripts/gen-tailwind-map.mjs từ tailwindcss@${twVersion} — KHÔNG sửa tay.\n// ${JSON.stringify(stats)}\n`
 const body = `${header}
-/** Dữ liệu phương ngữ dạng nén; giải mã ở đầu src/tailwind-v4.ts (định dạng: xem bước nén trong script sinh). */
+/** Dữ liệu phương ngữ dạng nén; giải mã ở đầu src/tailwind-v4-core.ts (định dạng: xem bước nén trong script sinh). */
 export const TW_DATA = ${JSON.stringify(DIST)} as const
 
 /** Preflight (reset) của Tailwind, bọc trong layer thấp nhất \`l0\`. */

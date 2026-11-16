@@ -9,11 +9,11 @@ import { LAYER_ORDER_STATEMENT, xcss, type XCSSConfig } from './core'
 import { parseClassName } from './parser'
 import { COMMON_VALUES, SHORT_PROPERTIES, SPECIFIC_VALUES } from './dictionary'
 import { compactClassToken, findClassConflicts, getConflictKey, type ClassConflict } from './class-tools'
-import { STANDARD_CSS_PROPERTIES, isOpenPropertyName } from './css-properties'
+import { isOpenPropertyName, standardCssProperties } from './css-properties'
 
 export { findClassConflicts, compactClassToken, type ClassConflict } from './class-tools'
 
-const STANDARD_PROPERTY_SET = new Set<string>(STANDARD_CSS_PROPERTIES)
+const STANDARD_PROPERTY_SET = new Set<string>(standardCssProperties())
 
 /**
  * Token có "dạng x-css" không: property là alias trong dictionary, tên CSS chuẩn hoặc
@@ -162,7 +162,7 @@ const COMMON_KEY_BY_VALUE: Record<string, string> = Object.fromEntries(
 
 // Tên CSS bỏ dấu gạch -> tên CSS: `fontsize` -> font-size, `boxshadow` -> box-shadow.
 const PROPERTY_BY_COMPACT_NAME: Record<string, string> = {}
-for (const name of [...STANDARD_CSS_PROPERTIES, ...Object.values(SHORT_PROPERTIES)]) {
+for (const name of [...standardCssProperties(), ...Object.values(SHORT_PROPERTIES)]) {
     const compact = name.replace(/-/g, '')
     if (!PROPERTY_BY_COMPACT_NAME[compact]) PROPERTY_BY_COMPACT_NAME[compact] = name
 }
@@ -172,7 +172,7 @@ const COMPACT_NAMES_BY_LENGTH = Object.keys(PROPERTY_BY_COMPACT_NAME).sort((a, b
 // `wbo` -> -webkit-box-orient. Các chữ cái phải theo thứ tự, phủ mọi đoạn của tên CSS;
 // ưu tiên tên có nhiều chữ khớp đúng đầu đoạn. Chỉ trả kết quả khi không mơ hồ.
 const ABBREVIATION_CANDIDATES = [...new Set<string>([
-    ...STANDARD_CSS_PROPERTIES,
+    ...standardCssProperties(),
     ...Object.values(SHORT_PROPERTIES),
     '-webkit-box-orient', '-webkit-line-clamp', '-webkit-text-stroke', '-webkit-font-smoothing', '-webkit-tap-highlight-color',
 ])]

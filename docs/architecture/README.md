@@ -16,7 +16,7 @@ Engine hoạt động ở hai chế độ:
 | File | Vai trò |
 | :--- | :--- |
 | `src/parser.ts` | Tách một chuỗi class thành tuple `{ mq, layer, prop, val, selector }`. Không phụ thuộc DOM và không phụ thuộc dictionary. |
-| `src/css-properties.ts` | Danh sách tên property CSS chuẩn được chấp nhận khi viết đủ tên (`STANDARD_CSS_PROPERTIES`), cùng quy tắc nhận tiền tố nhà cung cấp và custom property. |
+| `src/css-properties.ts` | Danh sách tên property CSS chuẩn được chấp nhận khi viết đủ tên (`standardCssProperties()`, ghép từ đích alias của từ điển và danh sách tên chưa có alias), cùng quy tắc nhận tiền tố nhà cung cấp và custom property. |
 | `src/dictionary.ts` | Ba bảng tra: `SHORT_PROPERTIES` (406 prop), `COMMON_VALUES`, `SPECIFIC_VALUES`. |
 | `src/core.ts` | Engine chính: phân giải giá trị, dựng rule CSS, quản lý stylesheet, cache `localStorage`, đồng bộ đa tab, quan sát DOM. |
 | `src/runtime.ts` | Lõi runtime công khai: engine, shared instance dùng chung theo `globalThis`, trích xuất tĩnh, công cụ class. |

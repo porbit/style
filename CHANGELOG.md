@@ -17,6 +17,12 @@
 - Next.js 15 thật (`eval/next-short-classnames.sh`): ứng dụng shadcn/ui computed style khớp 3.170/3.170 phần tử (5 lượt); xem docs/guides/tailwind.md mục 8.
 - Sửa `shortClassNames` (cả Vite/CLI/API) với tailwind-merge: `cn("px-4", "px-2")` không gộp được khi tên đã đổi (ứng dụng shadcn đo được 63% phần tử lệch). Tuỳ chọn mới `merge` (mặc định `'auto'`: bật khi mã dùng tailwind-merge/tailwind-variants/`@porbit/style/merge`) giữ tên gốc cho class có đối thủ cùng thuộc tính và cho tên giữ chuỗi con (`text-a`). Plugin webpack: file không qua loader (`public/`, `.md`, `.html`...) chỉ dùng để giữ tên class (`opaqueSources` của `createShortClassNames`).
 
+**Kích thước gói** (hành vi không đổi; gzip như bước `size` của `check:all`)
+- `tailwind-auto.mjs` cho trang chỉ dùng class: 45,0 → 39,9 KB (`@tailwindcss/browser`: ~75 KB). Phần đọc `<style type="text/tailwindcss">` (`@theme`, `@utility`, `@custom-variant`, `@apply`, hàm theme trong CSS dự án; `src/tailwind-stylesheet.ts`) tách khỏi lõi phương ngữ (`src/tailwind-v4-core.ts`) thành `tailwind-stylesheet.mjs` (4,8 KB) chỉ tải khi trang có thẻ đó, song song với plugin và chế độ lai; trang có stylesheet tải tổng 44,8 KB (trước 45,0). Dữ liệu Tailwind đứng đầu file và khoá xếp lại cho gzip.
+- `index.mjs` (+chunk) 37,0 → 35,4 KB, `index-auto.mjs` 23,5 → 22,3 KB: danh sách property chuẩn không chép lại ~400 tên đã là đích alias của từ điển (ghép lúc dùng; `standardCssProperties()` thay hằng `STANDARD_CSS_PROPERTIES` nội bộ, `spec/dictionary.json` không đổi).
+- Gói npm giải nén 1,45 → 1,29 MB: CSS plugin đóng gói (typography, forms, animate) nén LZ77 dạng chữ, giải nén khi dùng (117 → 40 KB trong mỗi bản CDN/CJS; gzip `tailwind-plugins.mjs` 11,4 → 11,7 KB).
+- Ngân sách `check:all`: `tailwind-auto` 40,5 KB, `index` 36 KB, `index-auto` 23 KB, gói 1,3 MB.
+
 **Sửa**
 - Bản 1.0.0 trên npm đóng gói CSS của `@tailwindcss/typography` 0.5.4 (sinh từ `node_modules` cũ) thay vì 0.5.20 đã khai báo. Plugin đóng gói giờ được ghim đúng phiên bản trong `devDependencies`; `gen:tailwind-plugins` dừng nếu `node_modules` lệch với bản ghim.
 

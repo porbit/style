@@ -93,7 +93,9 @@ export default defineConfig([
     },
     {
         ...common,
-        entry: { 'tailwind-auto': TAILWIND_AUTO },
+        // `tailwind-stylesheet.mjs`: phần đọc `<style type="text/tailwindcss">` mà tailwind-auto nạp động (tự chứa, không
+        // có dữ liệu Tailwind; lõi phương ngữ truyền trạng thái qua tham số). Không phải export của gói.
+        entry: { 'tailwind-auto': TAILWIND_AUTO, 'tailwind-stylesheet': 'src/tailwind-stylesheet.ts' },
         format: ['esm'],
         splitting: false,
         define: { ...common.define, ...CDN_LITE_DEFINE },

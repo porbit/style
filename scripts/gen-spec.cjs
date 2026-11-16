@@ -16,7 +16,7 @@ const fs = require('fs')
 const path = require('path')
 
 const dict = require('../src/dictionary.ts')
-const { STANDARD_CSS_PROPERTIES } = require('../src/css-properties.ts')
+const { standardCssProperties } = require('../src/css-properties.ts')
 const core = require('../src/core.ts')
 const { parseClassName } = require('../src/parser.ts')
 
@@ -31,7 +31,7 @@ const dictionaryJson = {
     SPECIFIC_VALUES: dict.SPECIFIC_VALUES,
     // Tên property CSS chuẩn viết đầy đủ (từ vựng mở, 0.4+): engine khác cần để nhận
     // `content-visibility[auto]` mà không cần alias.
-    STANDARD_CSS_PROPERTIES: [...STANDARD_CSS_PROPERTIES],
+    STANDARD_CSS_PROPERTIES: [...standardCssProperties()],
 }
 fs.writeFileSync(
     path.join(SPEC_DIR, 'dictionary.json'),

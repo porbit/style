@@ -250,7 +250,7 @@ export function Button({ primary, children }) {
 
 Phương ngữ v4 được sinh từ chính compiler của Tailwind; đo trên Chromium so với Tailwind 4.3.5: khớp **23.286/23.286 class**, **956/956** tổ hợp biến thể (403/403 biến thể), **4 dự án mã nguồn mở thật** (shadcn/ui, HyperUI, Magic UI, coss ui: 3.305/3.305 class, 1.650/1.650 chuỗi class thật, ở 11 lượt trạng thái/độ rộng), 8 cấu hình v3, plugin JS bất kỳ không cần cài `tailwindcss`. Bản đánh giá đầy đủ: [docs/strategy/danh-gia-1.0.md](./docs/strategy/danh-gia-1.0.md).
 
-Không build (thay `@tailwindcss/browser`: 44,1 KB so với 75,3 KB gzip; chèn phần tử lúc chạy nhanh hơn tới 5,5 lần):
+Không build (thay `@tailwindcss/browser`: 39,9 KB so với 75,3 KB gzip; chèn phần tử lúc chạy nhanh hơn tới 5,5 lần):
 
 ```html
 <script type="module" src="https://unpkg.com/@porbit/style/dist/tailwind-auto.mjs"></script>
@@ -268,7 +268,7 @@ Có build (0 KB JavaScript như Tailwind) — đổi một dòng trong `postcss.
 export default { plugins: { '@porbit/style/postcss': {} } }   // thay '@tailwindcss/postcss'
 ```
 
-Next.js 15 thật: 0 khác biệt hiển thị so với `@tailwindcss/postcss`, CSS 3,62 KB so với 3,88 KB gzip; cài đặt 1,6 MB so với ~25 MB. Dự án v3 dùng `@config "./tailwind.config.js"` vẫn chạy.
+Next.js 15 thật: 0 khác biệt hiển thị so với `@tailwindcss/postcss`, CSS 3,62 KB so với 3,88 KB gzip; cài đặt 1,3 MB so với ~25 MB. Dự án v3 dùng `@config "./tailwind.config.js"` vẫn chạy.
 
 Thay luôn công cụ quanh Tailwind:
 
