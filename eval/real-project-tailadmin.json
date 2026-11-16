@@ -1,0 +1,96 @@
+{
+  "label": "TailAdmin Vue",
+  "candidates": 697,
+  "summary": {
+    "không build (parseTailwindStylesheet)": {
+      "converted": 697,
+      "total": 697,
+      "matched": {
+        "mặc định": 697,
+        "mở": 697,
+        "đóng": 697,
+        ".dark": 697,
+        ":hover": 697,
+        ":focus": 697,
+        ":focus-visible": 697,
+        ":active": 697,
+        "375px": 697,
+        "768px": 697,
+        "1600px": 697
+      },
+      "exercised": {
+        "mở": 0,
+        "đóng": 0,
+        ".dark": 59,
+        ":hover": 17,
+        ":focus": 7,
+        ":focus-visible": 8,
+        ":active": 17,
+        "375px": 72,
+        "768px": 48,
+        "1600px": 9
+      },
+      "combos": {
+        "total": 342,
+        "matched": {
+          "mặc định": 342,
+          "mở": 342,
+          "đóng": 342,
+          ".dark": 342,
+          ":hover": 342,
+          ":focus": 342,
+          ":focus-visible": 342,
+          ":active": 342,
+          "375px": 342,
+          "768px": 342,
+          "1600px": 342
+        }
+      }
+    },
+    "plugin PostCSS (@porbit/style/postcss)": {
+      "converted": 697,
+      "total": 697,
+      "matched": {
+        "mặc định": 697,
+        "mở": 697,
+        "đóng": 697,
+        ".dark": 697,
+        ":hover": 697,
+        ":focus": 697,
+        ":focus-visible": 697,
+        ":active": 697,
+        "375px": 697,
+        "768px": 697,
+        "1600px": 697
+      },
+      "exercised": {
+        "mở": 0,
+        "đóng": 0,
+        ".dark": 59,
+        ":hover": 17,
+        ":focus": 7,
+        ":focus-visible": 8,
+        ":active": 17,
+        "375px": 72,
+        "768px": 48,
+        "1600px": 9
+      },
+      "combos": {
+        "total": 342,
+        "matched": {
+          "mặc định": 342,
+          "mở": 342,
+          "đóng": 342,
+          ".dark": 342,
+          ":hover": 342,
+          ":focus": 342,
+          ":focus-visible": 342,
+          ":active": 342,
+          "375px": 342,
+          "768px": 342,
+          "1600px": 342
+        }
+      }
+    }
+  }
+}

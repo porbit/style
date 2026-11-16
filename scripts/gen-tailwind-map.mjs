@@ -311,7 +311,7 @@ for (const group of usedGroups) {
 const PROBES = { length: '3px', color: '#123456', number: '7', any: 'probe', image: 'url(probe)', position: 'left_3px', size: '3px_auto', var: 'var(--probe)' }
 // Gợi ý kiểu (`bg-[length:200%]`, `border-(length:--x)`): Tailwind dùng thẳng loại được gợi ý.
 const HINT_PROBES = { color: '#123456', length: '3px', percentage: '3%', number: '7', integer: '7', url: 'url(probe)', image: 'url(probe)', position: '3px', 'bg-size': '3px', size: '3px', 'line-width': '3px', 'family-name': 'probe', 'absolute-size': 'probe', 'relative-size': 'probe', angle: '7deg' }
-// Loại mà bộ giải mã dùng khi gặp gợi ý (khớp `arbitraryKind` trong src/tailwind-v4.ts); mẫu gợi ý chỉ lưu khi khác.
+// Loại mà bộ giải mã dùng khi gặp gợi ý (khớp `arbitraryKind` trong src/tailwind-v4-core.ts); mẫu gợi ý chỉ lưu khi khác.
 const HINT_KIND = { color: 'color', number: 'number', integer: 'number', length: 'length', percentage: 'length', 'line-width': 'length', url: 'image', image: 'image', position: 'position', 'bg-size': 'size', size: 'size' }
 // Gốc utility chỉ nhận giá trị tuỳ ý (`bg-size-[...]`, `filter-[...]`, `mask-size-(--x)`) không có trong getClassList.
 const roots = new Set([...Object.keys(families), ...classList.map((n) => splitsOf(n)[0]?.[0]).filter(Boolean), ...FUNCTIONAL_ROOTS])
@@ -353,6 +353,51 @@ for (const kinds of Object.values(arbitrary)) {
     })
 }
 
+// Khoá theme tự định nghĩa (`@theme { --aspect-wide: 3/1 }` -> `aspect-wide`, `--z-index-modal`, `--opacity-x`...):
+// theme mặc định chỉ có vài khoá (`--aspect-video`, lưu tường minh) hoặc không có khoá nào ở nhiều namespace, nên
+// họ chưa có mẫu đọc `var(--ns-{v})`. Dò bằng chính Tailwind: mỗi namespace Tailwind đọc (`themeKeys` trong bản
+// build: mảng `["--x",...]` + namespace của theme.css) với một khoá lạ, trên mọi gốc utility. Mẫu thu được thường là mẫu giá trị tuỳ ý
+// `any` của họ với `{a}` = `var(--ns-{v})`: chỉ ghi namespace (`themeRoots`: `ns:gốc gốc|...`), bộ giải mã dựng lại
+// khi theme của dự án có biến đó; mẫu khác (`scale-*` đặt ba biến) thêm vào họ với bộ giá trị là khoá mặc định.
+const THEME_PROBE = 'zzqprobe'
+const THEME_SIDES = ['b', 'be', 'bs', 'e', 'l', 'r', 's', 't', 'x', 'y']
+// Loại giá trị tuỳ ý dùng làm mẫu theo namespace (cùng quy tắc với `themeKind` trong src/tailwind-v4.ts).
+const themeKind = (ns) => (/color|fill|stroke$/.test(ns) ? 'color' : /width|thickness|positions/.test(ns) ? 'length' : /image/.test(ns) ? 'image' : 'any')
+const defaultThemeVars = {}
+for (const m of readTw('theme.css').matchAll(/(--[\w.-]+(?:\\.[\w-]+)*)\s*:\s*([^;]+);/g)) defaultThemeVars[m[1]] = m[2]
+const themeNamespaces = [...new Set([
+    ...[...readTw('dist/lib.js').matchAll(/\[("--[\w-]+"(?:,"--[\w-]+")*)\]/g)].flatMap((m) => [...m[1].matchAll(/"(--[\w-]+)"/g)].map((k) => k[1])),
+    ...Object.keys(defaultThemeVars).map((k) => k.match(/^(--[a-z]+(?:-[a-z]+)*?)-[^-]/)?.[1]).filter(Boolean),
+])].filter((ns) => !/^--(spacing|default-.*|modifier|value)$/.test(ns))
+const themeFamilies = []
+const themeRoots = {} // ns (không `--`) -> [gốc]
+{
+    const probeValue = (ns) => (/color/.test(ns) ? '#123456' : ns === '--aspect' ? '3 / 1' : '7px')
+    const rootList = [...new Set([...Object.keys(families), ...FUNCTIONAL_ROOTS])]
+    for (const ns of themeNamespaces) {
+        const probeDs = await __unstable__loadDesignSystem(`@import "tailwindcss";\n@theme { ${ns}-${THEME_PROBE}: ${probeValue(ns)}; }`, { base: twDir, loadStylesheet })
+        const out = probeDs.candidatesToCss(rootList.map((r) => `${r}-${THEME_PROBE}`))
+        rootList.forEach((rootName, index) => {
+            const rule = out[index] && parseClassCss(`${rootName}-${THEME_PROBE}`, out[index])
+            if (!rule) return
+            const template = ruleKey(rule).split(THEME_PROBE).join('{v}')
+            if (!template.includes(`var(${ns}-{v})`)) return
+            // Họ đã có mẫu đọc namespace này (`text-*` bỏ `--line-height` khi thiếu, bóng đổ dựng lại): bộ giải mã lo.
+            if ((families[rootName] || []).some(([t]) => templates[t].includes(`var(${ns}-{v})`)) || /shadow/.test(ns)) return
+            const kinds = arbitrary[rootName] || {}
+            // Bộ giải mã chọn mẫu `color` cho namespace màu (`--background-color`, `--fill`), còn lại `any`.
+            const any = kinds[themeKind(ns)] ?? kinds.any ?? kinds.length
+            if (any !== undefined && templates[any].split('{a}').join(`var(${ns}-{v})`) === template) {
+                ;(themeRoots[ns.slice(2)] ||= []).push(rootName)
+                return
+            }
+            const keys = Object.keys(defaultThemeVars).filter((k) => k.startsWith(ns + '-') && !k.slice(ns.length + 1).includes('--')).map((k) => k.slice(ns.length + 1))
+            ;(families[rootName] ||= []).push([internTemplate(template), internValues(keys)])
+            themeFamilies.push(`${rootName}(${ns})`)
+        })
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Theme, @property, keyframes, preflight
 // ---------------------------------------------------------------------------
@@ -368,11 +413,6 @@ const fallbackDecls = [...propertyBlocks].map(([name, block]) => {
 })
 // @property + dự phòng cho trình duyệt chưa hỗ trợ @property (giống `@layer properties` của Tailwind).
 const FALLBACK_WRAP = ['@layer l0{@supports ((-webkit-hyphens: none) and (not (margin-trim: block))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))){*,::before,::after,::backdrop{', '}}}']
-const propertiesCss = [
-    ...propertyBlocks.values(),
-    FALLBACK_WRAP[0] + fallbackDecls.join(';') + FALLBACK_WRAP[1],
-    ...keyframes,
-].join('\n')
 // Dạng gọn của @property: `x` (syntax "*", không initial-value), [x, initial] hoặc [x, initial, chỉ số syntax]
 // với tên `--tw-x`; bộ giải mã dựng lại đúng chuỗi trên (kiểm ở cuối file).
 const propertySyntaxes = ['*']
@@ -384,6 +424,64 @@ const propertyList = [...propertyBlocks].map(([name, block]) => {
     if (m[3] === undefined && syntax) throw new Error(`@property có syntax nhưng không có initial-value: ${block}`)
     return m[3] === undefined ? m[1] : syntax ? [m[1], m[3], syntax] : [m[1], m[3]]
 })
+
+// @property chỉ đăng ký khi utility sẵn có cần nó được dùng, như Tailwind (không đăng ký sẵn cả bảng): CSS của dự
+// án/plugin đọc `--tw-*` mà không tự đặt (daisyUI: `outline-style: var(--tw-outline-style)`) chỉ thấy giá trị khởi
+// tạo khi trang có utility đăng ký biến đó. Quy tắc (bộ giải mã: `propertyRules` trong src/tailwind-v4.ts): utility
+// đăng ký cả NHÓM (các biến Tailwind luôn đăng ký cùng nhau, ví dụ 14 biến của shadow/ring) của mỗi biến nó đặt
+// (`--tw-x:`) hoặc đọc không kèm dự phòng (`var(--tw-x)`), trừ biến trong PROPERTY_NO_SET khi đặt (`outline-solid`,
+// `ring-red-500`, `content-none` không đăng ký), trong PROPERTY_NO_READ khi đọc (`bg-linear-to-r` đọc
+// `--tw-gradient-stops` mà không đăng ký); đọc kèm dự phòng (`var(--tw-x, ...)`) chỉ tính với PROPERTY_FALLBACK_READ.
+// Kiểm trên mọi class của getClassList (lệch ghi ở `propertyMismatch`, phải rỗng); ngoại lệ tường minh: `propertyExtra`.
+const PROPERTY_NO_SET = ['border-style', 'outline-style', 'ring-color', 'inset-ring-color', 'ring-offset-color', 'ring-offset-width', 'ring-offset-shadow', 'mask-radial-shape', 'mask-radial-size', 'mask-radial-position', 'gradient-position', 'gradient-via-stops', 'content']
+const PROPERTY_NO_READ = ['gradient-stops', 'ring-offset-width', 'ring-offset-color']
+const PROPERTY_FALLBACK_READ = ['text-shadow-color']
+const propertyTriggers = (css) => {
+    const out = new Set()
+    for (const m of css.matchAll(/(--tw-[\w-]+)\s*:/g)) if (!PROPERTY_NO_SET.includes(m[1].slice(5))) out.add(m[1])
+    for (const m of css.matchAll(/var\((--tw-[\w-]+)\s*([),])/g)) if (m[2] === ')' ? !PROPERTY_NO_READ.includes(m[1].slice(5)) : PROPERTY_FALLBACK_READ.includes(m[1].slice(5))) out.add(m[1])
+    return out
+}
+// Nhóm: biến có cùng tập class đăng ký nó (biến không class nào đăng ký: nhóm riêng).
+const registeredBy = classList.map((name, index) => {
+    const css = cssList[index] || ''
+    return { name, css: css.replace(/@property[^{]*\{[^}]*\}/g, ''), registered: new Set([...css.matchAll(/@property\s+(--[\w-]+)/g)].map((m) => m[1])) }
+})
+const propertyAtom = new Map()
+for (const name of propertyBlocks.keys()) {
+    const signature = registeredBy.map((c) => (c.registered.has(name) ? 1 : 0)).join('')
+    propertyAtom.set(name, signature.includes('1') ? signature : name)
+}
+// Class mà quy tắc trên không suy ra đúng (chỉ thiếu nhóm, không thừa): ghi tường minh nhóm Tailwind đăng ký thêm,
+// mỗi nhóm một biến đại diện (`propertyExtra`, bộ giải mã: `place` trong src/tailwind-v4-core.ts). Đó là class cũ
+// `transform`/`filter`/`backdrop-filter` (đọc `var(--tw-x, )` nhưng vẫn đăng ký, trong khi `transform-gpu` cùng dạng thì
+// không) và `text-shadow-none` (không đọc biến nào mà đăng ký nhóm màu bóng chữ). Class khác lệch là lỗi.
+const PROPERTY_EXTRA_CLASSES = ['transform', 'filter', 'backdrop-filter', 'text-shadow-none']
+const propertyExtra = {}
+const propertyMismatch = []
+for (const { name, css, registered } of registeredBy) {
+    const atoms = new Set([...propertyTriggers(css)].filter((v) => propertyAtom.has(v)).map((v) => propertyAtom.get(v)))
+    const derived = [...propertyBlocks.keys()].filter((v) => atoms.has(propertyAtom.get(v)))
+    if (derived.length === registered.size && derived.every((v) => registered.has(v))) continue
+    const missing = [...registered].filter((v) => !atoms.has(propertyAtom.get(v)))
+    const extraAtoms = new Set(missing.map((v) => propertyAtom.get(v)))
+    const full = [...propertyBlocks.keys()].filter((v) => atoms.has(propertyAtom.get(v)) || extraAtoms.has(propertyAtom.get(v)))
+    if (!PROPERTY_EXTRA_CLASSES.includes(name) || full.length !== registered.size || full.some((v) => !registered.has(v))) propertyMismatch.push(name)
+    else propertyExtra[name] = [...extraAtoms].map((atom) => missing.find((v) => propertyAtom.get(v) === atom).slice(5)).join(' ')
+}
+if (propertyMismatch.length) throw new Error(`Quy tắc đăng ký @property lệch Tailwind: ${propertyMismatch.slice(0, 20).join(' ')}`)
+// Bảng gọn xếp lại theo nhóm (thứ tự xuất @property không ảnh hưởng gì); `+` trước tên: mục đầu của một nhóm; dấu
+// sau tên: `!` thuộc PROPERTY_NO_SET, `?` thuộc PROPERTY_NO_READ, `~` thuộc PROPERTY_FALLBACK_READ.
+const atomOrder = [...new Set(propertyAtom.values())]
+const groupedProperties = [...propertyBlocks.keys()]
+    .map((name, index) => [name, propertyList[index]])
+    .sort((a, b) => atomOrder.indexOf(propertyAtom.get(a[0])) - atomOrder.indexOf(propertyAtom.get(b[0])))
+    .map(([name, entry], index, all) => {
+        const short = name.slice(5)
+        const label = (index && propertyAtom.get(all[index - 1][0]) === propertyAtom.get(name) ? '' : '+') + short +
+            (PROPERTY_NO_SET.includes(short) ? '!' : '') + (PROPERTY_NO_READ.includes(short) ? '?' : '') + (PROPERTY_FALLBACK_READ.includes(short) ? '~' : '')
+        return typeof entry === 'string' ? label : [label, ...entry.slice(1)]
+    })
 
 const preflightCss = readTw('preflight.css')
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -449,6 +547,9 @@ const stats = {
     explicit: Object.keys(explicit).length,
     arbitraryRoots: Object.keys(arbitrary).length,
     properties: propertyBlocks.size,
+    themeFamilies: themeFamilies.length,
+    themeRoots: Object.values(themeRoots).flat().length,
+    propertyMismatch: propertyMismatch.length,
     approximate: approximateClasses.size,
 }
 
@@ -507,7 +608,7 @@ const ORDER = { properties: propertyOrder, variants: variantRoots, groups: group
 console.log(`  thứ tự: ${Object.keys(sortOverrides).length} chữ ký, ${Object.keys(classSort).length} class riêng`)
 
 // ---------------------------------------------------------------------------
-// Nén cho bản phân phối (bộ giải mã ở đầu src/tailwind-v4.ts dựng lại đúng các bảng trên)
+// Nén cho bản phân phối (bộ giải mã ở đầu src/tailwind-v4-core.ts dựng lại đúng các bảng trên)
 // ---------------------------------------------------------------------------
 // 1. Khai báo tách thành [chỉ số thuộc tính, chỉ số giá trị] và nằm thẳng trong rule: rule gọn là
 //    [selector?, prop, value, prop, value...] (độ dài lẻ thì phần tử đầu là selector, vắng là selector 0).
@@ -635,28 +736,50 @@ const compactData = () => {
         hints: hintsOut,
         explicit: Object.fromEntries(Object.entries(explicitRules).map(([name, rule]) => [name, pack(rule)])),
         tpl: tplRules.map(pack),
-        properties: propertyList,
+        properties: groupedProperties,
+        propertyExtra,
         syntaxes: propertySyntaxes,
         fallback: FALLBACK_WRAP,
         keyframes,
     }
 }
-const DIST = compactData()
-// Bộ giải mã dựng lại CSS @property từ dạng gọn: kiểm khớp từng ký tự.
+// Thứ tự khoá chỉ ảnh hưởng kích thước nén: gzip chỉ nhìn lại 32 KB nên đặt các bảng giống nhau gần nhau.
+// Thứ tự dưới đây tìm bằng thử (gzip của dist/tailwind-auto.mjs nhỏ hơn ~0,6 KB so với thứ tự dựng); bộ giải mã đọc theo tên.
+// Gốc âm, cạnh: xem dưới. Bảng namespace -> gốc nằm ở file riêng: chỉ phần đọc stylesheet (theme của dự án) cần,
+// bản CDN nạp động nó cùng tailwind-stylesheet.mjs.
+    // Gốc âm (`-inset`) không ghi: bộ giải mã thêm khi gốc dương có trong danh sách và gốc âm có mẫu tuỳ ý.
+const THEME_ROOTS_TEXT = Object.entries(themeRoots).map(([ns, list]) => {
+        for (const r of list) if (!r.startsWith('-') && arbitrary['-' + r] && !list.includes('-' + r)) throw new Error(`themeRoots: thiếu gốc âm -${r} (${ns})`)
+        let rest = list.filter((r) => !(r.startsWith('-') && list.includes(r.slice(1))))
+        // `m*` = `m mb mbe ... my`, `border-*` = `border border-b ... border-y` (chỉ gốc có mẫu tuỳ ý).
+        for (const r of [...rest]) for (const sep of ['', '-']) {
+            const group = [r, ...THEME_SIDES.map((side) => r + sep + side)].filter((x) => arbitrary[x])
+            if (group.length > 3 && group.every((x) => rest.includes(x))) rest = [...rest.filter((x) => !group.includes(x)), r + sep + '*']
+        }
+        return `${ns}:${rest.join(' ')}`
+}).join('|')
+const DIST_KEY_ORDER = ['version', 'palette', 'tpl', 'roots', 'explicit', 'hints', 'props', 'properties', 'propertyExtra', 'xs', 'vals', 'syntaxes', 'lits', 'valueSets', 'fallback', 'theme', 'keyframes', 'sels']
+const DIST = (() => {
+    const data = compactData()
+    if (Object.keys(data).sort().join() !== [...DIST_KEY_ORDER].sort().join()) throw new Error('DIST_KEY_ORDER thiếu/thừa khoá của dữ liệu nén')
+    return Object.fromEntries(DIST_KEY_ORDER.map((key) => [key, data[key]]))
+})()
+// Bộ giải mã dựng lại CSS @property từ dạng gọn: kiểm khớp từng ký tự (từng khối và khai báo dự phòng).
 {
-    const list = DIST.properties.map((e) => (typeof e === 'string' ? [e] : e))
+    const list = DIST.properties.map((e) => (typeof e === 'string' ? [e] : e)).map(([n, ...rest]) => [n.replace(/[+!?~]/g, ''), ...rest])
     const rebuilt = [
-        ...list.map(([n, init, syntax]) => `@property --tw-${n} { syntax: "${DIST.syntaxes[syntax || 0]}"; inherits: false;${init === undefined ? '' : ` initial-value: ${init};`} }`),
-        DIST.fallback[0] + list.map(([n, init]) => `--tw-${n}:${init ?? 'initial'}`).join(';') + DIST.fallback[1],
+        ...list.map(([n, init, syntax]) => `@property --tw-${n} { syntax: "${DIST.syntaxes[syntax || 0]}"; inherits: false;${init === undefined ? '' : ` initial-value: ${init};`} }`).sort(),
+        DIST.fallback[0] + list.map(([n, init]) => `--tw-${n}:${init ?? 'initial'}`).sort().join(';') + DIST.fallback[1],
         ...DIST.keyframes,
     ].join('\n')
-    if (rebuilt !== propertiesCss) throw new Error('Dạng gọn của @property không dựng lại đúng CSS gốc')
+    const original = [...[...propertyBlocks.values()].sort(), FALLBACK_WRAP[0] + [...fallbackDecls].sort().join(';') + FALLBACK_WRAP[1], ...keyframes].join('\n')
+    if (rebuilt !== original) throw new Error('Dạng gọn của @property không dựng lại đúng CSS gốc')
 }
 const DIST_ORDER = { ...ORDER, properties: propertyOrder.length }
 
 const header = `// @generated bởi scripts/gen-tailwind-map.mjs từ tailwindcss@${twVersion} — KHÔNG sửa tay.\n// ${JSON.stringify(stats)}\n`
 const body = `${header}
-/** Dữ liệu phương ngữ dạng nén; giải mã ở đầu src/tailwind-v4.ts (định dạng: xem bước nén trong script sinh). */
+/** Dữ liệu phương ngữ dạng nén; giải mã ở đầu src/tailwind-v4-core.ts (định dạng: xem bước nén trong script sinh). */
 export const TW_DATA = ${JSON.stringify(DIST)} as const
 
 /** Preflight (reset) của Tailwind, bọc trong layer thấp nhất \`l0\`. */
@@ -675,6 +798,15 @@ export const TW_APPROXIMATE: readonly string[] = ${JSON.stringify([...approximat
 export const TW_UNSUPPORTED: readonly string[] = ${JSON.stringify(unsupported)}
 `
 fs.writeFileSync(path.join(root, 'src/tailwind-generated.ts'), body)
+fs.writeFileSync(path.join(root, 'src/tailwind-theme-roots-generated.ts'), `// @generated bởi scripts/gen-tailwind-map.mjs từ tailwindcss@${twVersion} — KHÔNG sửa tay.
+
+/**
+ * Namespace theme -> gốc utility đọc khoá tự định nghĩa của namespace đó qua mẫu giá trị tuỳ ý (\`ns:gốc gốc|...\`;
+ * \`m*\`/\`border-*\`: gốc cùng các cạnh; gốc âm đi cùng gốc dương). Giải mã ở src/tailwind-v4-core.ts (THEME_ROOTS).
+ */
+export const TW_THEME_ROOTS: string = ${JSON.stringify(THEME_ROOTS_TEXT)}
+`)
 console.log(`[gen-tailwind-map] tailwindcss@${twVersion} -> src/tailwind-generated.ts`)
 console.log('  ' + JSON.stringify(stats))
+console.log('  họ thêm mẫu khoá theme tự định nghĩa: ' + themeFamilies.join(' '))
 console.log(`  kích thước: ${(body.length / 1024).toFixed(1)} KB`)

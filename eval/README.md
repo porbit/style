@@ -54,7 +54,14 @@ node eval/real-project.mjs                    # shadcn/ui v4 -> REAL-PROJECT.md,
 node eval/real-project.mjs --fixture=hyperui  # fixtures/<tên>/fixture.json -> REAL-PROJECT-<tên>.md/.json
 node eval/real-project.mjs --all              # mọi fixture + hai fixture v3, rồi tổng hợp REAL-PROJECTS.md
 node eval/real-project.mjs --summary          # chỉ dựng lại REAL-PROJECTS.md từ các file JSON
+node eval/real-project.mjs --fixture=daisyui --browser=firefox  # firefox/webkit (cần `npx playwright install <tên>`)
 ```
+
+`--browser=chromium|firefox|webkit` (mặc định chromium): trình duyệt chưa cài thì dừng và báo lệnh cài. Lượt ép
+`:hover`/`:focus`... dùng CDP nên chỉ chạy trên Chromium; kết quả trình duyệt khác ghi file riêng
+(`real-project-<tên>.firefox.json`, `REAL-PROJECT-<tên>.firefox.md`, `REAL-PROJECTS.firefox.md`), không đụng mốc của
+`check:all`. Trên Chromium, dòng thời gian animation được đóng băng (CDP `Animation.setPlaybackRate` 0) trước khi nạp
+trang để animation ngắn không kịp chạy xong trước lúc đo.
 
 | Fixture | Nguồn | Giấy phép |
 | :--- | :--- | :--- |
@@ -62,8 +69,41 @@ node eval/real-project.mjs --summary          # chỉ dựng lại REAL-PROJECTS
 | `fixtures/hyperui` | HyperUI `public/examples/{application,neobrutalism}` (HTML) | MIT |
 | `fixtures/magicui` | Magic UI `apps/www/registry/magicui` | MIT |
 | `fixtures/coss-ui` | coss ui / Origin UI `packages/ui/src/components` (Base UI) | MIT |
+| `fixtures/daisyui` | trang HTML tự viết theo tài liệu daisyUI 5, `@plugin "daisyui"` (`daisyui@5.8.1`) | MIT (daisyUI) |
+| `fixtures/tailadmin` | TailAdmin Vue (dashboard) qua npm `@dynamia-tools/tailadmin-vue` `src/components` + `theme.css` | MIT |
 | `fixtures/v3-config` | cấu hình `tailwind.config.js` kiểu v3 (tự viết) | — |
 
 Thêm dự án: tạo `fixtures/<tên>/` với file CSS, thư mục nguồn và `fixture.json`
-(`{ "label", "source", "license", "css", "src", "imports": { "gói": "đường/dẫn/tương/đối.css" } }`).
+(`{ "label", "source", "license", "css", "src", "imports": { "gói": "đường/dẫn/tương/đối.css" }, "dark": "data-theme=\"dark\"" }`;
+`dark` tuỳ chọn: thuộc tính đặt trên `<html>` ở lượt tối thay cho `class="dark"`). Plugin JS chưa đóng gói sẵn
+(`@plugin "daisyui"`) chạy qua API giả lập ở cả hai chế độ.
 Kết quả tổng hợp: [REAL-PROJECTS.md](./REAL-PROJECTS.md).
+
+## Lệch Còn Lại So Với Tailwind 4.3.5
+
+Mọi bộ so với Tailwind thật (`check:all` bước `tailwind` và `projects`) đòi khớp 100%: class, biến thể, runtime, theme,
+plugin đóng gói và plugin JS, dự án thật, thứ tự cascade, chế độ lai. Không còn lệch đo được; phần duy nhất không đo
+là chỗ chính Tailwind không xác định:
+
+- **Thứ tự `state-[open]` và `state-[open]/menu`** (`matchVariant` có `sort`, cùng giá trị khác modifier): `sort` của plugin
+  không nhận modifier nên phép so của Tailwind trả 1 cả hai chiều, thứ tự rule theo thứ tự Tailwind gặp class trong mã
+  nguồn (đổi khi đổi thứ tự file). `tailwind-order.mjs` vì vậy bỏ cặp này khỏi tập đo.
+
+## Thời Gian Build Tĩnh
+
+`build-bench.mjs` đo plugin PostCSS (`compileTailwindCss`) so với Tailwind CLI v4 (`@tailwindcss/node` `compile()` +
+`@tailwindcss/oxide` `Scanner` + Lightning CSS `optimize()`, đúng như `@tailwindcss/cli --minify`) trên hai bộ: `mixed`
+(~6.000 file nhân bản từ `fixtures/{hyperui,coss-ui,magicui,shadcn-v4}`) và `html` (369 trang HTML của HyperUI nhân bản
+17 lần, `--html-copies=`). Chế độ: cold (tiến trình mới, bộ nhớ đệm quét trên đĩa rỗng), cold+cache (tiến trình mới, bộ
+nhớ đệm từ lần trước, không file nào đổi; Tailwind không có nên dùng số cold), warm (cùng tiến trình, mọi file đổi
+mtime trước mỗi lượt). Hai phía chạy xen kẽ, báo trung vị; kèm thời gian từng pha (liệt kê file, đọc + trích ứng viên,
+sinh CSS) và kiểm CSS của các bản build ta trùng byte. Gói Tailwind không có trong `devDependencies`: cài riêng
+(`npm i @tailwindcss/cli` vào một thư mục) rồi trỏ `--tw=`.
+
+```bash
+npm run build
+node eval/build-bench.mjs --tw=/thư/mục/có/node_modules                    # -> build-bench.json
+node eval/build-bench.mjs --tw=... --sets=html --ours=dist,trước=/đường/dẫn/dist-cũ
+```
+
+Máy bận (tải 1 phút ghi trong JSON) làm số đo dao động mạnh: chỉ so các phía trong cùng một lần chạy.

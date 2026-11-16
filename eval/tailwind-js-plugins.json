@@ -200,8 +200,8 @@
     "version": "1.0.7",
     "classes": {
       "cases": 447,
-      "matched": 445,
-      "percent": 99.55
+      "matched": 447,
+      "percent": 100
     },
     "variants": {
       "cases": 0,
@@ -211,20 +211,7 @@
     "unsupported": [],
     "tailwindRejected": [],
     "notes": [],
-    "failedClasses": [
-      {
-        "class": "animate-in",
-        "diff": [
-          "#0 transform: tw=matrix(1, 0, 0, 1, 0, 0) | ours=none"
-        ]
-      },
-      {
-        "class": "animate-out",
-        "diff": [
-          "#0 transform: tw=matrix(1, 0, 0, 1, 0, 0) | ours=none"
-        ]
-      }
-    ],
+    "failedClasses": [],
     "failedVariants": [],
     "failedVariantDetails": []
   },

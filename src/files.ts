@@ -1,8 +1,8 @@
 /** Liệt kê file nguồn cho CLI và MCP server. */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname as dirnamePath, join, join as joinPath, resolve, resolve as resolvePath } from 'node:path'
-import { loadTailwindConfigFile, tailwindConfigToCss } from './tailwind-config'
+import { dirname as dirnamePath, join, join as joinPath, resolve, resolve as resolvePath, sep } from 'node:path'
+import { loadTailwindConfigFile, mergeTailwindConfigs, tailwindConfigToCss } from './tailwind-config'
 import { createTailwindPluginLoader, requireWithTailwindShims, type TailwindPluginLoader } from './tailwind-plugin-api'
 
 export const DEFAULT_EXTENSIONS = ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'vue', 'svelte', 'astro', 'mdx']
@@ -25,16 +25,20 @@ export const collectFilesSync = (target: string, extensions: string[]): string[]
     if (!info.isDirectory()) return []
 
     const files: string[] = []
+    const wanted = new Set(extensions)
     const walk = (dir: string) => {
+        // Nối chuỗi thay cho path.join (join chuẩn hoá lại cả đường dẫn ở mỗi file; tên từ readdir không có dấu phân cách).
+        const prefix = dir.endsWith(sep) ? dir : dir + sep
         for (const entry of readdirSync(dir, { withFileTypes: true })) {
-            if (entry.name.startsWith('.')) continue
-            const full = join(dir, entry.name)
+            const name = entry.name
+            if (name.startsWith('.')) continue
+            const full = prefix + name
             if (entry.isDirectory()) {
-                if (!SKIP_DIRS.has(entry.name)) walk(full)
+                if (!SKIP_DIRS.has(name)) walk(full)
                 continue
             }
-            const dot = entry.name.lastIndexOf('.')
-            if (dot !== -1 && extensions.includes(entry.name.slice(dot + 1).toLowerCase())) files.push(full)
+            const dot = name.lastIndexOf('.')
+            if (dot !== -1 && wanted.has(name.slice(dot + 1).toLowerCase())) files.push(full)
         }
     }
     walk(absolute)
@@ -42,15 +46,6 @@ export const collectFilesSync = (target: string, extensions: string[]): string[]
 }
 
 export const collectFiles = async (target: string, extensions: string[]): Promise<string[]> => collectFilesSync(target, extensions)
-
-/** Đọc file UTF-8, trả chuỗi rỗng nếu lỗi. */
-export const readTextSync = (file: string): string => {
-    try {
-        return readFileSync(file, 'utf8')
-    } catch (_error) {
-        return ''
-    }
-}
 
 /**
  * Đọc stylesheet cho `resolveConfigFile({ tailwindCss })`: đường dẫn tương đối với `baseDir`,
@@ -93,9 +88,12 @@ export const createStylesheetReader = (baseDir: string) => (id: string): string 
     }
 }
 
-// Plugin v3 hay gặp: gói có bản đóng gói sẵn, hoặc đã có sẵn trong Tailwind v4 (không cần dòng @plugin).
-const KNOWN_PLUGINS = ['@tailwindcss/forms', '@tailwindcss/typography', 'tailwindcss-animate', '@tailwindcss/aspect-ratio', '@tailwindcss/container-queries']
-const BUILTIN_IN_V4 = new Set(['@tailwindcss/aspect-ratio', '@tailwindcss/container-queries'])
+// Plugin v3 hay gặp: gói có bản đóng gói sẵn, hoặc đã có sẵn trong Tailwind v4 (không cần dòng @plugin: biến thể
+// `@md`, `@[300px]`, `@sm/main` và utility `@container/main` của Tailwind v4 cho cùng kết quả với plugin v3).
+// `@tailwindcss/aspect-ratio` KHÔNG thuộc nhóm này: Tailwind v4 vẫn chạy plugin (sinh `aspect-w-*`/`aspect-h-*` và thay
+// `theme.aspectRatio` nên `aspect-video` mất), nên chạy qua API giả lập như plugin khác.
+const KNOWN_PLUGINS = ['@tailwindcss/forms', '@tailwindcss/typography', 'tailwindcss-animate', '@tailwindcss/container-queries']
+const BUILTIN_IN_V4 = new Set(['@tailwindcss/container-queries'])
 
 /**
  * Nạp `@config "./tailwind.config.js"` (Node): `require` file cấu hình (CJS hoặc ESM) rồi đổi sang CSS v4.
@@ -123,8 +121,9 @@ export const createConfigLoader = (baseDir: string, plugins: TailwindPluginLoade
         const lines = css.split('\n').filter((line) => !BUILTIN_IN_V4.has(line.match(/^@plugin "([^"]+)";$/)?.[1] || ''))
         // Plugin không có bản đóng gói: chạy hàm plugin với theme/cấu hình của dự án.
         const known = Object.values(knownPlugins)
-        const cfg = config?.default ?? config
-        for (const plugin of cfg?.plugins || []) {
+        // `presets`: plugin của preset chạy trước, theme/darkMode... gộp như Tailwind.
+        const cfg = mergeTailwindConfigs(config)
+        for (const plugin of cfg.plugins || []) {
             if (known.some((value) => value === plugin || (value as { default?: unknown })?.default === plugin)) continue
             lines.push(plugins.run(plugin, cfg, id))
         }

@@ -11,9 +11,16 @@
  *     không nhận `tw-flex` kiểu v3),
  *   - `important: true` -> `@import "tailwindcss" important;` (mọi khai báo utility `!important`),
  *   - `important: '#app'` -> `#app { @tailwind utilities; }` (đúng cách Tailwind v4 bọc utility: `#app .p-2`).
+ *   - `presets: [...]` -> gộp như `resolveConfig` của Tailwind v4 (preset lồng trước, rồi chính cấu hình: `theme.x`
+ *     của cấu hình sau thay cấu hình trước, `theme.extend` cộng dồn, plugin của preset chạy trước; `darkMode`,
+ *     `prefix`, `important`, `blocklist`: cấu hình cuối có khai báo thắng),
+ *   - `blocklist: ['p-4']` -> `@source not inline("p-4");` (Tailwind v4 không sinh class trùng đúng chuỗi đó; mục
+ *     không phải chuỗi như RegExp bị bỏ qua như Tailwind),
+ *   - `theme.container` (`center`, `padding` chuỗi hoặc theo breakpoint, `screens`) -> `@utility container {...}`
+ *     cộng vào `container` sẵn có, đúng thuật toán compat của Tailwind 4.3.5.
  * Tailwind v4 bỏ qua (nên ở đây cũng bỏ qua, báo trong `ignored`): `corePlugins` (preflight vẫn chạy, utility
  * vẫn sinh), `separator`, `safelist`, `future`, `experimental`.
- * Chưa hỗ trợ (báo trong `unsupported`): `presets`, `blocklist`, hàm `theme(({ theme }) => ...)` phức tạp.
+ * Chưa hỗ trợ (báo trong `unsupported`): hàm `theme(({ theme }) => ...)` phức tạp.
  */
 
 type Json = Record<string, any>
@@ -61,8 +68,13 @@ const flatten = (value: unknown, prefix: string, out: Record<string, string>) =>
     }
 }
 
+// Khoá khác (`zIndex`, `opacity`, `width`, `gridTemplateColumns`...): như `keyPathToCssProperty` của Tailwind, tên
+// kebab-case (`--z-index-*`, `--grid-template-columns-*`), utility sẵn có đọc namespace đó (`z-modal`).
+const namespaceOf = (key: string): string | null =>
+    NAMESPACES[key] || (COLOR_ALIASES.includes(key) ? '--color' : /^[a-zA-Z]+$/.test(key) ? '--' + key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase() : null)
+
 const themeNamespace = (key: string, value: unknown, theme: (path: string) => unknown): Record<string, string> => {
-    const ns = NAMESPACES[key] || (COLOR_ALIASES.includes(key) ? '--color' : null)
+    const ns = namespaceOf(key)
     if (!ns) return {}
     const resolved = typeof value === 'function' ? (value as (helpers: Json) => unknown)({ theme, colors: {} }) : value
     const out: Record<string, string> = {}
@@ -95,6 +107,122 @@ const themeNamespace = (key: string, value: unknown, theme: (path: string) => un
     return out
 }
 
+const isPlainObject = (value: unknown): value is Json => {
+    if (Object.prototype.toString.call(value) !== '[object Object]') return false
+    const proto = Object.getPrototypeOf(value)
+    return proto === null || Object.getPrototypeOf(proto) === null
+}
+
+/** Gộp sâu theme như Tailwind (`mergeThemeExtension`: mảng thay hẳn, mảng object nối thêm). */
+const deepMergeTheme = (layers: unknown[]): Json => {
+    const out: Json = {}
+    for (const layer of layers) {
+        if (!layer || typeof layer !== 'object') continue
+        for (const [key, value] of Object.entries(layer as Json)) {
+            const current = out[key]
+            if (Array.isArray(current) && isPlainObject(current[0])) out[key] = current.concat(value)
+            else if (Array.isArray(value) && isPlainObject(value[0]) && isPlainObject(current)) out[key] = [current, ...value]
+            else if (isPlainObject(current) && isPlainObject(value)) out[key] = deepMergeTheme([current, value])
+            else out[key] = value
+        }
+    }
+    return out
+}
+
+/**
+ * Danh sách cấu hình theo đúng thứ tự `resolveConfig` của Tailwind v4: preset (đệ quy, preset lồng trước) rồi
+ * chính cấu hình. (`presets: []` Tailwind báo lỗi; ở đây coi như không có preset.)
+ */
+export const flattenTailwindPresets = (config: Json | null | undefined): Json[] => {
+    const cfg = (config && (config.default ?? config)) as Json | undefined
+    if (!cfg || typeof cfg !== 'object') return []
+    const presets = Array.isArray(cfg.presets) ? cfg.presets : []
+    return [...presets.flatMap((preset: Json) => flattenTailwindPresets(preset)), cfg]
+}
+
+/**
+ * Gộp `presets` vào một cấu hình như Tailwind v4: `theme.x` của cấu hình sau thay của cấu hình trước, `theme.extend`
+ * cộng dồn (lớp là hàm được gọi lúc đọc rồi gộp sâu), `plugins`/`content` nối theo thứ tự, `darkMode`/`prefix`/
+ * `important`/`blocklist` lấy cấu hình cuối có khai báo. Không có preset thì trả nguyên cấu hình.
+ */
+export const mergeTailwindConfigs = (config: Json | null | undefined): Json => {
+    const cfg = ((config && (config.default ?? config)) || {}) as Json
+    if (!Array.isArray(cfg.presets) || !cfg.presets.length) return cfg
+    const theme: Json = {}
+    const extend: Record<string, unknown[]> = {}
+    const merged: Json = { ...cfg, plugins: [], content: [] }
+    delete merged.presets
+    for (const key of ['darkMode', 'prefix', 'important', 'blocklist']) delete merged[key]
+    for (const item of flattenTailwindPresets(cfg)) {
+        for (const [key, value] of Object.entries((item.theme ?? {}) as Json)) {
+            if (key === 'extend') for (const [name, layer] of Object.entries((value ?? {}) as Json)) (extend[name] ??= []).push(layer)
+            else theme[key] = value
+        }
+        merged.plugins.push(...(item.plugins ?? []))
+        merged.content.push(...(Array.isArray(item.content) ? item.content : item.content?.files ?? []))
+        for (const key of ['darkMode', 'prefix', 'important', 'blocklist']) if (item[key] !== undefined) merged[key] = item[key]
+    }
+    const extendOut: Json = {}
+    for (const [key, layers] of Object.entries(extend)) {
+        extendOut[key] = layers.length === 1 ? layers[0] : (helpers: Json) => deepMergeTheme(layers.map((layer) => (typeof layer === 'function' ? layer(helpers) : layer)))
+    }
+    merged.theme = { ...theme, ...(Object.keys(extendOut).length ? { extend: extendOut } : {}) }
+    return merged
+}
+
+// Breakpoint mặc định của Tailwind v4 (theme.css), dùng cho `theme.container`.
+const DEFAULT_BREAKPOINTS: Record<string, string> = { sm: '40rem', md: '48rem', lg: '64rem', xl: '80rem', '2xl': '96rem' }
+
+/** So hai giá trị breakpoint như Tailwind: theo đơn vị, rồi theo số. */
+const compareBreakpoints = (a: string, b: string): number => {
+    if (a === b) return 0
+    const unit = (v: string) => (v.includes('(') ? v.slice(0, v.indexOf('(')) : v.replace(/[\d.]+/g, ''))
+    const ua = unit(a)
+    const ub = unit(b)
+    const result = (ua === ub ? 0 : ua < ub ? -1 : 1) || parseFloat(a) - parseFloat(b)
+    return Number.isNaN(result) ? (a < b ? -1 : 1) : result
+}
+
+/**
+ * `theme.container` -> thân `@utility container` (cộng vào `container` sẵn có), bản sao thuật toán compat của
+ * Tailwind 4.3.5: `center` -> `margin-inline: auto`, `padding` (chuỗi hoặc `DEFAULT`) -> `padding-inline`;
+ * `screens` -> `max-width: none` từ breakpoint nhỏ nhất của theme rồi `max-width` theo từng màn hình (giữ thứ tự
+ * khai báo, `{ min }` lấy `min`, object khác bỏ qua); `padding` theo breakpoint xếp tăng dần, gắn vào màn hình
+ * cùng tên của `screens` (không có thì bỏ) hoặc `@media (width >= <breakpoint>)` khi không có `screens`.
+ */
+const containerCss = (container: Json, breakpoints: Record<string, string>): string => {
+    const { center, padding, screens } = container
+    const nodes: string[] = []
+    if (center) nodes.push('margin-inline: auto;')
+    if (typeof padding === 'string' || (padding && typeof padding === 'object' && 'DEFAULT' in padding)) nodes.push(`padding-inline: ${typeof padding === 'string' ? padding : padding.DEFAULT};`)
+    let media: Map<string, { query: string; decls: string[] }> | null = null
+    if (screens && typeof screens === 'object') {
+        media = new Map()
+        const sorted = Object.values(breakpoints).sort(compareBreakpoints)
+        if (sorted.length) nodes.push(`@media (width >= ${sorted[0]}) { max-width: none; }`)
+        for (let [name, value] of Object.entries(screens as Json)) {
+            if (value && typeof value === 'object') {
+                if ('min' in value) value = value.min
+                else continue
+            }
+            media.set(name, { query: `(width >= ${value})`, decls: [`max-width: ${value};`] })
+        }
+    }
+    if (padding && typeof padding === 'object') {
+        const list = Object.entries(padding as Json)
+            .filter(([name]) => name !== 'DEFAULT')
+            .map(([name, value]) => [name, breakpoints[name] ?? null, value] as const)
+            .sort((a, b) => (a[1] === null || b[1] === null ? 0 : compareBreakpoints(a[1], b[1])))
+        for (const [name, at, value] of list) {
+            const own = media?.get(name)
+            if (own) own.decls.push(`padding-inline: ${value};`)
+            else if (!media && at !== null) nodes.push(`@media (width >= ${at}) { padding-inline: ${value}; }`)
+        }
+    }
+    for (const { query, decls } of media?.values() ?? []) nodes.push(`@media ${query} { ${decls.join(' ')} }`)
+    return nodes.join(' ')
+}
+
 export interface ConvertConfigOptions {
     /** Tên gói của plugin (so khớp hàm trong `plugins`): `{ '@tailwindcss/forms': require('@tailwindcss/forms') }`. */
     knownPlugins?: Record<string, unknown>
@@ -102,16 +230,43 @@ export interface ConvertConfigOptions {
 
 /** Cấu hình JS kiểu Tailwind v3 -> CSS Tailwind v4 mà `parseTailwindStylesheet` đọc được. */
 export const tailwindConfigToCss = (config: Json, options: ConvertConfigOptions = {}): { css: string; content: string[]; unsupported: string[]; ignored: string[] } => {
-    const cfg = (config && (config.default ?? config)) as Json
+    const cfg = mergeTailwindConfigs(config)
     const lines: string[] = []
     const unsupported: string[] = []
     const theme = (cfg.theme || {}) as Json
     const extend = (theme.extend || {}) as Json
-    const lookup = (path: string): unknown => path.split('.').reduce<unknown>((acc, key) => (acc && typeof acc === 'object' ? (acc as Json)[key] : undefined), { ...theme, ...extend })
+    // `theme('spacing.4')` trong hàm của cấu hình: `theme.x` gộp với `extend.x` (hàm được gọi). Tự tham chiếu
+    // (`extend.colors` đọc `theme('colors.x')`) không thấy gì như Tailwind: khoá đang giải dở chưa có giá trị.
+    const resolving = new Set<string>()
+    const lookup = (path: string): unknown => {
+        const [head, ...rest] = path.split('.')
+        if (resolving.has(head)) return undefined
+        resolving.add(head)
+        try {
+            const read = (value: unknown) => (typeof value === 'function' ? (value as (helpers: Json) => unknown)({ theme: lookup, colors: {} }) : value)
+            const base = read(theme[head])
+            const more = read(extend[head])
+            let acc: unknown = isPlainObject(base) && isPlainObject(more) ? deepMergeTheme([base, more]) : more ?? base
+            for (const key of rest) acc = acc && typeof acc === 'object' ? (acc as Json)[key] : undefined
+            return acc
+        } finally {
+            resolving.delete(head)
+        }
+    }
+    /** Giải giá trị (hàm) của khoá `head` với `head` đánh dấu đang giải. */
+    const resolveIn = (head: string, value: unknown): unknown => {
+        if (typeof value !== 'function') return value
+        resolving.add(head)
+        try {
+            return (value as (helpers: Json) => unknown)({ theme: lookup, colors: {} })
+        } finally {
+            resolving.delete(head)
+        }
+    }
     const decls: string[] = []
     for (const [key, value] of Object.entries(theme)) {
-        if (key === 'extend') continue
-        const ns = NAMESPACES[key] || (COLOR_ALIASES.includes(key) ? '--color' : null)
+        if (key === 'extend' || key === 'container' || key === 'keyframes') continue
+        const ns = namespaceOf(key)
         if (!ns) {
             unsupported.push(`theme.${key}`)
             continue
@@ -119,16 +274,18 @@ export const tailwindConfigToCss = (config: Json, options: ConvertConfigOptions 
         // `theme.colors` (không qua extend): thay cả namespace như @config của Tailwind.
         // (Tailwind v4 giữ spacing mặc định khi cấu hình thay `spacing`; `screens` xem dialect: breakpoint mặc định vẫn chạy.)
         if (key !== 'spacing' && !COLOR_ALIASES.includes(key)) decls.push(`${ns}-*: initial;`)
-        for (const [name, v] of Object.entries(themeNamespace(key, value, lookup))) decls.push(`${name}: ${v};`)
+        for (const [name, v] of Object.entries(themeNamespace(key, resolveIn(key, value), lookup))) decls.push(`${name}: ${v};`)
     }
     for (const [key, value] of Object.entries(extend)) {
-        if (!(NAMESPACES[key] || COLOR_ALIASES.includes(key))) {
-            if (key !== 'keyframes') unsupported.push(`theme.extend.${key}`)
+        if (key === 'keyframes' || key === 'container') continue
+        if (!namespaceOf(key)) {
+            unsupported.push(`theme.extend.${key}`)
             continue
         }
-        for (const [name, v] of Object.entries(themeNamespace(key, value, lookup))) decls.push(`${name}: ${v};`)
+        for (const [name, v] of Object.entries(themeNamespace(key, resolveIn(key, value), lookup))) decls.push(`${name}: ${v};`)
     }
-    const keyframes = { ...(theme.keyframes || {}), ...(extend.keyframes || {}) } as Json
+    const resolveTheme = (value: unknown): Json => ((typeof value === 'function' ? value({ theme: lookup, colors: {} }) : value) || {}) as Json
+    const keyframes = { ...resolveTheme(theme.keyframes), ...resolveTheme(extend.keyframes) } as Json
     const keyframeCss = Object.entries(keyframes).map(([name, frames]) => `@keyframes ${name} { ${Object.entries(frames as Json).map(([step, props]) => `${step} { ${Object.entries(props as Json).map(([p, v]) => `${p.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())}: ${v};`).join(' ')} }`).join(' ')} }`)
     // `prefix` qua @config (Tailwind 4.3): `transition*` vẫn đọc `var(--default-transition-duration)` /
     // `var(--default-transition-timing-function)` không tiền tố trong khi theme chỉ còn tên `--tw-...`, nên hai
@@ -136,6 +293,22 @@ export const tailwindConfigToCss = (config: Json, options: ConvertConfigOptions 
     const prefixed = typeof cfg.prefix === 'string' && /^[a-z]+-?$/.test(cfg.prefix)
     if (prefixed) decls.push('--default-transition-duration: initial;', '--default-transition-timing-function: initial;')
     if (decls.length || keyframeCss.length) lines.push(`@theme {\n  ${[...decls, ...keyframeCss].join('\n  ')}\n}`)
+
+    // `theme.container` (kể cả `extend.container`, gộp sâu như Tailwind) -> `@utility container`.
+    if (theme.container !== undefined || extend.container !== undefined) {
+        const container = deepMergeTheme([resolveTheme(theme.container), resolveTheme(extend.container)])
+        // Breakpoint sau cấu hình: `theme.screens` thay hẳn breakpoint mặc định, `extend.screens` cộng thêm
+        // (breakpoint khai báo trong `@theme` của CSS không được tính — giới hạn đã biết).
+        const breakpoints: Record<string, string> = theme.screens !== undefined ? {} : { ...DEFAULT_BREAKPOINTS }
+        for (const source of [resolveTheme(theme.screens), resolveTheme(extend.screens)]) {
+            for (const [name, value] of Object.entries(source)) {
+                const min = value && typeof value === 'object' ? (!('max' in value) && !('raw' in value) ? (value as Json).min : undefined) : value
+                if (typeof min === 'string' || typeof min === 'number') breakpoints[name] = String(min)
+            }
+        }
+        const body = containerCss(container, breakpoints)
+        if (body) lines.push(`@utility container { ${body} }`)
+    }
 
     // Như mã tương thích của Tailwind v4: `class` -> `&:is(.x *)`, `selector` -> `&:where(.x, .x *)`,
     // `variant` -> nguyên văn (mọi selector phải có `&`, nếu không Tailwind bỏ cả cấu hình, dark theo media).
@@ -167,8 +340,15 @@ export const tailwindConfigToCss = (config: Json, options: ConvertConfigOptions 
     // `important: '#app'`: Tailwind v4 thay `@tailwind utilities` bằng `#app { @tailwind utilities; }`.
     if (typeof cfg.important === 'string' && cfg.important.trim()) lines.push(`${cfg.important.trim()} { @tailwind utilities; }`)
 
-    if (cfg.presets !== undefined) unsupported.push('presets')
-    if (Array.isArray(cfg.blocklist) && cfg.blocklist.length) unsupported.push('blocklist')
+    // `blocklist`: Tailwind v4 không sinh class trùng đúng chuỗi (kể cả tiền tố, biến thể), như `@source not inline()`.
+    // Mục không phải chuỗi (RegExp) Tailwind bỏ qua. Chuỗi có `"`, `\`, `{`/`}` (inline() hiểu `{a,b}` là mở rộng) chưa viết được.
+    if (Array.isArray(cfg.blocklist)) {
+        for (const item of cfg.blocklist) {
+            if (typeof item !== 'string' || !item.trim()) continue
+            if (/["\\{}\s]/.test(item)) unsupported.push(`blocklist: ${item}`)
+            else lines.push(`@source not inline("${item}");`)
+        }
+    }
     // Tailwind v4 không đọc các khoá này từ `@config` (corePlugins: preflight và mọi utility vẫn chạy).
     const ignored = ['corePlugins', 'separator', 'safelist', 'future', 'experimental'].filter((key) => cfg[key] !== undefined)
     const content = (Array.isArray(cfg.content) ? cfg.content : cfg.content?.files || []).filter((x: unknown) => typeof x === 'string')

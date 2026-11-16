@@ -1,0 +1,590 @@
+{
+  "date": "2026-11-16",
+  "node": "v22.23.4",
+  "cpus": 4,
+  "loadavgStart": [
+    1.06,
+    1.68,
+    2.9
+  ],
+  "rounds": 9,
+  "tailwind": "4.3.5",
+  "sets": {
+    "mixed": {
+      "files": 6000,
+      "warmIterations": 15,
+      "loadavgEnd": [
+        1.39,
+        1.69,
+        2.85
+      ],
+      "sides": {
+        "Tailwind 4.3.5 (oxide)": {
+          "cssBytes": 316995,
+          "cssHash": "db04e1e6a9a170f9",
+          "candidates": 6561,
+          "cold": {
+            "wall": {
+              "median": 573.3,
+              "min": 544.6,
+              "max": 673.2
+            },
+            "load": {
+              "median": 83.4,
+              "min": 69.9,
+              "max": 94
+            },
+            "total": {
+              "median": 449.3,
+              "min": 414.4,
+              "max": 547.6
+            },
+            "setup": {
+              "median": 27,
+              "min": 26.5,
+              "max": 31.1
+            },
+            "scan": {
+              "median": 145.6,
+              "min": 141.3,
+              "max": 162.1
+            },
+            "generate": {
+              "median": 277.6,
+              "min": 240.3,
+              "max": 359.5
+            }
+          },
+          "warm": {
+            "load": {
+              "median": 0.3,
+              "min": 0.2,
+              "max": 0.4
+            },
+            "total": {
+              "median": 332.8,
+              "min": 283.8,
+              "max": 396.1
+            },
+            "setup": {
+              "median": 37.3,
+              "min": 7.8,
+              "max": 62.5
+            },
+            "scan": {
+              "median": 155.2,
+              "min": 138.2,
+              "max": 183.2
+            },
+            "generate": {
+              "median": 138.7,
+              "min": 109.6,
+              "max": 193.2
+            }
+          }
+        },
+        "ta (dist)": {
+          "cssBytes": 305613,
+          "cssHash": "0ff126ca45bec710",
+          "candidates": 6553,
+          "cold": {
+            "wall": {
+              "median": 549,
+              "min": 519.4,
+              "max": 646.1
+            },
+            "load": {
+              "median": 43,
+              "min": 37.3,
+              "max": 51.7
+            },
+            "total": {
+              "median": 429,
+              "min": 403.9,
+              "max": 523
+            },
+            "setup": {
+              "median": 3.2,
+              "min": 2.8,
+              "max": 3.4
+            },
+            "scan": {
+              "median": 11.5,
+              "min": 9.7,
+              "max": 12.7
+            },
+            "extract": {
+              "median": 163.7,
+              "min": 155.6,
+              "max": 197.8
+            },
+            "generate": {
+              "median": 258,
+              "min": 226.6,
+              "max": 309.7
+            }
+          },
+          "warm": {
+            "total": {
+              "median": 294.6,
+              "min": 230.7,
+              "max": 366.1
+            },
+            "setup": {
+              "median": 0.8,
+              "min": 0.4,
+              "max": 4.1
+            },
+            "scan": {
+              "median": 9.4,
+              "min": 6.6,
+              "max": 16.4
+            },
+            "extract": {
+              "median": 136.2,
+              "min": 106.9,
+              "max": 168.5
+            },
+            "generate": {
+              "median": 140.9,
+              "min": 113.3,
+              "max": 187.3
+            }
+          },
+          "cold+cache": {
+            "wall": {
+              "median": 396.8,
+              "min": 363.8,
+              "max": 418.6
+            },
+            "load": {
+              "median": 43.9,
+              "min": 40.7,
+              "max": 51.4
+            },
+            "total": {
+              "median": 305.6,
+              "min": 276,
+              "max": 331.9
+            },
+            "setup": {
+              "median": 3.3,
+              "min": 2.9,
+              "max": 5.4
+            },
+            "scan": {
+              "median": 11.7,
+              "min": 11.1,
+              "max": 13.2
+            },
+            "extract": {
+              "median": 38.3,
+              "min": 36.4,
+              "max": 40.3
+            },
+            "generate": {
+              "median": 250.6,
+              "min": 224.7,
+              "max": 279
+            }
+          }
+        },
+        "ta (trước)": {
+          "cssBytes": 305613,
+          "cssHash": "0ff126ca45bec710",
+          "candidates": 6553,
+          "cold": {
+            "wall": {
+              "median": 557.2,
+              "min": 541.5,
+              "max": 662.4
+            },
+            "load": {
+              "median": 44.4,
+              "min": 40.9,
+              "max": 58.9
+            },
+            "total": {
+              "median": 442.5,
+              "min": 418,
+              "max": 533.6
+            },
+            "setup": {
+              "median": 3.5,
+              "min": 3,
+              "max": 5.4
+            },
+            "scan": {
+              "median": 11.6,
+              "min": 11.3,
+              "max": 20.8
+            },
+            "extract": {
+              "median": 177.3,
+              "min": 165.8,
+              "max": 230.2
+            },
+            "generate": {
+              "median": 249.9,
+              "min": 233.4,
+              "max": 323.9
+            }
+          },
+          "warm": {
+            "total": {
+              "median": 299.6,
+              "min": 252.4,
+              "max": 360.6
+            },
+            "setup": {
+              "median": 0.6,
+              "min": 0.5,
+              "max": 1.1
+            },
+            "scan": {
+              "median": 9.3,
+              "min": 7.5,
+              "max": 14.8
+            },
+            "extract": {
+              "median": 132.1,
+              "min": 105.2,
+              "max": 178
+            },
+            "generate": {
+              "median": 153.7,
+              "min": 115.9,
+              "max": 226.1
+            }
+          },
+          "cold+cache": {
+            "wall": {
+              "median": 417.5,
+              "min": 383.6,
+              "max": 466.3
+            },
+            "load": {
+              "median": 45.2,
+              "min": 40.7,
+              "max": 49.8
+            },
+            "total": {
+              "median": 322,
+              "min": 290.3,
+              "max": 370.6
+            },
+            "setup": {
+              "median": 3.2,
+              "min": 2.4,
+              "max": 4.8
+            },
+            "scan": {
+              "median": 11.7,
+              "min": 9.9,
+              "max": 18.6
+            },
+            "extract": {
+              "median": 37.9,
+              "min": 34.6,
+              "max": 57.9
+            },
+            "generate": {
+              "median": 268.5,
+              "min": 242.9,
+              "max": 314.1
+            }
+          }
+        }
+      },
+      "oursIdentical": true
+    },
+    "html": {
+      "files": 6273,
+      "warmIterations": 15,
+      "loadavgEnd": [
+        1.29,
+        1.64,
+        2.79
+      ],
+      "sides": {
+        "Tailwind 4.3.5 (oxide)": {
+          "cssBytes": 62068,
+          "cssHash": "2139111449266111",
+          "candidates": 1128,
+          "cold": {
+            "wall": {
+              "median": 339.7,
+              "min": 310.4,
+              "max": 371.6
+            },
+            "load": {
+              "median": 74,
+              "min": 72.4,
+              "max": 85.2
+            },
+            "total": {
+              "median": 219,
+              "min": 186,
+              "max": 239.1
+            },
+            "setup": {
+              "median": 29.7,
+              "min": 24.7,
+              "max": 41.5
+            },
+            "scan": {
+              "median": 117.3,
+              "min": 103.7,
+              "max": 129.4
+            },
+            "generate": {
+              "median": 69,
+              "min": 57.7,
+              "max": 80.4
+            }
+          },
+          "warm": {
+            "load": {
+              "median": 0.3,
+              "min": 0.2,
+              "max": 0.4
+            },
+            "total": {
+              "median": 190,
+              "min": 158.7,
+              "max": 248.9
+            },
+            "setup": {
+              "median": 12.9,
+              "min": 3,
+              "max": 79
+            },
+            "scan": {
+              "median": 129,
+              "min": 120.6,
+              "max": 172.1
+            },
+            "generate": {
+              "median": 32.6,
+              "min": 22.6,
+              "max": 45.8
+            }
+          }
+        },
+        "ta (dist)": {
+          "cssBytes": 70443,
+          "cssHash": "5812da7bc1630d77",
+          "candidates": 1621,
+          "cold": {
+            "wall": {
+              "median": 370,
+              "min": 322.3,
+              "max": 395.4
+            },
+            "load": {
+              "median": 44.7,
+              "min": 37,
+              "max": 57.1
+            },
+            "total": {
+              "median": 247.1,
+              "min": 211.4,
+              "max": 278.6
+            },
+            "setup": {
+              "median": 3.5,
+              "min": 2.7,
+              "max": 4.6
+            },
+            "scan": {
+              "median": 14.5,
+              "min": 11.2,
+              "max": 21.5
+            },
+            "extract": {
+              "median": 138.1,
+              "min": 118.2,
+              "max": 162.8
+            },
+            "generate": {
+              "median": 89.5,
+              "min": 60.7,
+              "max": 104.5
+            }
+          },
+          "warm": {
+            "total": {
+              "median": 162.4,
+              "min": 136.6,
+              "max": 237.7
+            },
+            "setup": {
+              "median": 0.6,
+              "min": 0.5,
+              "max": 5.8
+            },
+            "scan": {
+              "median": 10.3,
+              "min": 8.2,
+              "max": 14
+            },
+            "extract": {
+              "median": 111.8,
+              "min": 96.3,
+              "max": 168.8
+            },
+            "generate": {
+              "median": 42.2,
+              "min": 25.1,
+              "max": 53.9
+            }
+          },
+          "cold+cache": {
+            "wall": {
+              "median": 225.1,
+              "min": 212.8,
+              "max": 258.9
+            },
+            "load": {
+              "median": 43.3,
+              "min": 40.6,
+              "max": 56.9
+            },
+            "total": {
+              "median": 130.9,
+              "min": 122.4,
+              "max": 170.8
+            },
+            "setup": {
+              "median": 3.1,
+              "min": 2.9,
+              "max": 4.2
+            },
+            "scan": {
+              "median": 13.1,
+              "min": 12.5,
+              "max": 17.4
+            },
+            "extract": {
+              "median": 35.6,
+              "min": 34.4,
+              "max": 46.3
+            },
+            "generate": {
+              "median": 77.4,
+              "min": 72.2,
+              "max": 112.3
+            }
+          }
+        },
+        "ta (trước)": {
+          "cssBytes": 70443,
+          "cssHash": "5812da7bc1630d77",
+          "candidates": 1621,
+          "cold": {
+            "wall": {
+              "median": 378.5,
+              "min": 341.4,
+              "max": 413.5
+            },
+            "load": {
+              "median": 45.6,
+              "min": 39.7,
+              "max": 59.7
+            },
+            "total": {
+              "median": 256.1,
+              "min": 230.1,
+              "max": 268.1
+            },
+            "setup": {
+              "median": 3.8,
+              "min": 3,
+              "max": 5.7
+            },
+            "scan": {
+              "median": 15.3,
+              "min": 11.2,
+              "max": 19.3
+            },
+            "extract": {
+              "median": 140,
+              "min": 129.8,
+              "max": 153.3
+            },
+            "generate": {
+              "median": 92.1,
+              "min": 83.8,
+              "max": 103.9
+            }
+          },
+          "warm": {
+            "total": {
+              "median": 161.8,
+              "min": 137.2,
+              "max": 244.3
+            },
+            "setup": {
+              "median": 0.6,
+              "min": 0.5,
+              "max": 1.3
+            },
+            "scan": {
+              "median": 11.1,
+              "min": 8.8,
+              "max": 13.7
+            },
+            "extract": {
+              "median": 115.1,
+              "min": 92.7,
+              "max": 172.1
+            },
+            "generate": {
+              "median": 41.7,
+              "min": 31.3,
+              "max": 57.6
+            }
+          },
+          "cold+cache": {
+            "wall": {
+              "median": 231.3,
+              "min": 192.7,
+              "max": 270.8
+            },
+            "load": {
+              "median": 44.1,
+              "min": 36.8,
+              "max": 54.1
+            },
+            "total": {
+              "median": 137.6,
+              "min": 110.8,
+              "max": 184.9
+            },
+            "setup": {
+              "median": 3.3,
+              "min": 2.6,
+              "max": 4.6
+            },
+            "scan": {
+              "median": 14.8,
+              "min": 11.2,
+              "max": 19.2
+            },
+            "extract": {
+              "median": 34.3,
+              "min": 30.7,
+              "max": 50.3
+            },
+            "generate": {
+              "median": 85.8,
+              "min": 66,
+              "max": 114.6
+            }
+          }
+        }
+      },
+      "oursIdentical": true
+    }
+  }
+}

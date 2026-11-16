@@ -17,6 +17,8 @@ const CDN = {
     'tailwind-auto': 'src/tailwind-auto.ts',
     // tailwind-auto tự import động `./tailwind-plugins.mjs`: phải là một file tự chứa.
     'tailwind-plugins': 'src/tailwind-plugins.ts',
+    // Chế độ lai (`data-hybrid`) cũng nạp động `./tailwind-hybrid.mjs`: trang thường không tải phần này.
+    'tailwind-hybrid': 'src/hybrid.ts',
 }
 // Bản CDN Tailwind chỉ cần class Tailwind: tắt cache localStorage và từ điển x-css trong lõi (cờ build ở
 // đầu src/core.ts) để bundler loại bỏ chúng (52,1 -> 40,9 KB gzip). Chỉ áp cho bản ESM tự chứa; bản CJS
@@ -43,8 +45,11 @@ const NODE = {
     postcss: 'src/postcss.ts',
     prettier: 'src/prettier.ts',
     vite: 'src/vite.ts',
+    shorten: 'src/shorten.ts',
+    webpack: 'src/webpack.ts',
+    next: 'src/next.ts',
 }
-const ESM_WRAPPED = ['mcp', 'lsp', 'postcss', 'prettier', 'vite']
+const ESM_WRAPPED = ['mcp', 'lsp', 'postcss', 'prettier', 'vite', 'shorten', 'webpack', 'next']
 
 const common: Options = {
     sourcemap: true,
@@ -88,7 +93,9 @@ export default defineConfig([
     },
     {
         ...common,
-        entry: { 'tailwind-auto': TAILWIND_AUTO },
+        // `tailwind-stylesheet.mjs`: phần đọc `<style type="text/tailwindcss">` mà tailwind-auto nạp động (tự chứa, không
+        // có dữ liệu Tailwind; lõi phương ngữ truyền trạng thái qua tham số). Không phải export của gói.
+        entry: { 'tailwind-auto': TAILWIND_AUTO, 'tailwind-stylesheet': 'src/tailwind-stylesheet.ts' },
         format: ['esm'],
         splitting: false,
         define: { ...common.define, ...CDN_LITE_DEFINE },
@@ -110,6 +117,9 @@ export default defineConfig([
         onSuccess: async () => {
             // Next.js và nhiều trình chạy PostCSS gọi `require('@porbit/style/postcss')(options)`: bản CJS phải là hàm.
             writeFileSync('dist/postcss.cjs', "'use strict'\nconst mod = require('./postcss.js')\nmodule.exports = Object.assign(mod.default, mod, { default: mod.default })\n")
+            // Loader webpack/Rspack: module.exports phải là hàm loader (plugin trỏ thẳng tới file này).
+            // (biến trung gian: cjs-module-lexer không coi là re-export toàn bộ webpack.js).
+            writeFileSync('dist/webpack-loader.cjs', "'use strict'\nconst mod = require('./webpack.js')\nmodule.exports = mod.shortClassNamesLoader\n")
             writeEsmWrappers()
         },
     },

@@ -12,12 +12,16 @@ Lượt đo: **mặc định** (1280 px) · **mở**/**đóng** (`data-state`, `
 | shadcn/ui v4 | PostCSS | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 | 769 |
 | coss ui | không build | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 |
 | coss ui | PostCSS | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 | 1331 |
+| daisyUI 5 | không build | 410 | 410 | 410 | 410 | 410 | 410 | 410 | 410 | 410 | 410 | 410 | 410 | 410 |
+| daisyUI 5 | PostCSS | 410 | 410 | 410 | 410 | 410 | 410 | 410 | 410 | 410 | 410 | 410 | 410 | 410 |
 | HyperUI | không build | 619 | 619 | 619 | 619 | 619 | 619 | 619 | 619 | 619 | 619 | 619 | 619 | 619 |
 | HyperUI | PostCSS | 619 | 619 | 619 | 619 | 619 | 619 | 619 | 619 | 619 | 619 | 619 | 619 | 619 |
 | Magic UI | không build | 586 | 586 | 586 | 586 | 586 | 586 | 586 | 586 | 586 | 586 | 586 | 586 | 586 |
 | Magic UI | PostCSS | 586 | 586 | 586 | 586 | 586 | 586 | 586 | 586 | 586 | 586 | 586 | 586 | 586 |
-| v3-extend | không build | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 |
-| v3-extend | PostCSS | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 | 61 |
+| TailAdmin Vue | không build | 697 | 697 | 697 | 697 | 697 | 697 | 697 | 697 | 697 | 697 | 697 | 697 | 697 |
+| TailAdmin Vue | PostCSS | 697 | 697 | 697 | 697 | 697 | 697 | 697 | 697 | 697 | 697 | 697 | 697 | 697 |
+| v3-extend | không build | 66 | 66 | 66 | 66 | 66 | 66 | 66 | 66 | 66 | 66 | 66 | 66 | 66 |
+| v3-extend | PostCSS | 66 | 66 | 66 | 66 | 66 | 66 | 66 | 66 | 66 | 66 | 66 | 66 | 66 |
 | v3-replace | không build | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 |
 | v3-replace | PostCSS | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 | 18 |
 
@@ -29,12 +33,16 @@ Lượt đo: **mặc định** (1280 px) · **mở**/**đóng** (`data-state`, `
 | shadcn/ui v4 | PostCSS | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 | 260 |
 | coss ui | không build | 379 | 379 | 379 | 379 | 379 | 379 | 379 | 379 | 379 | 379 | 379 | 379 |
 | coss ui | PostCSS | 379 | 379 | 379 | 379 | 379 | 379 | 379 | 379 | 379 | 379 | 379 | 379 |
+| daisyUI 5 | không build | 242 | 242 | 242 | 242 | 242 | 242 | 242 | 242 | 242 | 242 | 242 | 242 |
+| daisyUI 5 | PostCSS | 242 | 242 | 242 | 242 | 242 | 242 | 242 | 242 | 242 | 242 | 242 | 242 |
 | HyperUI | không build | 766 | 766 | 766 | 766 | 766 | 766 | 766 | 766 | 766 | 766 | 766 | 766 |
 | HyperUI | PostCSS | 766 | 766 | 766 | 766 | 766 | 766 | 766 | 766 | 766 | 766 | 766 | 766 |
 | Magic UI | không build | 245 | 245 | 245 | 245 | 245 | 245 | 245 | 245 | 245 | 245 | 245 | 245 |
 | Magic UI | PostCSS | 245 | 245 | 245 | 245 | 245 | 245 | 245 | 245 | 245 | 245 | 245 | 245 |
-| v3-extend | không build | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 |
-| v3-extend | PostCSS | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 |
+| TailAdmin Vue | không build | 342 | 342 | 342 | 342 | 342 | 342 | 342 | 342 | 342 | 342 | 342 | 342 |
+| TailAdmin Vue | PostCSS | 342 | 342 | 342 | 342 | 342 | 342 | 342 | 342 | 342 | 342 | 342 | 342 |
+| v3-extend | không build | 12 | 12 | 12 | 12 | 12 | 12 | 12 | 12 | 12 | 12 | 12 | 12 |
+| v3-extend | PostCSS | 12 | 12 | 12 | 12 | 12 | 12 | 12 | 12 | 12 | 12 | 12 | 12 |
 | v3-replace | không build | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 |
 | v3-replace | PostCSS | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 |
 
@@ -46,17 +54,21 @@ Số class mà chính Tailwind cho computed style khác lượt mặc định (0
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | shadcn/ui v4 | 39 | 18 | 23 | 13 | 6 | 15 | 15 | 20 | 7 | 7 |
 | coss ui | 42 | 17 | 45 | 16 | 3 | 11 | 18 | 70 | 5 | 5 |
+| daisyUI 5 | 5 | 0 | 29 | 5 | 6 | 13 | 5 | 39 | 30 | 23 |
 | HyperUI | 0 | 0 | 69 | 28 | 15 | 17 | 30 | 24 | 10 | 3 |
 | Magic UI | 3 | 1 | 28 | 22 | 0 | 1 | 24 | 25 | 18 | 11 |
-| v3-extend | 0 | 0 | 2 | 1 | 4 | 4 | 1 | 11 | 5 | 3 |
+| TailAdmin Vue | 0 | 0 | 59 | 17 | 7 | 8 | 17 | 72 | 48 | 9 |
+| v3-extend | 0 | 0 | 2 | 1 | 4 | 4 | 1 | 14 | 8 | 5 |
 | v3-replace | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 2 | 0 |
 
 ## Nguồn
 
 - **shadcn/ui v4** — shadcn/ui `new-york-v4/ui`, MIT. Chi tiết lệch: `eval/REAL-PROJECT.md`.
 - **coss ui** — [coss ui](https://github.com/origin-space/originui) (Origin UI nay là coss.com/ui, dựng trên Base UI) `packages/ui/src/components` + `packages/ui/src/styles/globals.css` (commit 0da83f8), MIT, © coss.com và Origin UI. Chi tiết lệch: `eval/REAL-PROJECT-coss-ui.md`.
+- **daisyUI 5** — Trang mẫu tự viết theo ví dụ trong tài liệu [daisyUI](https://daisyui.com) 5 (`daisyui@5.8.1`, plugin `@plugin "daisyui"`), daisyUI: MIT, © Pouya Saadeghi. Chi tiết lệch: `eval/REAL-PROJECT-daisyui.md`.
 - **HyperUI** — [HyperUI](https://github.com/markmead/hyperui) `public/examples/{application,neobrutalism}` + `src/styles/component.css` (commit 3032a06), MIT, © Mark Mead. Chi tiết lệch: `eval/REAL-PROJECT-hyperui.md`.
 - **Magic UI** — [Magic UI](https://github.com/magicuidesign/magicui) `apps/www/registry/magicui` + `apps/www/styles/globals.css` (commit 6f7b531), MIT, © Magic UI. Chi tiết lệch: `eval/REAL-PROJECT-magicui.md`.
+- **TailAdmin Vue** — [TailAdmin Vue](https://github.com/TailAdmin/vue-tailwind-admin-dashboard) qua gói npm [`@dynamia-tools/tailadmin-vue`](https://www.npmjs.com/package/@dynamia-tools/tailadmin-vue)@26.9.7 `src/components` (bỏ `ext/`) + `src/assets/theme.css`, MIT, © TailAdmin. Chi tiết lệch: `eval/REAL-PROJECT-tailadmin.md`.
 - **v3-extend** — `tailwind.config.js` kiểu v3 với `theme.extend` (tự viết). Chi tiết lệch: `eval/REAL-PROJECT-v3-extend.md`.
 - **v3-replace** — cấu hình v3 thay hẳn theme (tự viết). Chi tiết lệch: `eval/REAL-PROJECT-v3-replace.md`.
 
@@ -175,6 +187,53 @@ thắng hoặc phần của dự án bị bỏ). coss ui có `@utility container
 
 `fixed`, `sr-only`, `absolute start-0 …` lệch `bottom`/`inset-block-end` vài px: vị trí phụ thuộc chiều cao trang, mà
 trang lệch vì các phần tử phía trên lệch chiều cao (mục 4–6, 10). Hết khi các mục kia được sửa.
+
+### 13. daisyUI 5: component trong layer con, at-rule lồng trong utility của plugin — Đã sửa
+
+Đo lần đầu (engine 1.0.0, cùng bộ đo): chuyển được 161/410 class, khớp 10/410 ở lượt mặc định (`[data-theme=dark]`
+241/410), tổ hợp 5/242, cả hai chế độ. Nguyên nhân và cách sửa:
+
+1. **At-rule lồng trong rule của component bị bỏ** (249 class "chưa chuyển"): daisyUI đặt gần như mọi khai báo trong
+   `@layer daisyui.l1.l2.l3 { ... }` (cả `l1`, `l1.l2`, `l1.l2.l3.l4`), kèm `@supports`, `@media`, `@starting-style`,
+   `@scope (&)` lồng trong rule. API plugin chỉ nhận `@media`, phương ngữ bỏ mọi at-rule khác trong `@utility`.
+   **Sửa:** `utilityRules` giữ chuỗi at-rule của từng rule (`Rule.at`), `place()` nối sau at-rule của biến thể thành key
+   nội tuyến lồng `[@media_x{@layer_y]`, engine (`core.ts`) bọc lần lượt; khai báo đứng sau một khối lồng thành rule mới
+   (giữ thứ tự cascade như CSS lồng). `@scope (&) { :where(:scope > x) }` (join) đổi thành rule con với `:scope` → `&`.
+2. **Preflight thắng component:** Tailwind đặt component trong `@layer utilities` (→ `utilities.daisyui.l1...`), cao hơn
+   `@layer base`. Ta để preflight/CSS nền thẳng trong `l0`, mà khai báo thẳng trong một layer luôn thắng layer con của nó
+   (`* { padding: 0 }` đè `.btn { padding-inline }`). **Sửa:** CSS nền vào layer con `l0.theme`/`l0.base`/`l0.components`,
+   thứ tự khai báo ở đầu CSS nền (`@layer l0{@layer theme, base, components;}`): thấp hơn mọi utility và mọi layer con
+   của plugin, `!important` của nền thắng utility như Tailwind.
+3. **Biến theme tự tham chiếu:** `config.theme.extend.colors.primary = 'var(--color-primary)'` thành
+   `@theme { --color-primary: var(--color-primary) }`; ta phát `:root{--color-base-content: var(--color-base-content)}`
+   (vòng lặp → biến hỏng, chữ đen) vì CSS nền đọc biến đó. Tailwind coi theme cấu hình là `reference` nên không phát.
+   **Sửa:** không phát và không dùng làm giá trị dự phòng biến theme có giá trị đúng bằng `var(<chính nó>)`.
+4. **Dấu `;` trong giá trị:** data URL của `loading-*` có `values='0;0.475;1'`; engine đọc `;` trong giá trị là khoảng
+   trắng. **Sửa:** phương ngữ mã hoá `;` thành `';` (dấu `;` thật của engine).
+5. **Bộ đo:** animation 0,25 s (`toast`, `rating`) có lúc chạy xong trước khi đo (máy bận, lượt ép trạng thái chậm) và
+   biến khỏi `getAnimations()`, hai phía lệch ngẫu nhiên. Đóng băng dòng thời gian animation bằng CDP
+   `Animation.setPlaybackRate` 0 trước khi nạp trang. Lượt tối của fixture đặt `data-theme="dark"` (khoá `dark` của
+   `fixture.json`); plugin JS chưa đóng gói chạy qua API giả lập ở cả chế độ "không build".
+
+Sau sửa: 410/410 ở 10/11 lượt và 409/410 ở `:focus-visible`, tổ hợp 242/242 (`:focus-visible` 241/242), cả hai chế độ (lệch cuối: xem dưới).
+
+**Đã sửa (lệch cuối, `diff` ở `:focus-visible`):** `outline-style: var(--tw-outline-style)` của daisyUI. Tailwind chỉ
+đăng ký `@property --tw-outline-style` (giá trị đầu `solid`) khi trang có utility sẵn có cần nó (`outline-*`); fixture
+không có nên biến không tồn tại → `none`. Ta từng đăng ký sẵn cả 127 biến `--tw-*` → `solid`. Cùng loại: daisyUI còn
+đọc `--tw-border-style`, `--tw-duration`, `--tw-scale-x/y` mà không tự đặt. **Sửa:** mỗi class Tailwind kèm nhóm
+`@property` mà Tailwind đăng ký cho utility đó (nhóm = các biến Tailwind luôn đăng ký cùng nhau; quy tắc chọn nhóm sinh
+từ Tailwind trong `scripts/gen-tailwind-map.mjs` và kiểm trên mọi class của `getClassList`), engine thêm vào sheet gốc
+một lần (`XCSSDialect.baseRules`); `@apply` trong CSS của dự án đăng ký sẵn trong CSS nền. Sau sửa: 410/410 mọi lượt,
+tổ hợp 242/242, cả hai chế độ.
+
+### 14. TailAdmin Vue: `--font-*: initial` xoá cả `--font-weight-*` — Đã sửa
+
+Đo lần đầu (engine 1.0.0): 694/697 class chuyển được, khớp 691/697 ở mọi lượt, tổ hợp 277/342 (cả hai chế độ). Ba class
+"chưa chuyển" là `font-medium`/`font-semibold`/`font-bold`. `@theme { --font-*: initial; --font-outfit: ... }` xoá namespace `--font-`;
+Tailwind giữ namespace con `--font-weight-*`/`--font-size-*` (`ignoredThemeKeyMap`: cả `--inset-shadow-*`,
+`--text-shadow-*`...), ta xoá luôn nên `font-medium`/`font-semibold`/`font-bold` và `@utility menu-item { @apply
+font-medium ... }` mất `font-weight`. **Sửa:** `clearedBy()` bỏ qua namespace con như Tailwind. Sau sửa: 697/697 mọi
+lượt, tổ hợp 342/342, cả hai chế độ.
 
 ### Về độ tin cậy của phép đo
 

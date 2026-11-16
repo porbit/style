@@ -19,5 +19,19 @@
     "combos": 379,
     "total": 1331,
     "comboTotal": 379
+  },
+  "daisyui": {
+    "converted": 410,
+    "classes": 410,
+    "combos": 242,
+    "total": 410,
+    "comboTotal": 242
+  },
+  "tailadmin": {
+    "converted": 697,
+    "classes": 697,
+    "combos": 342,
+    "total": 697,
+    "comboTotal": 342
   }
 }

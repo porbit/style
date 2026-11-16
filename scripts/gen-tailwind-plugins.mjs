@@ -27,6 +27,16 @@ const loadModule = async (id, base) => ({ base, path: id, module: require(id) })
 const pkgDir = (id) => path.join(root, 'node_modules', id)
 const versionOf = (id) => JSON.parse(fs.readFileSync(path.join(pkgDir(id), 'package.json'), 'utf8')).version
 
+// Bản plugin được ghim chính xác trong devDependencies: sinh với bản khác (node_modules cũ) sẽ làm
+// dữ liệu đóng gói lệch với package.json, nên dừng lại và yêu cầu `npm ci`.
+const pinned = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).devDependencies
+for (const id of ['@tailwindcss/forms', '@tailwindcss/typography', 'tailwindcss-animate', 'tw-animate-css', 'tailwindcss']) {
+    if (versionOf(id) !== pinned[id]) {
+        console.error(`${id}: node_modules có ${versionOf(id)}, package.json ghim ${pinned[id]} — chạy \`npm ci\` rồi sinh lại.`)
+        process.exit(1)
+    }
+}
+
 const cssEscape = (value) => value.replace(/[^\w-]/g, (ch) => '\\' + ch).replace(/^(\d)/, '\\3$1 ')
 
 /** Khối CSS cấp ngoài: [{ head, body }] hoặc { text } cho câu lệnh. */
@@ -143,12 +153,13 @@ const BASE_CSS = '@import "tailwindcss";'
 const baseDs = await designSystem(BASE_CSS)
 const baseClasses = new Set(baseDs.getClassList().map(([name]) => name))
 const baseVariants = new Set(baseDs.getVariants().map((v) => v.name))
-const baseLayer = async (css) => {
-    const compiler = await compile(css, { base: root, loadStylesheet, loadModule })
-    const out = compiler.build([])
-    return blocks(out).filter((b) => b.head === '@layer base').map((b) => b.body).join('\n')
-}
+const compiled = async (css) => blocks((await compile(css, { base: root, loadStylesheet, loadModule })).build([]))
+const baseLayer = async (css) => (await compiled(css)).filter((b) => b.head === '@layer base').map((b) => b.body).join('\n')
 const preflight = squash(await baseLayer(BASE_CSS))
+// Khối cấp ngoài không thuộc layer mà Tailwind luôn phát cho plugin (`@keyframes enter/exit` từ `theme.extend.keyframes`
+// của tailwindcss-animate): thiếu thì `animate-in` không có keyframes, `transform` tính ra `none` thay vì ma trận đơn vị.
+const topLevel = async (css) => (await compiled(css)).filter((b) => b.head && !b.head.startsWith('@layer')).map((b) => squash(`${b.head}{${b.body}}`))
+const baseTopLevel = new Set(await topLevel(BASE_CSS))
 
 const fromJsPlugin = async (id) => {
     const css = `${BASE_CSS}\n@plugin "${id}";`
@@ -157,6 +168,7 @@ const fromJsPlugin = async (id) => {
     const base = squash(await baseLayer(css))
     const extraBase = base.startsWith(preflight) ? base.slice(preflight.length) : base
     if (extraBase.trim()) parts.push(`@layer base{${extraBase}}`)
+    parts.push(...(await topLevel(css)).filter((block) => !baseTopLevel.has(block)))
     const classes = ds.getClassList().map(([name]) => name).filter((name) => !baseClasses.has(name))
     const compiled = ds.candidatesToCss(classes)
     classes.forEach((name, i) => {
@@ -184,9 +196,80 @@ for (const id of ['@tailwindcss/forms', '@tailwindcss/typography', 'tailwindcss-
     stats[id] = { classes: result.classes, variants: result.variants, bytes: result.css.length }
 }
 
+// ---------------------------------------------------------------------------
+// Nén LZ77 dạng chữ (giải nén: `unpackPluginCss` trong src/tailwind-plugins.ts). CSS plugin lặp nhiều (typography
+// lặp selector `:where(...):not(:where([class~="not-prose"],...))`): 117 -> ~40 KB trong mỗi bản build (CDN + CJS),
+// gzip không tăng vì chỉ thay đoạn lặp dài (từ PACK_MIN ký tự), đoạn ngắn để gzip lo.
+// Định dạng: ký tự thường giữ nguyên; `` `abc `` = chép lại (a*64+b) ký tự trước đó, độ dài c+PACK_MIN (chép chồng
+// được, như LZ77); hai dấu `` ` `` liền nhau là một dấu `` ` ``. Chữ số: PACK_CHARS.
+// ---------------------------------------------------------------------------
+const PACK_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$'
+const PACK_MIN = 24
+const PACK_WINDOW = 64 * 64 - 1
+const PACK_MAX = PACK_MIN + 63
+const pack = (text) => {
+    let out = ''
+    const index = new Map()
+    const remember = (k) => {
+        const key = text.substr(k, PACK_MIN)
+        if (!index.has(key)) index.set(key, [])
+        index.get(key).push(k)
+    }
+    for (let i = 0; i < text.length;) {
+        let best = 0
+        let distance = 0
+        const candidates = index.get(text.substr(i, PACK_MIN)) || []
+        for (let c = candidates.length - 1; c >= 0 && i - candidates[c] <= PACK_WINDOW; c--) {
+            let n = 0
+            while (n < PACK_MAX && i + n < text.length && text[candidates[c] + n] === text[i + n]) n++
+            if (n > best) [best, distance] = [n, i - candidates[c]]
+            if (n === PACK_MAX) break
+        }
+        if (best >= PACK_MIN) {
+            out += '`' + PACK_CHARS[distance >> 6] + PACK_CHARS[distance & 63] + PACK_CHARS[best - PACK_MIN]
+            for (let k = i; k < i + best; k++) remember(k)
+            i += best
+        } else {
+            out += text[i] === '`' ? '``' : text[i]
+            remember(i)
+            i++
+        }
+    }
+    return out
+}
+// Cùng thuật toán với `unpackPluginCss` (src/tailwind-plugins.ts): kiểm khớp từng ký tự trước khi ghi.
+const unpack = (packed) => {
+    let out = ''
+    let i = 0
+    for (let at = packed.indexOf('`'); at !== -1; at = packed.indexOf('`', i)) {
+        out += packed.slice(i, at)
+        if (packed[at + 1] === '`') {
+            out += '`'
+            i = at + 2
+            continue
+        }
+        const distance = PACK_CHARS.indexOf(packed[at + 1]) * 64 + PACK_CHARS.indexOf(packed[at + 2])
+        for (let length = PACK_CHARS.indexOf(packed[at + 3]) + PACK_MIN; length > 0;) {
+            const from = out.length - distance
+            const piece = out.slice(from, from + Math.min(length, distance))
+            out += piece
+            length -= piece.length
+        }
+        i = at + 4
+    }
+    return out + packed.slice(i)
+}
+const packed = Object.fromEntries(Object.entries(plugins).map(([id, css]) => {
+    const text = pack(css)
+    if (unpack(text) !== css) throw new Error(`Nén CSS của ${id} không giải nén lại đúng`)
+    stats[id].packed = text.length
+    return [id, text]
+}))
+
 const out = `// File sinh tự động bởi scripts/gen-tailwind-plugins.mjs — không sửa tay.
-// Plugin Tailwind phổ biến viết lại thành CSS Tailwind v4 cho \`parseTailwindStylesheet\`.
-export const TAILWIND_PLUGIN_CSS: Record<string, string> = ${JSON.stringify(plugins, null, 1)}
+// Plugin Tailwind phổ biến viết lại thành CSS Tailwind v4 cho \`parseTailwindStylesheet\`, nén LZ77 dạng chữ
+// (giải nén bằng \`unpackPluginCss\` trong src/tailwind-plugins.ts; định dạng: xem script sinh).
+export const TAILWIND_PLUGIN_CSS_PACKED: Record<string, string> = ${JSON.stringify(packed, null, 1)}
 `
 fs.writeFileSync(path.join(root, 'src/tailwind-plugins-generated.ts'), out)
 console.log('[gen-tailwind-plugins] -> src/tailwind-plugins-generated.ts')

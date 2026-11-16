@@ -1,120 +1,98 @@
 'use strict'
 /**
- * Logic thuần của extension (không phụ thuộc API `vscode`), để kiểm thử được bằng Node.
- * Mọi vị trí là offset ký tự trong văn bản.
+ * Logic thuần của extension (không phụ thuộc API `vscode`), để kiểm thử được bằng Node:
+ * đọc thiết lập, chọn language server (gói `@porbit/style` của dự án hoặc bản đóng gói kèm extension),
+ * dựng `initializationOptions` và bộ chọn tài liệu.
  */
+const fs = require('fs')
+const path = require('path')
 
-/**
- * @param {typeof import('@porbit/style/analyze')} analyze
- */
-const createLanguageService = (analyze) => {
-    const explainCache = new Map()
-    let cachedConfigKey = ''
+const SECTION = 'presenceStyle'
+const DEFAULT_LANGUAGES = ['html', 'javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue', 'svelte', 'astro', 'mdx', 'php']
+const CONFIG_FILE = 'presence-style.config.json'
+/** Thiết lập mà đổi thì phải khởi động lại server (các thiết lập khác gửi qua didChangeConfiguration). */
+const RESTART_KEYS = ['enable', 'languages', 'server', 'serverPath', 'nodePath']
 
-    const explain = (token, config) => {
-        const key = JSON.stringify(config || {}) + ((config && config.dialects && config.dialects.length) || 0)
-        if (key !== cachedConfigKey) {
-            explainCache.clear()
-            cachedConfigKey = key
-        }
-        let info = explainCache.get(token)
-        if (!info) {
-            info = analyze.explainClass(token, config || {})
-            if (explainCache.size > 5000) explainCache.clear()
-            explainCache.set(token, info)
-        }
-        return info
+/** Chuẩn hoá thiết lập từ `get(key, default)` (WorkspaceConfiguration.get). */
+const readSettings = (get) => {
+    const list = (value) => (Array.isArray(value) ? value.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()) : [])
+    const text = (value) => (typeof value === 'string' ? value.trim() : '')
+    const languages = list(get('languages', DEFAULT_LANGUAGES))
+    const server = get('server', 'auto')
+    return {
+        enable: get('enable', true) !== false,
+        languages: languages.length ? languages : DEFAULT_LANGUAGES,
+        tailwindFunctions: list(get('tailwindFunctions', [])),
+        tailwindStylesheet: text(get('tailwindStylesheet', '')),
+        configFile: text(get('configFile', CONFIG_FILE)) || CONFIG_FILE,
+        server: server === 'workspace' || server === 'bundled' ? server : 'auto',
+        serverPath: text(get('serverPath', '')),
+        nodePath: text(get('nodePath', '')),
     }
-
-    /** Lỗi class (không sinh CSS) và xung đột trong từng thuộc tính class. */
-    const diagnose = (text, config) => {
-        const result = []
-        for (const { start, end, token } of analyze.findClassTokens(text)) {
-            if (/[{}$`]/.test(token)) continue
-            const info = explain(token, config)
-            if (info.valid || !info.parsed) continue
-            if (!info.suggestion && !analyze.isXcssLike(token)) continue
-            result.push({
-                start,
-                end,
-                severity: 'warning',
-                code: 'invalid-class',
-                message: info.suggestion
-                    ? `\`${token}\` không sinh CSS. Sửa thành \`${info.suggestion}\`.`
-                    : `\`${token}\` không sinh CSS. ${info.hints[0] || ''}`.trim(),
-                suggestion: info.suggestion || null,
-            })
-        }
-        for (const range of analyze.findClassAttributes(text)) {
-            for (const conflict of analyze.findClassConflicts(range.value)) {
-                // Gạch dưới token đầu tiên của nhóm xung đột (token sẽ "thua" theo ý người viết).
-                const first = conflict.tokens[0]
-                const re = /\S+/g
-                let match
-                let offset = 0
-                while ((match = re.exec(range.value)) !== null) {
-                    if (match[0] === first) {
-                        offset = match.index
-                        break
-                    }
-                }
-                result.push({
-                    start: range.start + offset,
-                    end: range.start + offset + first.length,
-                    severity: 'information',
-                    code: 'conflict',
-                    message: `Xung đột ${conflict.property}: ${conflict.tokens.join(' ')}. Class thắng phụ thuộc thứ tự rule trên trang; giữ một class hoặc nâng layer.`,
-                    suggestion: null,
-                })
-            }
-        }
-        return result
-    }
-
-    /** Token class tại vị trí con trỏ (nếu con trỏ nằm trong thuộc tính class). */
-    const tokenAt = (text, offset) => {
-        for (const range of analyze.findClassTokens(text)) {
-            if (offset >= range.start && offset <= range.end) return range
-        }
-        return null
-    }
-
-    /** Nội dung hover dạng Markdown cho token tại vị trí. */
-    const hover = (text, offset, config) => {
-        const range = tokenAt(text, offset)
-        if (!range) return null
-        const info = explain(range.token, config)
-        const lines = []
-        if (info.valid) {
-            lines.push('```css', info.css.trim(), '```')
-        } else {
-            lines.push(`**Không sinh CSS.**${info.suggestion ? ` Sửa thành \`${info.suggestion}\`.` : ''}`)
-            info.hints.forEach((hint) => lines.push('- ' + hint))
-        }
-        if (info.parsed) {
-            const p = info.parsed
-            lines.push('', `media \`${p.media}\` · layer \`${p.layer}\` · property \`${p.cssProperty}\` · value \`${p.value || '—'}\`${p.selector ? ` · selector \`${p.selector}\`` : ''}`)
-        }
-        return { start: range.start, end: range.end, markdown: lines.join('\n') }
-    }
-
-    /** Có đang ở trong thuộc tính class không (để chỉ gợi ý ở đó). */
-    const inClassAttribute = (text, offset) =>
-        analyze.findClassAttributes(text).some((r) => offset >= r.start && offset <= r.end)
-
-    let aliasCache = null
-    const completions = () => {
-        if (!aliasCache) {
-            aliasCache = []
-            for (const item of analyze.listPropertyAliases()) {
-                aliasCache.push({ label: item.alias, detail: item.property, kind: 'property' })
-                item.values.forEach((value) => aliasCache.push({ label: value, detail: item.property, kind: 'value' }))
-            }
-        }
-        return aliasCache
-    }
-
-    return { diagnose, hover, tokenAt, inClassAttribute, completions, explain }
 }
 
-module.exports = { createLanguageService }
+/** Thiết lập gửi cho server (`initializationOptions` và `workspace/didChangeConfiguration`). */
+const serverSettings = (settings) => {
+    const out = { configFile: settings.configFile }
+    if (settings.tailwindFunctions.length) out.tailwindFunctions = settings.tailwindFunctions
+    if (settings.tailwindStylesheet) out.tailwindStylesheet = settings.tailwindStylesheet
+    return { [SECTION]: out }
+}
+
+/**
+ * Bộ chọn tài liệu cho các ngôn ngữ đã chọn: có `pattern` (thư mục workspace) -> file trên đĩa trong thư mục đó;
+ * không có -> file chưa lưu, thêm mọi file trên đĩa khi `files` (cửa sổ không mở thư mục nào).
+ */
+const documentSelector = (languages, pattern, { files = false } = {}) =>
+    languages.flatMap((language) =>
+        pattern ? [{ scheme: 'file', language, pattern }] : [...(files ? [{ scheme: 'file', language }] : []), { scheme: 'untitled', language }],
+    )
+
+/** Thư mục gói `@porbit/style` mà `dir` (gốc workspace) nhìn thấy qua node_modules; null nếu không có. */
+const findWorkspacePackage = (dir) => {
+    try {
+        return path.dirname(require.resolve('@porbit/style/package.json', { paths: [dir] }))
+    } catch (_error) {
+        // Gói cũ không xuất "./package.json": dò node_modules từ dir lên gốc.
+        for (let current = path.resolve(dir); ; current = path.dirname(current)) {
+            const candidate = path.join(current, 'node_modules', '@porbit', 'style')
+            if (fs.existsSync(path.join(candidate, 'package.json'))) return candidate
+            if (path.dirname(current) === current) return null
+        }
+    }
+}
+
+/**
+ * Chọn server cho một thư mục workspace:
+ *   1. `serverPath` (đường dẫn tới cli-bin.js hoặc script server, tương đối với workspace),
+ *   2. `@porbit/style` cài trong dự án (có language server: khoá "./lsp" trong exports) — dùng đúng phiên bản dự án,
+ *   3. bản đóng gói kèm extension (`server/presence-style-lsp.js`).
+ * `server: "workspace"` bỏ bước 3, `server: "bundled"` bỏ bước 2.
+ * @returns {{ module: string, args: string[], source: 'custom' | 'workspace' | 'bundled', version?: string } | { error: string }}
+ */
+const resolveServer = ({ folder, settings, bundled, exists = fs.existsSync, findPackage = findWorkspacePackage, readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8')) }) => {
+    if (settings.serverPath) {
+        const module = folder ? path.resolve(folder, settings.serverPath) : path.resolve(settings.serverPath)
+        return exists(module) ? { module, args: ['lsp'], source: 'custom' } : { error: `Không tìm thấy presenceStyle.serverPath: ${module}` }
+    }
+    if (settings.server !== 'bundled' && folder) {
+        const dir = findPackage(folder)
+        if (dir) {
+            try {
+                const pkg = readJson(path.join(dir, 'package.json'))
+                const bin = pkg.bin && (typeof pkg.bin === 'string' ? pkg.bin : pkg.bin['presence-style'])
+                const module = bin && path.join(dir, bin)
+                if (pkg.exports && pkg.exports['./lsp'] && module && exists(module)) return { module, args: ['lsp'], source: 'workspace', version: pkg.version }
+            } catch (_error) {
+                // package.json hỏng: dùng bản đóng gói
+            }
+        }
+        if (settings.server === 'workspace') return { error: `Không tìm thấy @porbit/style (có language server) trong node_modules của ${folder}` }
+    }
+    return exists(bundled) ? { module: bundled, args: [], source: 'bundled' } : { error: `Thiếu server đóng gói kèm extension: ${bundled}` }
+}
+
+/** Đổi thiết lập có cần khởi động lại server không (`affects(key)` = ConfigurationChangeEvent.affectsConfiguration). */
+const needsRestart = (affects) => RESTART_KEYS.some((key) => affects(`${SECTION}.${key}`))
+
+module.exports = { SECTION, DEFAULT_LANGUAGES, CONFIG_FILE, readSettings, serverSettings, documentSelector, findWorkspacePackage, resolveServer, needsRestart }

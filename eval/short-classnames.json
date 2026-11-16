@@ -1,0 +1,291 @@
+{
+  "ok": true,
+  "fixtures": {
+    "shadcn-v4": {
+      "label": "shadcn/ui v4",
+      "files": 45,
+      "cssClasses": 789,
+      "renamed": 752,
+      "skipped": {
+        "unused": 23,
+        "exclude": 1,
+        "unrecognized": 11,
+        "escape": 2
+      },
+      "timeMs": {
+        "compileCss": 668,
+        "shorten": 309
+      },
+      "size": {
+        "css": {
+          "before": {
+            "raw": 94976,
+            "gzip": 13926,
+            "brotli": 11814
+          },
+          "after": {
+            "raw": 75913,
+            "gzip": 11408,
+            "brotli": 9962
+          }
+        },
+        "source": {
+          "before": {
+            "raw": 161502,
+            "gzip": 25921
+          },
+          "after": {
+            "raw": 126532,
+            "gzip": 21850
+          }
+        },
+        "minifiedJs": {
+          "before": {
+            "raw": 103543,
+            "gzip": 20895
+          },
+          "after": {
+            "raw": 68569,
+            "gzip": 17235
+          }
+        }
+      },
+      "consistency": {
+        "leftovers": {},
+        "pairMismatch": 0,
+        "classStrings": 452
+      },
+      "elements": {
+        "total": 355,
+        "matched": {
+          "mặc định": 355,
+          "mở": 355,
+          "đóng": 355,
+          ".dark": 355,
+          ":hover": 355,
+          ":focus": 355,
+          ":focus-visible": 355,
+          ":active": 355,
+          "375px": 355,
+          "768px": 355,
+          "1600px": 355
+        }
+      },
+      "failures": []
+    },
+    "hyperui": {
+      "label": "HyperUI",
+      "files": 369,
+      "cssClasses": 775,
+      "renamed": 594,
+      "skipped": {
+        "unrecognized": 156,
+        "unused": 24,
+        "exclude": 1
+      },
+      "timeMs": {
+        "compileCss": 472,
+        "shorten": 610
+      },
+      "size": {
+        "css": {
+          "before": {
+            "raw": 77621,
+            "gzip": 12962,
+            "brotli": 10979
+          },
+          "after": {
+            "raw": 69861,
+            "gzip": 11687,
+            "brotli": 10087
+          }
+        },
+        "source": {
+          "before": {
+            "raw": 836473,
+            "gzip": 42195
+          },
+          "after": {
+            "raw": 673245,
+            "gzip": 37043
+          }
+        }
+      },
+      "consistency": {
+        "leftovers": {},
+        "pairMismatch": 0,
+        "classStrings": 4164
+      },
+      "elements": {
+        "total": 882,
+        "matched": {
+          "mặc định": 882,
+          "mở": 882,
+          "đóng": 882,
+          ".dark": 882,
+          ":hover": 882,
+          ":focus": 882,
+          ":focus-visible": 882,
+          ":active": 882,
+          "375px": 882,
+          "768px": 882,
+          "1600px": 882
+        }
+      },
+      "failures": [],
+      "pages": {
+        "files": 369,
+        "elements": 5339,
+        "matched": {
+          "mặc định": 5339,
+          "375px": 5339,
+          ":hover": 5339,
+          ":focus-visible": 5339
+        }
+      }
+    },
+    "magicui": {
+      "label": "Magic UI",
+      "files": 80,
+      "cssClasses": 653,
+      "renamed": 536,
+      "skipped": {
+        "exclude": 1,
+        "unused": 7,
+        "unrecognized": 85,
+        "dynamic": 24
+      },
+      "timeMs": {
+        "compileCss": 354,
+        "shorten": 151
+      },
+      "size": {
+        "css": {
+          "before": {
+            "raw": 83756,
+            "gzip": 15157,
+            "brotli": 13030
+          },
+          "after": {
+            "raw": 73716,
+            "gzip": 13362,
+            "brotli": 11600
+          }
+        },
+        "source": {
+          "before": {
+            "raw": 374677,
+            "gzip": 94926
+          },
+          "after": {
+            "raw": 358734,
+            "gzip": 91450
+          }
+        },
+        "minifiedJs": {
+          "before": {
+            "raw": 183399,
+            "gzip": 60420
+          },
+          "after": {
+            "raw": 167450,
+            "gzip": 57516
+          }
+        }
+      },
+      "consistency": {
+        "leftovers": {},
+        "pairMismatch": 0,
+        "classStrings": 416
+      },
+      "elements": {
+        "total": 320,
+        "matched": {
+          "mặc định": 320,
+          "mở": 320,
+          "đóng": 320,
+          ".dark": 320,
+          ":hover": 320,
+          ":focus": 320,
+          ":focus-visible": 320,
+          ":active": 320,
+          "375px": 320,
+          "768px": 320,
+          "1600px": 320
+        }
+      },
+      "failures": []
+    },
+    "coss-ui": {
+      "label": "coss ui",
+      "files": 56,
+      "cssClasses": 1352,
+      "renamed": 1203,
+      "skipped": {
+        "unrecognized": 43,
+        "exclude": 1,
+        "unused": 105
+      },
+      "timeMs": {
+        "compileCss": 924,
+        "shorten": 450
+      },
+      "size": {
+        "css": {
+          "before": {
+            "raw": 205248,
+            "gzip": 26952,
+            "brotli": 21287
+          },
+          "after": {
+            "raw": 163810,
+            "gzip": 21935,
+            "brotli": 17981
+          }
+        },
+        "source": {
+          "before": {
+            "raw": 293239,
+            "gzip": 48050
+          },
+          "after": {
+            "raw": 222551,
+            "gzip": 38695
+          }
+        },
+        "minifiedJs": {
+          "before": {
+            "raw": 193830,
+            "gzip": 37495
+          },
+          "after": {
+            "raw": 123142,
+            "gzip": 29560
+          }
+        }
+      },
+      "consistency": {
+        "leftovers": {},
+        "pairMismatch": 0,
+        "classStrings": 748
+      },
+      "elements": {
+        "total": 553,
+        "matched": {
+          "mặc định": 553,
+          "mở": 553,
+          "đóng": 553,
+          ".dark": 553,
+          ":hover": 553,
+          ":focus": 553,
+          ":focus-visible": 553,
+          ":active": 553,
+          "375px": 553,
+          "768px": 553,
+          "1600px": 553
+        }
+      },
+      "failures": []
+    }
+  }
+}

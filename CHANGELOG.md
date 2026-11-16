@@ -1,5 +1,56 @@
 # Lịch Sử Thay Đổi
 
+## 1.1.0
+
+Đo lại toàn bộ so với Tailwind 4.3.5: 6 dự án thật (thêm daisyUI 5, TailAdmin), 10 cấu hình v3, mọi bước so sánh đòi khớp 100% (xem `docs/strategy/danh-gia-1.1.md`).
+
+**Khớp Tailwind** (phương ngữ v4, mọi chế độ: không build, PostCSS, CDN)
+- `@property` chỉ đăng ký theo utility sẵn có thực sự được dùng (nhóm biến Tailwind đăng ký cùng nhau, quy tắc sinh từ Tailwind và kiểm trên mọi class của `getClassList`), không còn đăng ký sẵn cả 127 biến: CSS của plugin đọc `--tw-*` mà không đặt (daisyUI: `outline-style` ở `:focus-visible`) giờ như Tailwind. daisyUI 409 → 410/410. Engine: `XCSSDialect.baseRules` (rule nền theo class, thêm vào sheet gốc một lần, giữ qua cache).
+- Khoá theme tự định nghĩa ở mọi namespace Tailwind đọc: `--aspect-wide` → `aspect-wide`, `--z-index-*`, `--width-*`, `--margin-*`, `--border-width-*`, `--background-color-*`... (75 namespace, dò bằng chính Tailwind); `@config` v3 đổi khoá theme khác (`zIndex`, `aspectRatio`, `gridTemplateColumns`...) sang namespace kebab-case như Tailwind; `aspect-1`…`aspect-16` của `@tailwindcss/aspect-ratio`. Theme tuỳ chỉnh trong `tailwind-parity` 28 → 50/50.
+- `matchVariant` có `sort`: giá trị tuỳ ý xếp xen giữa giá trị có tên như Tailwind (trước đây luôn xếp sau); trùng biến thể sẵn có (`nth`) giữ thứ tự biến thể đó. Dialect nhận `variantOrder` (từ `sheet.variantOrder`).
+- Hai at-rule nội tuyến lồng nhau: `@[300px]:@max-[500px]:`, `md:@[300px]:`, `supports-[...]:@md:`, `@md:hover:`, `md:not-dark:`... (trước trả null). Độ phủ biến thể 403 → 415/415.
+- `@plugin "tailwindcss-animate"` (bản đóng gói): giữ `@keyframes enter`/`exit` mà Tailwind luôn phát cho plugin (từ `theme.extend.keyframes`; trước đây bộ sinh chỉ lấy `@utility`/`@layer base`, nên `animate-in`/`animate-out` không có keyframes, `transform` tính ra `none` thay vì ma trận đơn vị). 445 → 447/447; `check:all` nay đòi mọi plugin JS và bản đóng gói khớp 100% (trước ≥ 99%).
+- `@property` của `transform`, `filter`, `backdrop-filter`, `text-shadow-none` đăng ký đúng nhóm như Tailwind (4 ngoại lệ của quy tắc chung, bảng `propertyExtra` sinh từ Tailwind; lệch quy tắc trên class bất kỳ của `getClassList` nay là lỗi khi sinh). Lệch đo được còn lại so với Tailwind: 0 (ghi chú phần Tailwind không xác định: `eval/README.md`).
+- Pseudo-element đứng đúng vị trí trong chuỗi biến thể như Tailwind: `data-[state=active]:after:` → `[data-state="active"]::after`, `hover:after:` → `:hover::after`, `group-data-[...]:after:` (trước luôn gắn `::after` ngay sau class: `::after[data-state=active]`, `::after:hover` — selector sai, trình duyệt bỏ cả rule, Lightning CSS của Turbopack dừng build). Giá trị thuộc tính của `data-[...]`/`aria-[...]` luôn trong ngoặc kép như Tailwind (`[data-spacing="0"]`; trước `[data-spacing=0]` là selector sai). CSS sinh cho shadcn/ui, Magic UI, coss ui, daisyUI không còn selector lỗi khi kiểm bằng Lightning CSS.
+- Chế độ lai (`data-hybrid`): CSS tĩnh bị thay sau khi tải (HMR của Vite) không còn làm mất rule runtime — chèn lại vào sheet mới đúng thứ tự.
+
+**Giấy phép**
+- Thống nhất giấy phép Apache-2.0 (file `LICENSE` vốn là Apache-2.0; `package.json`, README, crate Rust và extension từng ghi MIT).
+
+**Hiệu năng build tĩnh** (plugin PostCSS, CLI; CSS đầu ra không đổi từng byte)
+- 6.000 file (fixture nhân bản, `eval/build-bench.mjs`, trung vị, cùng lần đo): build trong tiến trình mới 1147 → 676–707 ms (Tailwind CLI v4: 747 ms), build lại trong cùng tiến trình 747 → 492 ms (Tailwind: 516 ms). Máy 4 lõi đang bận, số đo dao động; xem `eval/build-bench.json`.
+- Trích xuất với `hashClassName: false` không còn dựng engine thứ hai chỉ để đếm class khớp (mỗi class từng được giải và dựng rule hai lần).
+- Bộ quét ứng viên cho Node (`src/scan.ts`) quét theo mã ký tự, cùng kết quả và thứ tự với `extractCandidates`; quét thêm bằng `worker_threads` chỉ khi đặt `PRESENCE_STYLE_WORKERS` (mặc định tắt: đo được chậm hơn quét tuần tự có ghi nhớ).
+- `minifyCss` nhanh hơn ~2 lần (tách khối bằng regex, nhớ thân khối giữa hai lượt, tập biến dùng tính một lần); liệt kê file không còn gọi `path.join`/`path.relative` cho từng file.
+- `compileTailwindCss` trả thêm `timings` (thời gian từng pha).
+- Build đầu (tiến trình mới, không bộ nhớ đệm) nhanh hơn 3–4%: bộ quét ghi số hiệu token vào vùng nhớ chung thay cho mảng chuỗi từng file (ít rác cho GC; ghi file đệm trên đĩa 43 → 17 ms cho 6.000 file, nội dung file đệm không đổi), file chưa có trong bộ nhớ đệm stat + đọc qua một fd; phương ngữ Tailwind giải phần gốc utility một lần cho mọi biến thể, class dựng từ mẫu dựng rule khi tra lần đầu (nạp module nhẹ hơn, cả bản CDN); trích xuất `hashClassName: false` dựng rule thẳng không qua `clsx`. Cùng lần đo (tải 1–1,6): 6.000 file 442 → 429 ms (Tailwind 449), trang HTML 256 → 247 ms (Tailwind 219); có bộ nhớ đệm 322 → 306 / 138 → 131 ms. CSS trùng byte trên mọi fixture và hai bộ bench.
+- Build tĩnh chỉ sinh CSS cho class Tailwind (và `@utility`/plugin của dự án): token quét được không phải class (số trong `<path d="...">` như `.\31 2h13\.496{height:13.496}`, `bottomStickOnMobile`, `width=device-width`) không còn rơi xuống cú pháp x-css thành rule rác. Bật lại x-css bằng `xcss: true` (plugin PostCSS) hoặc `"xcss": true` trong `presence-style.config.json`. Mọi rule bị bỏ đều không có trong CSS Tailwind cho cùng nguồn, phần còn lại trùng byte; HyperUI 75,9 → 70,3 KB (Tailwind 68,5), Magic UI 81,9 → 80,2 KB, bộ 6.300 trang HTML 72,5 → 66,9 KB.
+- Bộ nhớ đệm quét trên đĩa (`scanCache`, mặc định bật, `node_modules/.cache/presence-style/`): ứng viên theo file (đường dẫn + mtime + kích thước), khoá theo phiên bản gói, mã bộ quét và CSS vào; build trong tiến trình mới chỉ đọc lại file đã đổi. `scanCache: false` hoặc `PRESENCE_STYLE_CACHE=0` để tắt.
+- Bộ quét: bảng intern token dùng chung, ghi nhớ theo nội dung chuỗi, quét `class=` không cấp phát, hợp ứng viên chỉ thêm token mới. Luồng phụ mặc định tắt (đo được chậm hơn quét tuần tự trên máy 4 lõi; `PRESENCE_STYLE_WORKERS=<số>` để ép).
+- `eval/build-bench.mjs` đo hai bộ (6.000 file nhân bản fixture; 6.273 trang HTML HyperUI) ở ba chế độ: tiến trình mới không bộ nhớ đệm, tiến trình mới có bộ nhớ đệm, build lại trong cùng tiến trình. Trung vị cùng lần đo (máy 4 lõi, tải 2–3), ta vs Tailwind CLI v4: 6.000 file 423 / 284 (có đệm) / 288 ms vs 408 / 408 / 369 ms; trang HTML 215 / 127 / 144 ms vs 202 / 202 / 157 ms (trước: 438 / 456 / 429 và 286 / 284 / 219 ms).
+
+**Rút gọn tên class cho Next.js / webpack / Rspack / Turbopack**
+- `@porbit/style/webpack` (`PresenceStyleWebpackPlugin` + loader `@porbit/style/webpack-loader`) và `withPresenceStyle(nextConfig, { shortClassNames })` của `@porbit/style/next`: chỉ khi build production; bảng ánh xạ dựng một lần trước khi biên dịch, ghi ra `.next/cache/presence-style/short-class-names.json` và dùng chung cho loader (mã nguồn), plugin PostCSS (tuỳ chọn mới `shortClassNames: true`) và file CSS của bundle.
+- `withPresenceStyle` chạy với Turbopack (`next build` của Next.js 16, `next build --turbopack` của 15.5): dựng bảng đồng bộ ngay khi Next.js nạp cấu hình ở phase build production (`phase`, `NEXT_PHASE` hoặc dòng lệnh; tiến trình con thừa hưởng bảng qua biến môi trường), khai báo loader qua `turbopack.rules` (mã của dự án, bỏ `node_modules`, giữ luật sẵn có), plugin PostCSS đổi cả CSS của thư viện (Turbopack chạy PostCSS cho mọi file CSS), `compiler.runAfterProductionCompile` đổi lại file `.css` đã xuất và dừng build nếu loader không chạy (file đánh dấu cạnh bảng). Luôn thêm khoá `turbopack`: trước đây Next.js 16 dừng `next build`/`next dev` mặc định vì cấu hình chỉ có `webpack`. Dưới 15.5 với Turbopack: cảnh báo, giữ tên.
+- Loader `@porbit/style/webpack-loader` chỉ cần API con của webpack (`addDependency`, `emitWarning` không bắt buộc).
+- Next.js 16.4.6 và 15.5.29 thật, Turbopack và webpack (`eval/next-short-classnames.sh`, `NEXT_VERSION`/`BUNDLERS`): computed style khớp 100% (ứng dụng shadcn/ui 3.170/3.170 phần tử, 5 lượt), CSS gzip −8,5% (Turbopack) / −8,8% (webpack), HTML dựng sẵn −22% thô; xem docs/guides/tailwind.md mục 8.
+- Sửa `shortClassNames` (cả Vite/CLI/API) với tailwind-merge: `cn("px-4", "px-2")` không gộp được khi tên đã đổi (ứng dụng shadcn đo được 63% phần tử lệch). Tuỳ chọn mới `merge` (mặc định `'auto'`: bật khi mã dùng tailwind-merge/tailwind-variants/`@porbit/style/merge`) giữ tên gốc cho class có đối thủ cùng thuộc tính và cho tên giữ chuỗi con (`text-a`). Plugin webpack: file không qua loader (`public/`, `.md`, `.html`...) chỉ dùng để giữ tên class (`opaqueSources` của `createShortClassNames`).
+
+**Kích thước gói** (hành vi không đổi; gzip như bước `size` của `check:all`)
+- `tailwind-auto.mjs` cho trang chỉ dùng class: 45,0 → 39,9 KB (`@tailwindcss/browser`: ~75 KB). Phần đọc `<style type="text/tailwindcss">` (`@theme`, `@utility`, `@custom-variant`, `@apply`, hàm theme trong CSS dự án; `src/tailwind-stylesheet.ts`) tách khỏi lõi phương ngữ (`src/tailwind-v4-core.ts`) thành `tailwind-stylesheet.mjs` (4,8 KB) chỉ tải khi trang có thẻ đó, song song với plugin và chế độ lai; trang có stylesheet tải tổng 44,8 KB (trước 45,0). Dữ liệu Tailwind đứng đầu file và khoá xếp lại cho gzip.
+- `index.mjs` (+chunk) 37,0 → 35,4 KB, `index-auto.mjs` 23,5 → 22,3 KB: danh sách property chuẩn không chép lại ~400 tên đã là đích alias của từ điển (ghép lúc dùng; `standardCssProperties()` thay hằng `STANDARD_CSS_PROPERTIES` nội bộ, `spec/dictionary.json` không đổi).
+- Gói npm giải nén 1,45 → 1,29 MB: CSS plugin đóng gói (typography, forms, animate) nén LZ77 dạng chữ, giải nén khi dùng (117 → 40 KB trong mỗi bản CDN/CJS; gzip `tailwind-plugins.mjs` 11,4 → 11,7 KB).
+- Ngân sách `check:all`: `tailwind-auto` 40,5 KB, `index` 36 KB, `index-auto` 23 KB, gói 1,3 MB.
+
+**Sửa**
+- Bản 1.0.0 trên npm đóng gói CSS của `@tailwindcss/typography` 0.5.4 (sinh từ `node_modules` cũ) thay vì 0.5.20 đã khai báo. Plugin đóng gói giờ được ghim đúng phiên bản trong `devDependencies`; `gen:tailwind-plugins` dừng nếu `node_modules` lệch với bản ghim.
+
+**Editor**
+- Language server: ô màu (`textDocument/documentColor`) cho class màu Tailwind/x-css; thiết lập từ editor qua `initializationOptions`/`workspace/didChangeConfiguration` (`tailwindFunctions`, `tailwindStylesheet`, `configFile`); hover và ô màu trong đối số `cn()`/`clsx()`/`cva()` và hàm ở `tailwindFunctions` (file cấu hình cũng nhận khoá `tailwindFunctions`).
+- Extension VS Code (`editors/vscode`, 0.2.0) viết lại thành client LSP: ưu tiên `@porbit/style` cài trong dự án, không có thì dùng server đóng gói kèm; sẵn sàng đóng gói Marketplace (`npm run package`).
+- Extension Zed (`editors/zed`): chạy `presence-style lsp` bằng Node của Zed, tự cài `@porbit/style` từ npm khi dự án chưa có.
+- `scripts/lsp-smoke.cjs`: smoke test server qua stdio (initialize, completion, hover, documentColor, code action), chạy trên gói đã `npm pack` trong bước `package` của `check:all`.
+
 ## 1.0.0
 
 Bản phát hành đầu tiên dùng thay Tailwind cho dự án thật: đo trên 4 dự án mã nguồn mở, 8 cấu hình v3, 9 gói plugin JS và một ứng dụng Next.js thật (xem `docs/strategy/danh-gia-1.0.md`).

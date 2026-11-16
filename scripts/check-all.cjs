@@ -4,6 +4,7 @@
  *
  *   npm run check:all            # đầy đủ (dùng cho pre-push và prepublishOnly)
  *   npm run check:quick          # nhanh: typecheck + unit test (dùng cho pre-commit)
+ *   npm run check:fast           # ~1–2 phút: mọi bước trừ tailwind/projects (so Tailwind thật, ~15–20 phút)
  *   node scripts/check-all.cjs --only=rust,browser
  *
  * Bước không có công cụ (cargo, Chromium) được BỎ QUA kèm cảnh báo, trừ khi đặt --strict.
@@ -17,28 +18,32 @@ const zlib = require('zlib')
 const root = path.resolve(__dirname, '..')
 const args = process.argv.slice(2)
 const quick = args.includes('--quick')
+// --fast: bỏ hai bước so với Tailwind thật trên trình duyệt (chậm nhất); vẫn có build, kích thước, gói, Rust, trình duyệt.
+const fast = args.includes('--fast')
+const SLOW_STEPS = ['tailwind', 'projects']
 const strict = args.includes('--strict')
 const only = (args.find((a) => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean)
 
 // Ngân sách: vượt là lỗi. Cập nhật có chủ đích khi thay đổi được chấp nhận.
 // Tính gzip của entry cộng mọi chunk nó import tĩnh (số trình duyệt tải khi import thẳng từ CDN).
 const BUDGET = {
-    'dist/index-auto.mjs': 24 * 1024, // bản CDN (+chèn rule có thứ tự)
-    'dist/index.mjs': 37 * 1024, // 4 file tải song song (chunk dùng chung với tailwind/merge): 34,7 -> 36,6 KB
+    'dist/index-auto.mjs': 23 * 1024, // bản CDN (+chèn rule có thứ tự). 23,5 -> danh sách property chuẩn bỏ tên trùng đích alias 22,3 KB
+    'dist/index.mjs': 36 * 1024, // 4 file tải song song (chunk dùng chung với tailwind/merge): 34,7 -> 36,6 -> 37,0 -> bỏ tên property trùng 35,4 KB
     'dist/components.mjs': 8 * 1024,
-    'dist/tailwind-auto.mjs': 45 * 1024, // thay @tailwindcss/browser (75 KB). 0.10: 62,9 -> dữ liệu nén 52,1 -> không từ điển x-css/cache 40,9 -> +giá trị trần/bóng/--spacing()/biến theme/biến thể ghép như Tailwind 44,5 -> bỏ phần chỉ dùng cho editor 44,1 KB
+    'dist/tailwind-auto.mjs': 41 * 1024, // thay @tailwindcss/browser (75 KB). 0.10: 62,9 -> dữ liệu nén 52,1 -> không từ điển x-css/cache 40,9 -> +giá trị trần/bóng/--spacing()/biến theme/biến thể ghép như Tailwind 44,5 -> bỏ phần chỉ dùng cho editor 44,1 -> 45,0 -> phần đọc stylesheet nạp động (tailwind-stylesheet.mjs, 4,8 KB) + dữ liệu đứng đầu file, khoá xếp cho gzip 39,9 KB -> nhóm @property theo utility như Tailwind (daisyUI 410/410), khoá theme tự định nghĩa, at-rule lồng nhau 40,8 KB
 }
 // Gói npm (`npm pack`): giải nén 6,8 MB -> 1,47 MB khi tách nhóm build (tsup.config.ts) và bỏ file
-// tài liệu không đọc lúc chạy. Mục tiêu ≤ 1,5 MB.
-const PACKAGE_BUDGET = 1500 * 1000
+// tài liệu không đọc lúc chạy -> 1,45 -> 1,29 MB khi nén LZ77 CSS plugin đóng gói (2 bản: CDN + CJS, 117 -> 40 KB
+// mỗi bản) và bỏ tên property chuẩn trùng đích alias. -> 1,32 MB khi thêm entry next/webpack/webpack-loader (rút gọn tên class cho Next.js). Mục tiêu ≤ 1,35 MB.
+const PACKAGE_BUDGET = 1400 * 1000
 // Dự án nâng cấp từ v3 (`@config`): extend, thay hẳn theme, prefix, important, corePlugins, file .ts, cờ CSS v4.
 const V3_FIXTURES = [
     ['v3-extend', 'eval/fixtures/v3-config/app.css', 'eval/fixtures/v3-config/src'],
     ['v3-replace', 'eval/fixtures/v3-config/replace/app.css', 'eval/fixtures/v3-config/replace'],
-    ...['prefix', 'important', 'important-selector', 'core-plugins', 'ts', 'css-flags'].map((name) => [`v3-${name}`, `eval/fixtures/v3-config/${name}/app.css`, `eval/fixtures/v3-config/${name}`]),
+    ...['prefix', 'important', 'important-selector', 'core-plugins', 'ts', 'css-flags', 'presets', 'plugins'].map((name) => [`v3-${name}`, `eval/fixtures/v3-config/${name}/app.css`, `eval/fixtures/v3-config/${name}`]),
 ]
-// Dự án mã nguồn mở khác: chưa khớp 100% nên dùng "bánh cóc" — không được tụt dưới mốc đã ghi.
-const PROJECT_FIXTURES = ['hyperui', 'magicui', 'coss-ui']
+// Dự án mã nguồn mở khác: "bánh cóc" — không được tụt dưới mốc đã ghi; dự án có mốc đã khớp hết phải giữ 100%.
+const PROJECT_FIXTURES = ['hyperui', 'magicui', 'coss-ui', 'daisyui', 'tailadmin']
 const EVAL_MIN = { xcssValidAfterFix: 99, tailwindValid: 98, holdout: 85 }
 
 const hasCommand = (cmd) => spawnSync(process.platform === 'win32' ? 'where' : 'which', [cmd], { stdio: 'ignore' }).status === 0
@@ -122,7 +127,7 @@ const steps = [
                 },
             })
             if (!r.ok) return r
-            const files = ['spec', 'presence_style/x-core/tests/conformance.core.json', 'presence_style/x-core/src/dictionary_generated.rs', 'src/tailwind-generated.ts', 'src/tailwind-plugins-generated.ts', 'llms.txt', 'llms-full.txt']
+            const files = ['spec', 'presence_style/x-core/tests/conformance.core.json', 'presence_style/x-core/src/dictionary_generated.rs', 'src/tailwind-generated.ts', 'src/tailwind-theme-roots-generated.ts', 'src/tailwind-plugins-generated.ts', 'llms.txt', 'llms-full.txt']
             const diff = run('git', ['status', '--porcelain', '--', ...files])
             const changed = diff.out.trim()
             return changed
@@ -160,8 +165,8 @@ const steps = [
     },
     {
         name: 'tailwind',
-        // Khớp Tailwind thật (mẫu 4.000 class + biến thể + runtime + theme), độ phủ biến thể, plugin đóng gói sẵn
-        // và dự án thật (shadcn/ui v4: 4 trạng thái).
+        // Khớp Tailwind thật (mẫu 4.000 class + biến thể + runtime + theme), độ phủ biến thể, plugin đóng gói sẵn,
+        // dự án thật (shadcn/ui v4: 4 trạng thái) và thứ tự cascade ở chế độ lai (CSS tĩnh + runtime).
         run: () => {
             const parity = run('node', ['eval/tailwind-parity.mjs', '--limit=4000'])
             if (!parity.ok) {
@@ -178,6 +183,8 @@ const steps = [
             const merge = run('node', ['eval/merge-accuracy.mjs'])
             // Plugin JS tuỳ ý chạy qua API giả lập (không cần cài tailwindcss).
             const jsPlugins = run('node', ['eval/tailwind-js-plugins.mjs'])
+            // Chế độ lai: class tĩnh và class động cùng phần tử xung đột theo đúng thứ tự Tailwind.
+            const hybrid = run('node', ['eval/hybrid-order.mjs'])
             const report = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-parity.sample.json'), 'utf8'))
             const coverage = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-variants.json'), 'utf8'))
             const pluginReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-plugins.json'), 'utf8'))
@@ -194,18 +201,24 @@ const steps = [
             const mergeReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/merge-accuracy.json'), 'utf8'))
             const jsReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-js-plugins.json'), 'utf8'))
             const jsRows = Object.entries(jsReport).filter(([, r]) => r && typeof r === 'object' && r.classes)
-            // Plugin chỉ có biến thể (tailwindcss-react-aria-components: class 0/0) không bị tính là lệch; biến thể cũng ≥ 99%.
-            const atLeast = (m) => !m || m.cases === 0 || m.matched / m.cases >= 0.99
-            const jsOk = jsPlugins.ok && jsRows.every(([, r]) => atLeast(r.classes) && atLeast(r.variants))
+            // Mọi plugin (kể cả bản đóng gói sẵn) khớp 100% class và biến thể; plugin chỉ có biến thể
+            // (tailwindcss-react-aria-components: class 0/0) không bị tính là lệch.
+            const full = (m) => !m || m.matched === m.cases
+            const jsOk = jsPlugins.ok && jsRows.every(([, r]) => full(r.classes) && full(r.variants))
             const mergeOk = merge.ok && Object.values(mergeReport).filter((r) => r && r.methods).every((r) => r.methods['@porbit/style/merge'].correct === r.pairs && r.methods['@porbit/style/merge/lite + bảng'].correct === r.pairs)
+            const hybridReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/hybrid-order.json'), 'utf8'))
+            const hybridRows = Object.values(hybridReport.variants)
+            const hybridOk = hybrid.ok && hybridRows.every((r) => r.correct === r.total)
             const realMin = Math.min(realReport.converted, ...Object.values(realReport.matched))
-            const ok = variants.ok && plugins.ok && real.ok && pluginsOk && report.base.percent >= 99.9 && report.variants.percent === 100 &&
-                report.runtime.percent === 100 && report.theme.matched === report.theme.checked && coverage.percent >= 95 &&
-                realMin / realReport.total >= 0.995 && realOk && v3Ok && orderOk && prettierOk && mergeOk && jsOk
+            // Mọi phần đòi 100%: không còn lệch đo được so với Tailwind (phần Tailwind không xác định: eval/README.md).
+            const ok = variants.ok && plugins.ok && real.ok && pluginsOk && report.base.percent === 100 && report.variants.percent === 100 &&
+                report.runtime.percent === 100 && report.theme.matched === report.theme.checked && coverage.percent === 100 &&
+                realMin === realReport.total && realOk && v3Ok && orderOk && prettierOk && mergeOk && jsOk && hybridOk
             return {
                 ok,
                 detail: `class ${report.base.percent}% · biến thể ${report.variants.percent}% · runtime ${report.runtime.percent}% · theme ${report.theme.matched}/${report.theme.checked} · độ phủ biến thể ${coverage.percent}%\n` +
                     `plugin ${Object.entries(pluginReport).map(([id, p]) => `${id} ${p.matched}/${p.cases}`).join(', ')} · shadcn/ui ${realMin}/${realReport.total} (+tổ hợp, PostCSS) ${realOk ? '✓' : '✗'} · cấu hình v3 ${v3Ok ? '✓' : '✗'}\n` +
+                    `lai (CSS tĩnh + runtime) ${hybridRows.reduce((n, r) => n + r.correct, 0)}/${hybridRows.reduce((n, r) => n + r.total, 0)} cặp xung đột ${hybridOk ? '✓' : '✗'} · ` +
                     `plugin JS ${jsRows.map(([id, r]) => `${id} ${r.classes.matched}/${r.classes.cases}`).join(', ') || '✗'} ${jsOk ? '✓' : '✗'}\n` +
                     `thứ tự class ${orderOk ? '100%' : '✗'} · Prettier ${prettierReport.identical}/${prettierReport.files} file · gộp class ${mergeOk ? '100%' : '✗'} (tailwind-merge: ${Object.values(mergeReport).filter((r) => r && r.methods).map((r) => r.methods['tailwind-merge 3.7'].percent + '%').join(' / ')})`,
             }
@@ -235,8 +248,10 @@ const steps = [
                 current[name] = score
                 const base = baseline[name]
                 const regressed = base && ['converted', 'classes', 'combos'].some((k) => score[k] < base[k])
-                if (regressed) ok = false
-                lines.push(`${name}: class ${score.classes}/${score.total} (chuyển ${score.converted}), tổ hợp ${score.combos}/${score.comboTotal}${regressed ? ` TỤT so với mốc ${base.classes}/${base.combos}` : ''}`)
+                // Mọi dự án đã khớp hết: ngoài mốc, đòi 100% (dự án mới thêm chưa khớp hết thì ghi mốc rồi nâng dần).
+                const partial = base && base.classes === base.total && base.combos === base.comboTotal && (score.classes < score.total || score.combos < score.comboTotal || score.converted < score.total)
+                if (regressed || partial) ok = false
+                lines.push(`${name}: class ${score.classes}/${score.total} (chuyển ${score.converted}), tổ hợp ${score.combos}/${score.comboTotal}${regressed ? ` TỤT so với mốc ${base.classes}/${base.combos}` : partial ? ' CHƯA KHỚP HẾT' : ''}`)
             }
             if (args.includes('--update-baseline') || !fs.existsSync(baselineFile)) fs.writeFileSync(baselineFile, JSON.stringify(current, null, 2) + '\n')
             return { ok, detail: lines.join('\n') }
@@ -260,7 +275,7 @@ const steps = [
     },
 ]
 
-const selected = steps.filter((step) => (only.length ? only.includes(step.name) : !quick || step.quick))
+const selected = steps.filter((step) => (only.length ? only.includes(step.name) : quick ? step.quick : !fast || !SLOW_STEPS.includes(step.name)))
 const rows = []
 let failed = 0
 for (const step of selected) {

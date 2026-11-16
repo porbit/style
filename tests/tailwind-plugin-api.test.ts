@@ -66,6 +66,28 @@ describe('tailwind-plugin-api: addUtilities / addComponents', () => {
         const { css } = await cssOf(plugin, ['md:prose'])
         expect(css).toContain('.md\\:prose :where(.md\\:prose > :last-child){margin-bottom:0}')
     })
+
+    it('component kiểu daisyUI: @layer con của utility, @supports, @scope (&); nền dưới component', async () => {
+        const plugin = ({ addBase, addComponents, addUtilities }: TailwindPluginApi) => {
+            addBase({ ':root': { '--color-base-100': '#fff' } })
+            addComponents({
+                '.btn': {
+                    '@layer daisyui.l1.l2.l3': { paddingInline: '1rem', '@supports (color: color-mix(in lab, red, red))': { color: 'blue' } },
+                    '&:hover': { '@layer daisyui.l1': { color: 'red' } },
+                },
+            })
+            addUtilities({ '.join': { display: 'inline-flex', '@scope (&)': { ':where(:scope > :first-child)': { '--join-ss': '0' } } } })
+        }
+        const { css, output } = await cssOf(plugin, ['btn', 'join'])
+        expect(output.unsupported).toEqual([])
+        expect(css).toContain('@layer daisyui.l1.l2.l3{.btn{padding-inline:1rem}}')
+        expect(css).toContain('@layer daisyui.l1.l2.l3{@supports (color: color-mix(in lab, red, red)){.btn{color:blue}}}')
+        expect(css).toContain('@layer daisyui.l1{.btn:hover{color:red}}')
+        expect(css).toContain(':where(.join > :first-child){--join-ss:0}')
+        // addBase -> layer con `base` của l0, khai báo trước mọi layer con của component (thấp hơn).
+        expect(css.indexOf('@layer theme, base, components;')).toBeLessThan(css.indexOf('@layer daisyui'))
+        expect(css).toContain('@layer base{:root{--color-base-100: #fff;}}')
+    })
 })
 
 describe('tailwind-plugin-api: matchUtilities', () => {
@@ -122,7 +144,7 @@ describe('tailwind-plugin-api: addBase, addVariant, matchVariant', () => {
         })
         const { css, output } = await cssOf(plugin, ['optional:flex', 'hocus:flex', 'supports-grid:flex', 'can-hover:flex', 'inverted:flex', 'nth-3:flex'])
         expect(output.css).toMatch(/@layer base \{ h1 \{ font-size: 2rem; \} :root \{ --brand: #0a64e8; \} \}/)
-        expect(Object.keys(output.variants)).toEqual(['optional', 'hocus', 'supports-grid', 'can-hover', 'inverted', 'nth-1', 'nth-3', 'nth-odd'])
+        expect(Object.keys(output.variants)).toEqual(['optional', 'hocus', 'supports-grid', 'can-hover', 'inverted', 'nth-1', 'nth-3', 'nth-odd', 'nth-*', 'nth-*/*'])
         expect(css).toContain('.optional\\:flex:optional{display:flex}')
         expect(css).toContain('.hocus\\:flex:hover{display:flex}')
         expect(css).toContain('.hocus\\:flex:focus{display:flex}')
@@ -130,7 +152,49 @@ describe('tailwind-plugin-api: addBase, addVariant, matchVariant', () => {
         expect(css).toMatch(/@media \(hover: ?hover\)\{\.can-hover\\:flex:hover\{display:flex\}/)
         expect(css).toMatch(/@media \(inverted-colors: ?inverted\)\{\.inverted\\:flex:not\(\.x\)\{display:flex\}/)
         expect(css).toContain('.nth-3\\:flex:nth-child(3){display:flex}')
-        expect(output.unsupported).toContain('nth-[…]: matchVariant với giá trị tuỳ ý')
+        // Giá trị tuỳ ý: biến thể hàm `nth-*` (mẫu dựng từ giá trị giả).
+        expect(output.variants['nth-*']).toBe('{ &:nth-child(__porbit_variant_value__) { @slot; } }')
+        expect(output.unsupported).toEqual([])
+    })
+
+    // Hành vi đo trên Tailwind 4.3.5 (`@config` với plugin dùng `matchVariant`), xem eval/fixtures/v3-config/plugins.
+    it('matchVariant: giá trị tuỳ ý `name-[x]:` (`_` là khoảng trắng), modifier `/x`, ghép group-, sort cho giá trị có tên', async () => {
+        const plugin = createPlugin(({ matchVariant }) => {
+            matchVariant('nth', (value) => `&:nth-child(${value})`, { values: { odd: 'odd' } })
+            matchVariant('state', (value, { modifier }) => (modifier ? `.${modifier}[data-state="${value}"] &` : `[data-state="${value}"] &`), { values: { on: 'on' } })
+            matchVariant('mq', (value) => `@media (min-width: ${value})`, { values: { big: '1200px', small: '600px' }, sort: (a, b) => parseInt(a.value) - parseInt(b.value) })
+            // Giá trị dùng để rẽ nhánh (không là mẫu): chỉ giá trị có tên.
+            matchVariant('pick', (value) => (value === 'a' ? '&:first-child' : '&:last-child'), { values: { a: 'a', b: 'b' } })
+        })
+        const { css, output, dialect } = await cssOf(plugin, ['nth-[2n_+_1]:flex', 'state-[open]:flex', 'state-[open]/menu:flex', 'mq-[900px]:flex', 'group-nth-[3]:flex', 'hover:nth-[2]:flex'])
+        expect(css).toContain('.nth-\\[2n_\\+_1\\]\\:flex:nth-child(2n + 1){display:flex}')
+        expect(css).toContain('[data-state="open"] .state-\\[open\\]\\:flex{display:flex}')
+        expect(css).toContain('.menu[data-state="open"] .state-\\[open\\]\\/menu\\:flex{display:flex}')
+        expect(css).toMatch(/@media \(min-width: ?900px\)\{\.mq-\\\[900px\\\]\\:flex\{display:flex\}/)
+        expect(css).toContain('.group-nth-\\[3\\]\\:flex:is(:where(.group):nth-child(3) *){display:flex}')
+        expect(dialect('hover:nth-[2]:flex')).not.toBeNull()
+        // `sort`: giá trị có tên đăng ký theo thứ tự của `sort` (small trước big), giá trị tuỳ ý xếp sau.
+        expect(Object.keys(output.variants).filter((name) => name.startsWith('mq'))).toEqual(['mq-small', 'mq-big', 'mq-*', 'mq-*/*'])
+        expect(['mq-[900px]:flex', 'mq-big:flex', 'mq-small:flex'].sort(dialect.compare!)).toEqual(['mq-small:flex', 'mq-big:flex', 'mq-[900px]:flex'])
+        expect(dialect('pick-a:flex')).not.toBeNull()
+        expect(dialect('pick-[a]:flex')).toBeNull()
+        expect(output.unsupported).toEqual(['pick-[…]: matchVariant với giá trị tuỳ ý'])
+    })
+
+    it('`@apply` trong CSS-in-JS của addComponents/addUtilities/addBase như Tailwind', async () => {
+        const plugin = createPlugin(({ addComponents, addUtilities, addBase }) => {
+            addBase({ h6: { '@apply font-bold': {} } })
+            addComponents({ '.btn': { '@apply px-4 rounded': {}, color: 'red', '&:hover': { '@apply underline': {} } }, '.card': { '@apply p-6 md:p-10': {} } })
+            addUtilities({ '.stack': { '@apply flex flex-col': {} } })
+        })
+        const { css, output } = await cssOf(plugin, ['btn', 'card', 'stack', 'hover:btn'])
+        expect(output.utilities.btn).toBe('@apply px-4 rounded; color: red; &:hover { @apply underline; }')
+        expect(output.css).toContain('@layer base { h6 { @apply font-bold; } }')
+        expect(output.unsupported).toEqual([])
+        expect(css).toContain('.btn{padding-inline:calc(var(--spacing, 0.25rem) * 4);border-radius:0.25rem;color:red}')
+        expect(css).toContain('.btn:hover{text-decoration-line:underline}')
+        expect(css).toMatch(/@media \(width >= 48rem\)\{\.card\{padding:calc\(var\(--spacing, 0\.25rem\) \* 10\)\}/)
+        expect(css).toContain('.stack{display:flex;flex-direction:column}')
     })
 })
 
@@ -181,6 +245,47 @@ describe('tailwind-plugin-api: theme(), config(), e()', () => {
         const { css, output } = await cssOf(plugin, ['animate-wiggle'])
         expect(output.css).toContain('--animate-wiggle: wiggle 1s ease-in-out infinite;')
         expect(css).toMatch(/\.animate-wiggle\{animation:var\(--animate-wiggle, ?wiggle 1s ease-in-out infinite\)\}/)
+    })
+
+    it('config.theme.aspectRatio của plugin (@tailwindcss/aspect-ratio: 1…16) -> aspect-1…aspect-16 như Tailwind', async () => {
+        const values = Object.fromEntries(Array.from({ length: 16 }, (_, i) => [String(i + 1), String(i + 1)]))
+        const plugin = createPlugin(() => {}, { theme: { aspectRatio: values }, corePlugins: { aspectRatio: false } })
+        const { css, output } = await cssOf(plugin, ['aspect-1', 'aspect-16', 'md:aspect-4'])
+        expect(output.css).toContain('--aspect-16: 16;')
+        expect(css).toMatch(/\.aspect-1\{aspect-ratio:var\(--aspect-1, ?1\)\}/)
+        expect(css).toMatch(/\.aspect-16\{aspect-ratio:var\(--aspect-16, ?16\)\}/)
+        expect(css).toContain('aspect-ratio:var(--aspect-4')
+    })
+
+    it('matchVariant có sort: giá trị tuỳ ý xếp xen giữa giá trị có tên như Tailwind (thứ tự class và cascade)', async () => {
+        const plugin = createPlugin(({ matchVariant }: TailwindPluginApi) => {
+            matchVariant('mq', (value: string) => `@media (min-width: ${value})`, { values: { big: '1200px', small: '600px' }, sort: (a: { value: string }, b: { value: string }) => parseInt(a.value) - parseInt(b.value) })
+            matchVariant('st', (value: string) => `&[data-st=${value}]`, { values: { on: 'on', off: 'off' } })
+        })
+        const output = runTailwindPlugin(plugin)
+        const sheet = applyTailwindPluginOutput(parseTailwindStylesheet(output.css), output)
+        expect(Object.keys(sheet.variantOrder!)).toEqual(['mq', 'st'])
+        const classes = ['mq-big:p-8', 'mq-[900px]:p-6', 'mq-small:p-4', 'mq-[700px]:p-5', 'mq-[1300px]:p-1']
+        const dialect = tailwindV4Dialect({ variants: sheet.variants, variantOrder: sheet.variantOrder })
+        expect([...classes].sort(dialect.compare)).toEqual(['mq-small:p-4', 'mq-[700px]:p-5', 'mq-[900px]:p-6', 'mq-big:p-8', 'mq-[1300px]:p-1'])
+        // Không `sort`: thứ tự khai báo khoá (`on`, `off`), giá trị tuỳ ý sau, giữa chúng so chuỗi.
+        expect(['st-[b]:p-1', 'st-off:p-1', 'st-[a]:p-1', 'st-on:p-1'].sort(dialect.compare)).toEqual(['st-on:p-1', 'st-off:p-1', 'st-[a]:p-1', 'st-[b]:p-1'])
+        // CSS: rule theo cùng thứ tự (mq-big thắng mq-[900px] ở 1280px).
+        const { css } = await extractFromClasses(classes, { hashClassName: false, silent: true, dialects: [dialect] })
+        expect(css.indexOf('900px')).toBeLessThan(css.indexOf('1200px'))
+        expect(css.indexOf('700px')).toBeGreaterThan(css.indexOf('600px'))
+        // Không truyền `variantOrder`: giá trị tuỳ ý xếp sau mọi giá trị có tên (hành vi cũ).
+        const plain = tailwindV4Dialect({ variants: sheet.variants })
+        expect([...classes].sort(plain.compare).slice(0, 2)).toEqual(['mq-small:p-4', 'mq-big:p-8'])
+    })
+
+    it('matchVariant trùng biến thể sẵn có (`nth`): giữ thứ tự của biến thể sẵn có như Tailwind', () => {
+        const plugin = createPlugin(({ matchVariant }: TailwindPluginApi) => matchVariant('nth', (value: string) => `&:nth-child(${value})`, { values: { odd: 'odd', even: 'even', 3: '3' } }))
+        const output = runTailwindPlugin(plugin)
+        const sheet = applyTailwindPluginOutput(parseTailwindStylesheet(output.css), output)
+        const dialect = tailwindV4Dialect({ variants: sheet.variants, variantOrder: sheet.variantOrder })
+        // Kết quả getClassOrder của Tailwind 4.3.5 với cùng plugin.
+        expect(['md:p-4', 'nth-[2n_+_1]:p-4', 'nth-odd:p-4', 'hover:p-4', 'nth-3:p-4', 'nth-even:p-4'].sort(dialect.compare)).toEqual(['hover:p-4', 'nth-3:p-4', 'nth-even:p-4', 'nth-odd:p-4', 'nth-[2n_+_1]:p-4', 'md:p-4'])
     })
 
     it('plugin.withOptions, flattenColorPalette, defaultTheme, colors', () => {

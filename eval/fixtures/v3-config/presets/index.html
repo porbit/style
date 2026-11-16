@@ -1,0 +1,12 @@
+<!-- Màu, font, spacing, bo góc đến từ preset (lồng hai tầng); màu mặc định của Tailwind bị preset thay hẳn. -->
+<div class="bg-ink text-paper font-sans p-13 rounded-blob">a</div>
+<div class="bg-brand bg-brand-600 bg-brand-900 bg-brand-50 text-ink-soft font-mono m-15 rounded-pill">b</div>
+<div class="bg-accent text-danger bg-red-500 text-white bg-transparent">c</div>
+<div class="dark:bg-paper dark:text-ink dark:bg-ink hover:bg-brand-900 md:p-15">d</div>
+<!-- Plugin của preset (theme() đọc màu của preset) và plugin của cấu hình (@apply trong CSS-in-JS). -->
+<div class="text-shadow-brand chip hover:chip md:chip">e</div>
+<!-- theme.container: center + padding theo breakpoint, cộng vào container sẵn có của Tailwind v4. -->
+<div class="container">f</div>
+<div class="container mx-4 md:container lg:container px-6">g</div>
+<!-- blocklist: của cấu hình thay của preset nền (p-1 vẫn sinh); class bị chặn không sinh CSS. -->
+<div class="p-1 p-2 p-3 dark:bg-ink">h</div>

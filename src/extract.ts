@@ -153,16 +153,10 @@ export const extractFromClasses = async (
         ),
     ]
 
-    // Khi `hashClassName: false`, đầu ra của clsx luôn trùng đầu vào nên không thể
-    // dùng để biết class nào sinh được CSS. Vì vậy phép đếm `matched` luôn chạy trên
-    // một engine bật hash; engine xuất CSS vẫn dùng đúng cấu hình của người dùng.
+    // Khi `hashClassName: false`, đầu ra của clsx luôn trùng đầu vào nên không thể dùng để biết class nào sinh
+    // được CSS: hỏi thẳng engine (`matches`, cùng điều kiện clsx dùng để hash). Trước đây phép đếm chạy trên một
+    // engine thứ hai bật hash — giải và dựng rule mỗi class hai lần.
     const keepOriginalNames = config.hashClassName === false
-    const probeEngine = keepOriginalNames
-        ? xcss({ ...(config as XCSSConfig), hashClassName: true })
-        : null
-    const probe = probeEngine ? probeEngine.buildCss(undefined) : null
-    if (probeEngine) await probeEngine.ready
-
     const engine = xcss(config as XCSSConfig)
     const built = engine.buildCss(undefined)
     await engine.ready
@@ -171,16 +165,16 @@ export const extractFromClasses = async (
     const matchedClasses: string[] = []
     let matched = 0
 
-    candidates.forEach((candidate) => {
-        const output = built.clsx(candidate)
-        const probeOutput = probe ? probe.clsx(candidate) : output
-        if (probeOutput !== candidate) {
+    for (const candidate of candidates) {
+        // Không đổi tên: dựng rule thẳng, không qua clsx (đầu ra trùng đầu vào). Hỏi `matches` ngay sau khi dựng: kết
+        // quả giải class còn trong bộ nhớ đệm có giới hạn của engine.
+        const output = keepOriginalNames ? (built.apply([candidate]), candidate) : built.clsx(candidate)
+        if (keepOriginalNames ? built.matches(candidate) : output !== candidate) {
             matched++
             matchedClasses.push(candidate)
             if (!keepOriginalNames) classMap[candidate] = output
         }
-    })
-    probe?.destroy()
+    }
 
     // clsx phát sự kiện đồng bộ ở môi trường không có DOM, nhưng vẫn nhường một vòng
     // microtask để mọi handler kịp ghi vào text store trước khi đọc CSS.

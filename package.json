@@ -1,9 +1,9 @@
 {
   "name": "@porbit/style",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "PresenceStyle: utility CSS engine mở — parse class runtime, sinh CSS theo layer/media, trích xuất CSS tĩnh, bộ component mẫu và MCP server cho agent AI.",
   "type": "commonjs",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "vuits24",
   "keywords": [
     "presence",
@@ -23,6 +23,8 @@
     "mcp",
     "model-context-protocol",
     "vite-plugin",
+    "webpack-plugin",
+    "nextjs",
     "tailwindcss",
     "tailwind-runtime"
   ],
@@ -87,6 +89,25 @@
       "import": "./dist/vite.mjs",
       "require": "./dist/vite.js",
       "default": "./dist/vite.mjs"
+    },
+    "./shorten": {
+      "types": "./dist/shorten.d.ts",
+      "import": "./dist/shorten.mjs",
+      "require": "./dist/shorten.js",
+      "default": "./dist/shorten.mjs"
+    },
+    "./webpack": {
+      "types": "./dist/webpack.d.ts",
+      "import": "./dist/webpack.mjs",
+      "require": "./dist/webpack.js",
+      "default": "./dist/webpack.mjs"
+    },
+    "./webpack-loader": "./dist/webpack-loader.cjs",
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "import": "./dist/next.mjs",
+      "require": "./dist/next.js",
+      "default": "./dist/next.mjs"
     },
     "./analyze": {
       "types": "./dist/analyze.d.ts",
@@ -182,22 +203,26 @@
     "gen:llms": "node scripts/gen-llms.cjs",
     "check:all": "node scripts/check-all.cjs",
     "check:quick": "node scripts/check-all.cjs --quick",
+    "check:fast": "node scripts/check-all.cjs --fast",
     "check:browser": "npm run build && node scripts/browser-checks.cjs",
     "hooks:install": "git config core.hooksPath .githooks && echo \"Đã bật git hook trong .githooks\"",
     "gen:tailwind": "node scripts/gen-tailwind-map.mjs",
     "gen:tailwind-plugins": "node scripts/gen-tailwind-plugins.mjs",
     "check:tailwind": "npm run build && node eval/tailwind-parity.mjs && node eval/tailwind-variants.mjs && node eval/tailwind-plugins.mjs && node eval/real-project.mjs",
-    "eval:real": "node eval/real-project.mjs"
+    "eval:real": "node eval/real-project.mjs",
+    "check:short-classnames": "npm run build && node eval/short-classnames.mjs",
+    "short-classnames": "node eval/short-classnames.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
     "@tailwindcss/browser": "^4.3.5",
-    "@tailwindcss/forms": "^0.5.11",
-    "@tailwindcss/typography": "^0.5.20",
+    "@tailwindcss/forms": "0.5.11",
+    "@tailwindcss/typography": "0.5.20",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.0.18",
     "apca-w3": "^0.1.9",
     "clsx": "^2.1.1",
+    "daisyui": "5.8.1",
     "postcss": "^8.5.33",
     "prettier": "^3.10.1",
     "prettier-plugin-tailwindcss": "^0.8.1",
@@ -205,12 +230,12 @@
     "tailwind-scrollbar": "^4.0.2",
     "tailwind-scrollbar-hide": "^4.0.0",
     "tailwindcss": "4.3.5",
-    "tailwindcss-animate": "^1.0.7",
+    "tailwindcss-animate": "1.0.7",
     "tailwindcss-animated": "^2.1.0",
     "tailwindcss-motion": "^1.1.1",
     "tailwindcss-react-aria-components": "^2.2.0",
     "tsup": "^8.0.0",
-    "tw-animate-css": "^1.4.0",
+    "tw-animate-css": "1.4.0",
     "typescript": "^5.0.0",
     "vitest": "^4.0.18"
   },

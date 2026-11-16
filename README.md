@@ -248,9 +248,9 @@ export function Button({ primary, children }) {
 
 ## Chạy Class Tailwind v4 Như Tailwind
 
-Phương ngữ v4 được sinh từ chính compiler của Tailwind; đo trên Chromium so với Tailwind 4.3.5: khớp **23.286/23.286 class**, **956/956** tổ hợp biến thể (403/403 biến thể), **4 dự án mã nguồn mở thật** (shadcn/ui, HyperUI, Magic UI, coss ui: 3.305/3.305 class, 1.650/1.650 chuỗi class thật, ở 11 lượt trạng thái/độ rộng), 8 cấu hình v3, plugin JS bất kỳ không cần cài `tailwindcss`. Bản đánh giá đầy đủ: [docs/strategy/danh-gia-1.0.md](./docs/strategy/danh-gia-1.0.md).
+Phương ngữ v4 được sinh từ chính compiler của Tailwind; đo trên Chromium so với Tailwind 4.3.5: khớp **23.286/23.286 class**, **956/956** tổ hợp biến thể (415/415 biến thể), **6 dự án mã nguồn mở thật** (shadcn/ui, HyperUI, Magic UI, coss ui, daisyUI 5, TailAdmin: 4.412/4.412 class, 2.234/2.234 chuỗi class thật, ở 11 lượt trạng thái/độ rộng), 10 cấu hình v3, plugin JS bất kỳ không cần cài `tailwindcss`. Bản đánh giá đầy đủ: [docs/strategy/danh-gia-1.1.md](./docs/strategy/danh-gia-1.1.md).
 
-Không build (thay `@tailwindcss/browser`: 44,1 KB so với 75,3 KB gzip; chèn phần tử lúc chạy nhanh hơn tới 5,5 lần):
+Không build (thay `@tailwindcss/browser`: 39,9 KB so với 75,3 KB gzip; chèn phần tử lúc chạy nhanh hơn tới 5,5 lần):
 
 ```html
 <script type="module" src="https://unpkg.com/@porbit/style/dist/tailwind-auto.mjs"></script>
@@ -268,7 +268,7 @@ Có build (0 KB JavaScript như Tailwind) — đổi một dòng trong `postcss.
 export default { plugins: { '@porbit/style/postcss': {} } }   // thay '@tailwindcss/postcss'
 ```
 
-Next.js 15 thật: 0 khác biệt hiển thị so với `@tailwindcss/postcss`, CSS 3,62 KB so với 3,88 KB gzip; cài đặt 1,6 MB so với ~25 MB. Dự án v3 dùng `@config "./tailwind.config.js"` vẫn chạy.
+Next.js 15 thật: 0 khác biệt hiển thị so với `@tailwindcss/postcss`, CSS 3,62 KB so với 3,88 KB gzip; cài đặt 1,3 MB so với ~25 MB. Dự án v3 dùng `@config "./tailwind.config.js"` vẫn chạy.
 
 Thay luôn công cụ quanh Tailwind:
 
@@ -278,6 +278,7 @@ Thay luôn công cụ quanh Tailwind:
 | `prettier-plugin-tailwindcss` | `@porbit/style/prettier` | 46/46 file shadcn/ui giống hệt |
 | Tailwind IntelliSense | `presence-style lsp` | gợi ý class (cả theme dự án), ô màu, hover CSS |
 | Safelist cho class động | `tailwind-auto.mjs data-hybrid` | 300/300 class sinh lúc chạy có style sau 2,3 ms (Tailwind build: 9/300) |
+| (Tailwind không có) | `shortClassNames` (Vite), `withPresenceStyle` (`@porbit/style/next`, Next.js 15.5+/16 `next build`, Turbopack hoặc webpack), `@porbit/style/webpack` (webpack/Rspack), `presence-style shorten`, `@porbit/style/shorten` | rút gọn tên class lúc build: CSS −18,1%/−18,6% gzip, JS −17,5%/−21,2% gzip (shadcn/ui, coss ui); ứng dụng Next.js shadcn/ui dùng tailwind-merge: CSS −8,8%, HTML −7,3% gzip, 3.170/3.170 phần tử khớp computed style (Next.js 16.4 và 15.5, Turbopack lẫn webpack) |
 
 Chi tiết và số đo: [docs/guides/tailwind.md](./docs/guides/tailwind.md).
 
@@ -309,7 +310,7 @@ npx presence-style check src          # class không sinh CSS (kèm bản sửa)
 npx presence-style sort src --write   # sắp xếp class: media → layer → nhóm property → selector
 ```
 
-Mọi editor hỗ trợ LSP (Neovim, Helix, Zed, Sublime, Emacs, VS Code): `npx presence-style lsp` cho gạch lỗi, quick fix, hover hiện CSS (cả class Tailwind), gợi ý alias và sắp xếp class — xem [docs/guides/editors.md](./docs/guides/editors.md). VS Code có thêm extension ở [editors/vscode](./editors/vscode). Dùng trong công cụ riêng: `@porbit/style/lsp` (`createLanguageService`) hoặc `@porbit/style/analyze`.
+Mọi editor hỗ trợ LSP (Neovim, Helix, Zed, Sublime, Emacs, VS Code): `npx presence-style lsp` cho gạch lỗi, quick fix, hover hiện CSS (cả class Tailwind), gợi ý alias và sắp xếp class — xem [docs/guides/editors.md](./docs/guides/editors.md). Extension: VS Code ở [editors/vscode](./editors/vscode), Zed ở [editors/zed](./editors/zed) (cùng language server, thêm ô màu và thiết lập `tailwindFunctions`/`tailwindStylesheet`). Dùng trong công cụ riêng: `@porbit/style/lsp` (`createLanguageService`) hoặc `@porbit/style/analyze`.
 
 ## Bộ Component Mẫu
 
@@ -1107,7 +1108,7 @@ Chi tiết: [docs/operations/README.md](./docs/operations/README.md) mục 4.1.
 - Static-first và plugin Vite (CSS sinh sẵn lúc build): [docs/guides/static-first.md](./docs/guides/static-first.md)
 - Dùng thay Tailwind v4 (độ khớp, hiệu năng, cấu hình nâng cao, plugin): [docs/guides/tailwind.md](./docs/guides/tailwind.md)
 - Language server cho editor: [docs/guides/editors.md](./docs/guides/editors.md)
-- Extension VS Code (gạch lỗi, quick fix, hover CSS, gợi ý, sắp xếp): [editors/vscode](./editors/vscode)
+- Extension VS Code (client LSP: gợi ý kèm ô màu, hover CSS, gạch lỗi, quick fix, sắp xếp): [editors/vscode](./editors/vscode); extension Zed: [editors/zed](./editors/zed)
 - Đánh giá so với Tailwind và lộ trình tối ưu: [docs/strategy/danh-gia-va-dinh-huong.md](./docs/strategy/danh-gia-va-dinh-huong.md)
 - Dictionary đầy đủ: [DICTIONARY.md](./DICTIONARY.md)
 - Đặc tả cú pháp chuẩn (đa engine): [spec/SPEC.md](./spec/SPEC.md)
@@ -1116,4 +1117,4 @@ Chi tiết: [docs/operations/README.md](./docs/operations/README.md) mục 4.1.
 
 ## License
 
-Licensed under MIT. See [LICENSE](./LICENSE).
+Giấy phép Apache-2.0. Xem [LICENSE](./LICENSE).

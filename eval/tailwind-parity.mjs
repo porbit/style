@@ -101,6 +101,8 @@ const renderRuntime = async (html, setup = {}, headExtra = '') => {
     await page.route('http://parity.local/**', (route) => {
         const url = new URL(route.request().url())
         if (url.pathname === '/tailwind-auto.mjs') return route.fulfill({ contentType: 'text/javascript', body: autoCode })
+        // File tailwind-auto nạp động (`tailwind-stylesheet.mjs` khi có <style type="text/tailwindcss">, plugin, lai).
+        if (/^\/tailwind-[\w-]+\.mjs$/.test(url.pathname)) return route.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(path.join(root, 'dist', url.pathname.slice(1)), 'utf8') })
         route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><head>${headExtra}<script type="module" src="/tailwind-auto.mjs" data-preflight="false"></script></head><body>${html}<div id="sentinel" class="mt-[7px]"></div></body></html>` })
     })
     await page.goto('http://parity.local/')
@@ -196,13 +198,35 @@ const THEME_BLOCK = `@theme {
   --text-shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3);
   --animate-wiggle: wiggle 1s ease-in-out infinite;
   --container-8xl: 96rem;
+  --aspect-wide: 3 / 1;
+  --z-index-modal: 50;
+  --opacity-faint: 15%;
+  --width-sidebar: 17rem;
+  --margin-gutter: 13px;
+  --padding-card: 11px;
+  --inset-edge: 7px;
+  --rotate-tilt: 7deg;
+  --scale-big: 130%;
+  --cursor-hand: pointer;
+  --grid-template-columns-app: 200px 1fr;
+  --border-width-thick: 5px;
+  --background-color-paper: #f5f0e1;
+  --ring-width-thick: 6px;
+  --transition-duration-slow: 700ms;
+  --line-clamp-short: 2;
+  --columns-news: 3;
+  --order-hero: 7;
+  --gap-gutter: 9px;
   @keyframes wiggle { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
 }`
 const CUSTOM_CSS = `@utility tab-4 { tab-size: 4; }
 @utility content-auto { content-visibility: auto; contain-intrinsic-size: auto 500px; }
 .btn { @apply inline-flex items-center px-4 py-2 rounded-lg bg-brand text-white font-semibold shadow-soft; }
 .card { @apply p-6 rounded-blob border border-slate-200; margin-top: 3px; }`
-const themeClasses = ['btn', 'card', 'tab-4', 'content-auto', 'hover:tab-4', 'md:content-auto', 'bg-brand', 'text-brand', 'border-brand/50', 'bg-brand-soft', 'ring-brand', 'rounded-blob', 'rounded-t-blob', 'font-display', 'text-huge', 'shadow-soft', 'inset-shadow-soft', 'drop-shadow-soft', 'drop-shadow-double', 'text-shadow-soft', 'animate-wiggle', '3xl:p-4', '3xl:bg-brand', 'max-3xl:p-2', 'max-w-8xl', 'fill-brand', 'decoration-brand', 'hover:bg-brand']
+const themeClasses = ['btn', 'card', 'tab-4', 'content-auto', 'hover:tab-4', 'md:content-auto', 'bg-brand', 'text-brand', 'border-brand/50', 'bg-brand-soft', 'ring-brand', 'rounded-blob', 'rounded-t-blob', 'font-display', 'text-huge', 'shadow-soft', 'inset-shadow-soft', 'drop-shadow-soft', 'drop-shadow-double', 'text-shadow-soft', 'animate-wiggle', '3xl:p-4', '3xl:bg-brand', 'max-3xl:p-2', 'max-w-8xl', 'fill-brand', 'decoration-brand', 'hover:bg-brand',
+    // Khoá tự định nghĩa của namespace theme mặc định ít/không có khoá (`--aspect-*`, `--z-index-*`, `--width-*`...).
+    'aspect-wide', 'z-modal', 'opacity-faint', 'w-sidebar', 'm-gutter', '-mt-gutter', 'p-card', 'top-edge', '-left-edge', 'rotate-tilt', 'scale-big', 'cursor-hand',
+    'grid-cols-app', 'border-thick', 'bg-paper', 'ring-thick', 'duration-slow', 'line-clamp-short', 'columns-news', 'order-hero', 'gap-gutter', 'md:aspect-wide']
 const themeHtml = themeClasses.map((c) => `<div data-k class="${escapeHtml(c)}"${c.startsWith('animate-') ? ' data-anim="1"' : ''}><i>a</i><i>b</i></div>`).join('')
 const themeSetup = { viewport: { width: 1900, height: 800 }, force: [['[data-k]', ['hover']]] }
 const [twTheme, oursTheme] = await Promise.all([
@@ -244,6 +268,7 @@ const scenarios = [
     { name: 'in-focus / in-[.x]', variants: ['in-focus', 'in-[.x]'], wrap: 'focus', setup: { force: [['.wrap', ['focus']]] } },
     { name: 'quan hệ lồng group-/peer-/in-/has-/not- (hover ép)', variants: ['group-group-hover', 'group-peer-hover', 'group-in-hover', 'peer-group-hover', 'peer-peer-hover', 'peer-in-hover', 'in-group-hover', 'in-peer-hover', 'in-in-hover', 'has-group-hover', 'has-peer-hover', 'has-in-hover', 'not-group-hover', 'not-peer-hover', 'not-in-hover', 'not-hover'], wrap: 'nested', setup: { force: [['[data-h]', ['hover']]] } },
     { name: 'not-@md / not-@max-md trong container', variants: ['not-@md', 'not-@max-md', 'not-@min-md', 'not-@2xl'], wrap: 'container' },
+    { name: 'hai at-rule nội tuyến lồng nhau (container 600px, 1000px, hover ép)', variants: ['@[300px]:@max-[700px]', '@[300px]:@max-[500px]', 'md:@[300px]', 'lg:@[300px]', '@md:md', '@md:hover', 'supports-[display:grid]:@md', 'md:supports-[display:grid]', 'not-dark:@md', 'md:not-@2xl', '@2xl:md'], wrap: 'container', setup: { viewport: { width: 1000, height: 800 }, force: [['[data-k]', ['hover']]] } },
     { name: 'ba điều kiện md:dark:hover ở 1000px', variants: ['md:dark:hover', 'dark:md:hover', 'md:max-xl:hover'], setup: { viewport: { width: 1000, height: 800 }, colorScheme: 'dark', force: [['[data-k]', ['hover']]] } },
     { name: 'độ mờ /50 và !important', base: ['bg-red-500/50', 'text-blue-600/25', 'border-black/10', 'p-4!', '!m-2', 'text-sm/6'] },
     { name: 'giá trị tuỳ ý', base: ['p-[13px]', 'w-[calc(100%-2rem)]', 'bg-[#123456]', 'grid-cols-[1fr_2fr]', 'text-[22px]', 'm-[-5px]', '-m-[3px]', 'top-[10%]', 'shadow-[0_2px_4px_red]', 'bg-(--brand)', '[mask-type:luminance]', 'z-[60]', 'leading-[1.7]', 'tracking-[0.2em]'] },

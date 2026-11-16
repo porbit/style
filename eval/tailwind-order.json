@@ -7,15 +7,15 @@
     "sample": []
   },
   "variants": {
-    "classes": 3330,
-    "pairs": 3329,
+    "classes": 3340,
+    "pairs": 3339,
     "wrong": 0,
     "percent": 100,
     "sample": []
   },
   "combos": {
-    "classes": 2278,
-    "pairs": 2277,
+    "classes": 2496,
+    "pairs": 2495,
     "wrong": 0,
     "percent": 100,
     "sample": []
@@ -23,6 +23,13 @@
   "shadcn": {
     "classes": 769,
     "pairs": 768,
+    "wrong": 0,
+    "percent": 100,
+    "sample": []
+  },
+  "plugins": {
+    "classes": 352,
+    "pairs": 351,
     "wrong": 0,
     "percent": 100,
     "sample": []

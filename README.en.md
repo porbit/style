@@ -44,9 +44,9 @@ Any CSS property works by its full name: `view-transition-name[hero]`, `-webkit-
 
 ## Run Tailwind v4 Classes, Rendered Like Tailwind
 
-The v4 dialect is generated from Tailwind's own compiler. Measured in Chromium against tailwindcss 4.3.5: **23,286/23,286 classes**, **956/956** variant combinations (403/403 variants) and **4 real open-source projects** (shadcn/ui, HyperUI, Magic UI, coss ui: 3,305/3,305 classes and 1,650/1,650 real class strings across 11 state/width passes) render identically; 8 v3 configs and arbitrary JS plugins work without installing `tailwindcss`. Full evaluation (Vietnamese): [docs/strategy/danh-gia-1.0.md](./docs/strategy/danh-gia-1.0.md).
+The v4 dialect is generated from Tailwind's own compiler. Measured in Chromium against tailwindcss 4.3.5: **23,286/23,286 classes**, **956/956** variant combinations (415/415 variants) and **6 real open-source projects** (shadcn/ui, HyperUI, Magic UI, coss ui, daisyUI 5, TailAdmin: 4,412/4,412 classes and 2,234/2,234 real class strings across 11 state/width passes) render identically; 10 v3 configs and arbitrary JS plugins work without installing `tailwindcss`. Full evaluation (Vietnamese): [docs/strategy/danh-gia-1.1.md](./docs/strategy/danh-gia-1.1.md).
 
-No build step (replaces `@tailwindcss/browser`: 44.1 KB vs 75.3 KB gzip; inserting elements at runtime up to 5.5× faster):
+No build step (replaces `@tailwindcss/browser`: 39.9 KB vs 75.3 KB gzip; inserting elements at runtime up to 5.5× faster):
 
 ```html
 <script type="module" src="https://unpkg.com/@porbit/style/dist/tailwind-auto.mjs"></script>
@@ -64,7 +64,7 @@ With a build step (zero runtime JS, like Tailwind), change one line in `postcss.
 export default { plugins: { '@porbit/style/postcss': {} } }   // instead of '@tailwindcss/postcss'
 ```
 
-A real Next.js 15 app renders with 0 differences versus `@tailwindcss/postcss` and ships 3.62 KB instead of 3.88 KB of CSS (gzip), with a 1.6 MB install instead of ~25 MB. v3 projects using `@config "./tailwind.config.js"` keep working.
+A real Next.js 15 app renders with 0 differences versus `@tailwindcss/postcss` and ships 3.62 KB instead of 3.88 KB of CSS (gzip), with a 1.3 MB install instead of ~25 MB. v3 projects using `@config "./tailwind.config.js"` keep working.
 
 The tools around Tailwind are covered too:
 
@@ -131,7 +131,7 @@ Tools: `fix_classes`, `explain_class`, `generate_css`, `extract_css`, `lookup_di
 
 ## Editor
 
-`npx presence-style lsp` is a language server for any LSP editor (Neovim, Helix, Zed, Sublime, Emacs, VS Code): diagnostics, quick fixes, hover CSS (Tailwind classes too), completion and class sorting — setup in [docs/guides/editors.md](./docs/guides/editors.md) (Vietnamese). A VS Code extension lives in [editors/vscode](./editors/vscode).
+`npx presence-style lsp` is a language server for any LSP editor (Neovim, Helix, Zed, Sublime, Emacs, VS Code): diagnostics, quick fixes, hover CSS (Tailwind classes too), completion and class sorting — setup in [docs/guides/editors.md](./docs/guides/editors.md) (Vietnamese). Editor extensions using the same server: VS Code in [editors/vscode](./editors/vscode), Zed in [editors/zed](./editors/zed).
 
 ## When to Choose It
 
@@ -146,4 +146,4 @@ The full evaluation (Vietnamese) is in [docs/strategy/danh-gia-va-dinh-huong.md]
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+Apache-2.0. See [LICENSE](./LICENSE).

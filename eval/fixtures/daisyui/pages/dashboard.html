@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="vi" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bảng điều khiển</title>
+    <link rel="stylesheet" href="../app.css" />
+  </head>
+  <body class="min-h-screen bg-base-200 text-base-content">
+    <div class="drawer lg:drawer-open">
+      <input id="app-drawer" type="checkbox" class="drawer-toggle" />
+      <div class="drawer-content flex flex-col">
+        <!-- Thanh điều hướng -->
+        <div class="navbar bg-base-100 shadow-sm sticky top-0 z-30">
+          <div class="navbar-start">
+            <label for="app-drawer" class="btn btn-square btn-ghost lg:hidden" aria-label="Mở menu">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block h-5 w-5 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </label>
+            <a class="btn btn-ghost text-xl">Acme</a>
+          </div>
+          <div class="navbar-center hidden md:flex">
+            <label class="input input-sm w-72">
+              <svg class="h-[1em] opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle></svg>
+              <input type="search" class="grow" placeholder="Tìm kiếm" />
+              <kbd class="kbd kbd-sm">⌘</kbd>
+              <kbd class="kbd kbd-sm">K</kbd>
+            </label>
+          </div>
+          <div class="navbar-end gap-2">
+            <label class="swap swap-rotate btn btn-ghost btn-circle">
+              <input type="checkbox" class="theme-controller" value="dark" />
+              <span class="swap-off">☀</span>
+              <span class="swap-on">☾</span>
+            </label>
+            <div class="dropdown dropdown-end">
+              <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
+                <div class="indicator">
+                  <span class="text-lg">🔔</span>
+                  <span class="badge badge-xs badge-primary indicator-item">8</span>
+                </div>
+              </div>
+              <div tabindex="0" class="card card-compact dropdown-content bg-base-100 z-10 mt-3 w-60 shadow">
+                <div class="card-body">
+                  <span class="text-lg font-bold">8 thông báo</span>
+                  <span class="text-info">Có 3 đơn hàng mới</span>
+                  <div class="card-actions">
+                    <button class="btn btn-primary btn-block">Xem tất cả</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="dropdown dropdown-end">
+              <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar avatar-online">
+                <div class="w-10 rounded-full">
+                  <img alt="Ảnh đại diện" src="https://img.daisyui.com/images/profile/demo/yellingcat@192.webp" />
+                </div>
+              </div>
+              <ul tabindex="0" class="menu menu-sm dropdown-content bg-base-100 rounded-box z-10 mt-3 w-52 p-2 shadow">
+                <li><a class="justify-between">Hồ sơ <span class="badge">Mới</span></a></li>
+                <li><a>Cài đặt</a></li>
+                <li><a>Đăng xuất</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <main class="flex-1 space-y-6 p-4 md:p-8">
+          <div class="breadcrumbs text-sm">
+            <ul>
+              <li><a>Trang chủ</a></li>
+              <li><a>Bảng điều khiển</a></li>
+              <li>Tổng quan</li>
+            </ul>
+          </div>
+
+          <!-- Chỉ số -->
+          <div class="stats stats-vertical lg:stats-horizontal w-full bg-base-100 shadow">
+            <div class="stat">
+              <div class="stat-figure text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block h-8 w-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+              </div>
+              <div class="stat-title">Lượt xem</div>
+              <div class="stat-value text-primary">25,6K</div>
+              <div class="stat-desc">21% nhiều hơn tháng trước</div>
+            </div>
+            <div class="stat">
+              <div class="stat-figure text-secondary">
+                <div class="avatar avatar-online">
+                  <div class="w-16 rounded-full"><img alt="" src="https://img.daisyui.com/images/profile/demo/anakeen@192.webp" /></div>
+                </div>
+              </div>
+              <div class="stat-value">86%</div>
+              <div class="stat-title">Hoàn thành</div>
+              <div class="stat-desc text-secondary">31 việc còn lại</div>
+            </div>
+            <div class="stat place-items-center">
+              <div class="stat-title">Doanh thu</div>
+              <div class="stat-value text-accent">1.200tr</div>
+              <div class="stat-desc text-success">↗︎ 400 (22%)</div>
+              <div class="stat-actions">
+                <button class="btn btn-xs btn-success">Rút tiền</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <!-- Bảng đơn hàng -->
+            <div class="card bg-base-100 shadow-sm xl:col-span-2">
+              <div class="card-body">
+                <div class="flex items-center justify-between">
+                  <h2 class="card-title">Đơn hàng gần đây</h2>
+                  <div role="tablist" class="tabs tabs-box tabs-sm">
+                    <a role="tab" class="tab">Hôm nay</a>
+                    <a role="tab" class="tab tab-active">Tuần</a>
+                    <a role="tab" class="tab">Tháng</a>
+                    <a role="tab" class="tab tab-disabled">Năm</a>
+                  </div>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="table table-zebra table-sm">
+                    <thead>
+                      <tr>
+                        <th><label><input type="checkbox" class="checkbox checkbox-sm" /></label></th>
+                        <th>Khách hàng</th>
+                        <th>Trạng thái</th>
+                        <th class="text-right">Số tiền</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr class="hover:bg-base-300">
+                        <th><label><input type="checkbox" class="checkbox checkbox-sm checkbox-primary" checked /></label></th>
+                        <td>
+                          <div class="flex items-center gap-3">
+                            <div class="avatar">
+                              <div class="mask mask-squircle h-10 w-10"><img src="https://img.daisyui.com/images/profile/demo/2@94.webp" alt="" /></div>
+                            </div>
+                            <div>
+                              <div class="font-bold">Nguyễn An</div>
+                              <div class="text-sm opacity-50">Hà Nội</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td><span class="badge badge-success badge-soft">Đã giao</span></td>
+                        <td class="text-right font-mono">1.250.000</td>
+                        <th><button class="btn btn-ghost btn-xs">chi tiết</button></th>
+                      </tr>
+                      <tr>
+                        <th><label><input type="checkbox" class="checkbox checkbox-sm" /></label></th>
+                        <td>
+                          <div class="flex items-center gap-3">
+                            <div class="avatar avatar-placeholder">
+                              <div class="bg-neutral text-neutral-content w-10 rounded-full"><span>TB</span></div>
+                            </div>
+                            <div class="font-bold">Trần Bình</div>
+                          </div>
+                        </td>
+                        <td><span class="badge badge-warning badge-outline">Chờ xử lý</span></td>
+                        <td class="text-right font-mono">780.000</td>
+                        <th><button class="btn btn-ghost btn-xs">chi tiết</button></th>
+                      </tr>
+                      <tr>
+                        <th><label><input type="checkbox" class="checkbox checkbox-sm" /></label></th>
+                        <td><div class="font-bold">Lê Chi</div></td>
+                        <td><span class="badge badge-error badge-dash">Huỷ</span></td>
+                        <td class="text-right font-mono">0</td>
+                        <th><button class="btn btn-ghost btn-xs">chi tiết</button></th>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="card-actions items-center justify-between">
+                  <span class="text-sm text-base-content/60">Hiển thị 3 trên 120</span>
+                  <div class="join">
+                    <button class="join-item btn btn-sm">«</button>
+                    <button class="join-item btn btn-sm btn-active">1</button>
+                    <button class="join-item btn btn-sm">2</button>
+                    <button class="join-item btn btn-sm btn-disabled">…</button>
+                    <button class="join-item btn btn-sm">»</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cột phải -->
+            <div class="space-y-6">
+              <div class="card bg-base-100 card-border">
+                <div class="card-body gap-4">
+                  <h2 class="card-title">Mục tiêu tháng</h2>
+                  <div>
+                    <div class="mb-1 flex justify-between text-sm"><span>Doanh số</span><span>70%</span></div>
+                    <progress class="progress progress-primary w-full" value="70" max="100"></progress>
+                  </div>
+                  <div>
+                    <div class="mb-1 flex justify-between text-sm"><span>Khách mới</span><span>40%</span></div>
+                    <progress class="progress progress-secondary w-full" value="40" max="100"></progress>
+                  </div>
+                  <div>
+                    <div class="mb-1 flex justify-between text-sm"><span>Đang tải</span></div>
+                    <progress class="progress w-full"></progress>
+                  </div>
+                  <div class="flex items-center gap-4">
+                    <div class="radial-progress text-primary" style="--value: 70" aria-valuenow="70" role="progressbar">70%</div>
+                    <div class="radial-progress bg-primary text-primary-content border-primary border-4" style="--value: 45" role="progressbar">45%</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card bg-primary text-primary-content">
+                <div class="card-body">
+                  <h2 class="card-title">Nâng cấp gói Pro</h2>
+                  <p>Mở khoá báo cáo nâng cao và xuất dữ liệu.</p>
+                  <div class="card-actions justify-end">
+                    <button class="btn">Nâng cấp</button>
+                  </div>
+                </div>
+              </div>
+
+              <ul class="timeline timeline-vertical timeline-compact">
+                <li>
+                  <div class="timeline-middle">●</div>
+                  <div class="timeline-end timeline-box">Tạo đơn hàng</div>
+                  <hr class="bg-primary" />
+                </li>
+                <li>
+                  <hr class="bg-primary" />
+                  <div class="timeline-middle">●</div>
+                  <div class="timeline-end timeline-box">Đóng gói</div>
+                  <hr />
+                </li>
+                <li>
+                  <hr />
+                  <div class="timeline-middle">○</div>
+                  <div class="timeline-end timeline-box">Giao hàng</div>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Thông báo -->
+          <div class="grid gap-4 md:grid-cols-2">
+            <div role="alert" class="alert alert-info">
+              <span>Bản cập nhật mới đã sẵn sàng.</span>
+            </div>
+            <div role="alert" class="alert alert-success alert-soft">
+              <span>Đã lưu thay đổi!</span>
+            </div>
+            <div role="alert" class="alert alert-warning alert-outline">
+              <span>Dung lượng sắp đầy.</span>
+            </div>
+            <div role="alert" class="alert alert-error alert-dash">
+              <span>Không kết nối được máy chủ.</span>
+              <div>
+                <button class="btn btn-sm">Bỏ qua</button>
+                <button class="btn btn-sm btn-primary">Thử lại</button>
+              </div>
+            </div>
+            <div role="alert" class="alert alert-vertical sm:alert-horizontal">
+              <span>Chúng tôi dùng cookie cho các tính năng không thiết yếu.</span>
+              <div>
+                <button class="btn btn-sm">Từ chối</button>
+                <button class="btn btn-sm btn-primary">Đồng ý</button>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <footer class="footer sm:footer-horizontal bg-neutral text-neutral-content p-10">
+          <nav>
+            <h6 class="footer-title">Dịch vụ</h6>
+            <a class="link link-hover">Thương hiệu</a>
+            <a class="link link-hover">Thiết kế</a>
+            <a class="link link-hover">Tiếp thị</a>
+          </nav>
+          <nav>
+            <h6 class="footer-title">Công ty</h6>
+            <a class="link link-hover">Giới thiệu</a>
+            <a class="link link-hover">Liên hệ</a>
+          </nav>
+          <form>
+            <h6 class="footer-title">Bản tin</h6>
+            <fieldset class="w-80">
+              <label>Email của bạn</label>
+              <div class="join">
+                <input type="text" placeholder="ban@site.com" class="input input-bordered join-item" />
+                <button class="btn btn-primary join-item">Đăng ký</button>
+              </div>
+            </fieldset>
+          </form>
+        </footer>
+      </div>
+
+      <!-- Thanh bên -->
+      <div class="drawer-side z-40">
+        <label for="app-drawer" aria-label="Đóng menu" class="drawer-overlay"></label>
+        <aside class="bg-base-100 min-h-full w-64">
+          <div class="p-4 text-xl font-bold">Acme</div>
+          <ul class="menu w-full px-2">
+            <li class="menu-title">Tổng quan</li>
+            <li><a class="menu-active">Bảng điều khiển</a></li>
+            <li><a>Báo cáo <span class="badge badge-sm badge-secondary">3</span></a></li>
+            <li>
+              <details open>
+                <summary>Sản phẩm</summary>
+                <ul>
+                  <li><a>Danh sách</a></li>
+                  <li><a>Kho</a></li>
+                  <li class="menu-disabled"><a>Khuyến mãi</a></li>
+                </ul>
+              </details>
+            </li>
+            <li class="menu-title">Tài khoản</li>
+            <li><a>Cài đặt</a></li>
+            <li><a class="text-error">Đăng xuất</a></li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+
+    <div class="toast toast-end">
+      <div class="alert alert-info"><span>Có tin nhắn mới.</span></div>
+    </div>
+  </body>
+</html>

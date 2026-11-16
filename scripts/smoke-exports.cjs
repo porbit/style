@@ -2,8 +2,8 @@
 /**
  * Kiểm tra gói xuất bản như người dùng cài: `npm pack` -> giải nén vào node_modules/@porbit/style của
  * thư mục tạm -> với mỗi khoá trong "exports" thử `require()` và `import()` qua tên gói (mỗi khoá một
- * tiến trình riêng), so tên export hai bản, kèm vài kiểm tra chức năng (PostCSS kiểu Next.js, tài liệu
- * MCP đọc từ gói, CLI trong "bin").
+ * tiến trình riêng), so tên export hai bản, kèm vài kiểm tra chức năng (PostCSS kiểu Next.js, plugin webpack, tài liệu
+ * MCP đọc từ gói, CLI trong "bin": `extract` và language server `lsp` qua scripts/lsp-smoke.cjs).
  *
  *   npm run build && node scripts/smoke-exports.cjs [--json]
  *
@@ -58,6 +58,23 @@ import(${JSON.stringify(specifier)}, ${specifier.endsWith('.json') ? "{ with: { 
     const plugin = fn({ content: [] })
     out.check = typeof fn === 'function' && fn.postcss === true && plugin && plugin.postcssPlugin ? 'plugin PostCSS' : 'require(...) không phải plugin PostCSS'
     out.checkOk = out.check === 'plugin PostCSS'` : ''}
+    ${specifier === '@porbit/style/webpack' ? `
+    // Plugin webpack/Rspack: production thêm loader trỏ tới file có trong gói, file đó export hàm loader.
+    const { PresenceStyleWebpackPlugin } = require(${JSON.stringify(specifier)})
+    const rules = []
+    const hook = { tapPromise() {}, tap() {} }
+    new PresenceStyleWebpackPlugin({ shortClassNames: true }).apply({ context: process.cwd(), options: { mode: 'production', module: { rules } }, hooks: { beforeRun: hook, watchRun: hook, thisCompilation: hook } })
+    const loader = rules[0] && require(rules[0].loader)
+    out.check = typeof loader === 'function' && loader === require('@porbit/style/webpack-loader') ? 'loader ' + require('path').basename(rules[0].loader) : 'loader không chạy được'
+    out.checkOk = typeof loader === 'function'` : ''}
+    ${specifier === '@porbit/style/next' ? `
+    // withPresenceStyle: build production thêm plugin, dev thì không.
+    const { withPresenceStyle } = require(${JSON.stringify(specifier)})
+    const config = withPresenceStyle({}, { shortClassNames: true })
+    const prod = config.webpack({ plugins: [] }, { dev: false, dir: process.cwd() }).plugins.length
+    const dev = config.webpack({ plugins: [] }, { dev: true, dir: process.cwd() }).plugins.length
+    out.check = prod === 1 && dev === 0 ? 'withPresenceStyle thêm plugin khi build' : 'withPresenceStyle sai'
+    out.checkOk = prod === 1 && dev === 0` : ''}
     ${specifier === '@porbit/style/mcp' ? `
     // MCP server đọc tài liệu nằm trong gói: mọi resource phải đọc được.
     const mcp = await import(${JSON.stringify(specifier)})
@@ -97,6 +114,21 @@ for (const key of Object.keys(pkg.exports)) {
     const r = spawnSync(process.execPath, [bin, 'extract', 'smoke.html', '--silent'], { cwd: work, encoding: 'utf8' })
     const ok = r.status === 0 && /padding/.test(r.stdout) && fs.readFileSync(bin, 'utf8').startsWith('#!')
     results.bin = { ok, check: ok ? 'extract sinh CSS' : (r.stderr || r.stdout).trim().split('\n')[0], errors: ok ? [] : ['CLI lỗi'] }
+
+    // `presence-style lsp` của gói đã cài, như extension VS Code/Zed khởi chạy: initialize, completion, hover, màu...
+    const lsp = spawnSync(process.execPath, [path.join(__dirname, 'lsp-smoke.cjs'), '--server', bin, '--json'], { encoding: 'utf8', timeout: 60000 })
+    let report
+    try {
+        report = JSON.parse(lsp.stdout.trim().split('\n').pop())
+    } catch (_error) {
+        report = { ok: false, checks: [{ name: 'lsp', ok: false, detail: (lsp.stderr || lsp.stdout || 'không có output').trim().split('\n')[0] }] }
+    }
+    const failedChecks = report.checks.filter((c) => !c.ok)
+    results['bin lsp'] = {
+        ok: report.ok,
+        check: `${report.checks.length - failedChecks.length}/${report.checks.length} kiểm tra LSP`,
+        errors: failedChecks.map((c) => `${c.name}: ${c.detail}`),
+    }
 }
 
 fs.rmSync(work, { recursive: true, force: true })

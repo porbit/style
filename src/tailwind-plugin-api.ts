@@ -8,7 +8,9 @@
  *     tổ hợp `modifiers`) thành `@utility` tĩnh; giá trị tuỳ ý `name-[x]`, giá trị trần (`fade-in-37`)
  *     và độ mờ màu (`name-red-500/50`) thành `@utility name-* { x: --value(...) }` khi dựng được mẫu,
  *   - `addBase` -> `@layer base {...}`, `@keyframes` -> giữ nguyên,
- *   - `addVariant`/`matchVariant` -> `@custom-variant name { ... @slot; }`,
+ *   - `addVariant`/`matchVariant` -> `@custom-variant name { ... @slot; }`; giá trị tuỳ ý của `matchVariant`
+ *     (`name-[x]:`, `name-[x]/mod:`) thành biến thể hàm `name-*` (thân có chỗ giữ giá trị) khi dựng được mẫu,
+ *   - `@apply` trong CSS-in-JS (`'.btn': { '@apply px-4 py-2': {} }`) -> `@apply px-4 py-2;` trong `@utility`,
  *   - `config.theme` của plugin -> `@theme` (qua `tailwindConfigToCss`).
  *
  * `theme()` mô phỏng đúng thuật toán của Tailwind 4.3.5 (src/compat/plugin-api.ts): đọc biến theme CSS
@@ -19,15 +21,16 @@
  * `parseTailwindStylesheet`: chúng nằm trong `output.utilities` và được gộp vào stylesheet bằng
  * `applyTailwindPluginOutput` (hoặc `loader.apply(sheet)`).
  *
- * Chưa hỗ trợ: `matchVariant` với giá trị tuỳ ý (`name-[x]:`), `@apply` trong CSS-in-JS của plugin,
- * at-rule khác `@media` bên trong utility (`@supports`, `@container`...), `prefix`/`important` của cấu hình,
- * modifier dạng `modifiers: 'any'` với tên (chỉ nhận `/[x]`).
+ * Chưa hỗ trợ: `matchVariant` mà kết quả không là mẫu của giá trị (giá trị dùng để rẽ nhánh), at-rule khác `@media`
+ * bên trong utility (`@supports`,
+ * `@container`...), `prefix`/`important` của cấu hình, modifier dạng `modifiers: 'any'` với tên (chỉ nhận `/[x]`).
  */
 import Module, { createRequire } from 'node:module'
 import { isAbsolute, join, resolve as resolvePath } from 'node:path'
-import { STANDARD_CSS_PROPERTIES, isOpenPropertyName } from './css-properties'
-import { tailwindConfigToCss } from './tailwind-config'
+import { isOpenPropertyName, standardCssProperties } from './css-properties'
+import { flattenTailwindPresets, mergeTailwindConfigs, tailwindConfigToCss } from './tailwind-config'
 import { TW_DATA } from './tailwind-generated'
+import type { TailwindVariantOrder } from './tailwind-v4'
 
 type Json = Record<string, any>
 
@@ -623,7 +626,8 @@ const resolveConfigTheme = (css: CssTheme, configs: Json[]): Json => {
 
 type CssNode = { kind: 'decl'; prop: string; value: string } | { kind: 'rule'; selector: string; nodes: CssNode[] } | { kind: 'at'; name: string; nodes: CssNode[] | null }
 
-const block = (head: string, nodes: CssNode[]): CssNode => (head.charCodeAt(0) === 64 ? { kind: 'at', name: head, nodes } : { kind: 'rule', selector: head, nodes })
+// `'@apply px-4 py-2': {}` (CSS-in-JS của plugin): at-rule không thân như Tailwind.
+const block = (head: string, nodes: CssNode[]): CssNode => (head.charCodeAt(0) === 64 ? { kind: 'at', name: head, nodes: /^@apply\s/.test(head) && !nodes.length ? null : nodes } : { kind: 'rule', selector: head, nodes })
 
 /** Object CSS-in-JS -> cây CSS (bản sao `objectToAst`: camelCase -> kebab, số -> chuỗi, mảng -> nhiều khai báo, `@slot`). */
 const objectToAst = (input: unknown): CssNode[] => {
@@ -666,7 +670,7 @@ const walkNodes = (nodes: CssNode[], fn: (node: CssNode) => void) => {
 // Selector của addUtilities: tìm `.class` (bỏ qua bên trong :not/:nth-child/:nth-last-child)
 // ---------------------------------------------------------------------------
 
-const STANDARD_PROPERTIES = new Set(STANDARD_CSS_PROPERTIES)
+const STANDARD_PROPERTIES = new Set(standardCssProperties())
 const VALID_UTILITY = /^[a-z@][a-zA-Z0-9/%._-]*$/
 const VALID_VARIANT = /^@?[a-z0-9][a-zA-Z0-9_-]*(?<![_-])$/
 
@@ -736,6 +740,8 @@ export interface TailwindPluginOutput {
     utilities: Record<string, string>
     /** Mọi biến thể (tên -> thân dạng khối `{ ... @slot; }`). */
     variants: Record<string, string>
+    /** Nhóm thứ tự của từng `matchVariant` (giá trị có tên và tuỳ ý xếp theo `sort`, như Tailwind). */
+    variantOrder: Record<string, TailwindVariantOrder>
     /** Tên class tĩnh mà plugin sinh (giống `getClassList` của Tailwind, chưa kể modifier). */
     classes: string[]
     /** Phần chưa chuyển được (mô tả ngắn). */
@@ -756,6 +762,9 @@ const CSS_UTILITY_NAME = /^-?[\w-]+$/
 const CSS_VARIANT_NAME = /^[\w-]+$/
 
 const SENTINEL_VALUE = '__porbit_value__'
+// Chỗ giữ giá trị/modifier của biến thể hàm `name-*` (phải trùng với tailwind-v4.ts).
+const VARIANT_VALUE = '__porbit_variant_value__'
+const VARIANT_MODIFIER = '__porbit_variant_modifier__'
 const SENTINEL_MODIFIER = '__porbit_modifier__'
 // Kiểu của `matchUtilities` -> đối số `--value([kiểu])` mà dialect hiểu.
 const BRACKET_TYPE: Record<string, string> = { color: 'color', length: 'length', percentage: 'percentage', number: 'number', integer: 'integer', url: 'url', image: 'image', angle: 'angle', 'line-width': 'length' }
@@ -781,14 +790,15 @@ const normalizePlugin = (plugin: any, options?: unknown): PluginInput | null => 
  */
 export const runTailwindPlugin = (plugin: unknown, options: RunTailwindPluginOptions = {}): TailwindPluginOutput => {
     const input = normalizePlugin(plugin, options.options)
-    const output: TailwindPluginOutput = { css: '', utilities: {}, variants: {}, classes: [], unsupported: [] }
+    const output: TailwindPluginOutput = { css: '', utilities: {}, variants: {}, variantOrder: {}, classes: [], unsupported: [] }
     if (!input) {
         output.unsupported.push('không phải plugin Tailwind')
         return output
     }
     const css = buildCssTheme(options.theme)
-    const userConfig = (options.config && (options.config.default ?? options.config)) as Json | undefined
-    const configs = [compatConfig(css), input.config ?? {}, ...(userConfig ? [userConfig] : [])]
+    const userConfig = options.config ? mergeTailwindConfigs(options.config) : undefined
+    // `presets` của cấu hình dự án: theme gộp theo thứ tự preset -> cấu hình như Tailwind.
+    const configs = [compatConfig(css), input.config ?? {}, ...flattenTailwindPresets(options.config)]
     const resolvedTheme = resolveConfigTheme(css, configs)
     const resolvedConfig: Json = { blocklist: [], future: {}, experimental: {}, prefix: '', important: false, darkMode: null, ...(userConfig ?? {}), theme: resolvedTheme, plugins: [] }
     const theme = createThemeFn(css, () => resolvedTheme, (value) => value)
@@ -812,8 +822,22 @@ export const runTailwindPlugin = (plugin: unknown, options: RunTailwindPluginOpt
             return true
         })
         nodes = dropNested(nodes)
+        // `@scope (&) { :where(:scope > x) {...} }` (join của daisyUI): rule con với `:scope` là chính phần tử — cùng
+        // phần tử khớp, cùng độ ưu tiên (chỉ bỏ "độ gần scope", vốn chỉ quyết khi hai rule cùng độ ưu tiên).
+        const rescope = (list: CssNode[]): CssNode[] => list.map((node) => {
+            if (node.kind === 'rule') return { ...node, selector: node.selector.replace(/:scope\b/g, '&') }
+            return node.kind === 'at' && node.nodes ? { ...node, nodes: rescope(node.nodes) } : node
+        })
+        const unscope = (list: CssNode[]): CssNode[] => list.flatMap((node) => {
+            if (node.kind === 'at' && /^@scope\s*\(\s*&\s*\)$/.test(node.name) && node.nodes) return rescope(node.nodes)
+            if (node.kind !== 'decl' && node.nodes) node.nodes = unscope(node.nodes)
+            return [node]
+        })
+        nodes = unscope(nodes)
+        // At-rule lồng trong utility mà dialect hiểu: `@media`, `@layer` (daisyUI xếp component vào layer con
+        // `daisyui.l1.l2...` của layer utility), `@supports`, `@container`, `@starting-style`.
         walkNodes(nodes, (node) => {
-            if (node.kind === 'at' && node.name !== '@slot' && !/^@media\b/.test(node.name)) unsupported.add(`${name}: ${node.name.split(/[\s(]/)[0]} trong utility`)
+            if (node.kind === 'at' && node.name !== '@slot' && !/^@(media|apply|layer|supports|container|starting-style)\b/.test(node.name)) unsupported.add(`${name}: ${node.name.split(/[\s(]/)[0]} trong utility`)
         })
         const selfToken = new RegExp(`\\.${escapeRegExp(escapeClassName(self))}(?![\\w\\\\-])`, 'g')
         const rewrite = (list: CssNode[]): CssNode[] => list.map((node) => {
@@ -1022,16 +1046,64 @@ export const runTailwindPlugin = (plugin: unknown, options: RunTailwindPluginOpt
         },
         addVariant,
         matchVariant(name, fn, variantOptions) {
+            // `:merge(...)` (group/peer kiểu v3): Tailwind v4 bỏ cả biến thể.
+            try {
+                if (JSON.stringify(fn('a', { modifier: null }) ?? '').includes(':merge(')) return
+            } catch (_error) {
+                // hàm lỗi với giá trị thử: để các bước dưới báo
+            }
+            if (!VALID_VARIANT.test(name)) {
+                unsupported.add(`tên biến thể không hợp lệ: ${name}`)
+                return
+            }
             const values = (variantOptions?.values ?? {}) as Json
-            for (const [key, value] of Object.entries(values)) {
-                if (typeof value !== 'string') continue
+            const sort = variantOptions?.sort
+            const entries = Object.entries(values).filter(([, value]) => typeof value === 'string')
+            // Thứ tự trong nhóm như `matchVariant` của Tailwind: giá trị có tên và tuỳ ý (`name-[x]`) cùng một nhóm, theo
+            // `sort` (trên giá trị đã giải) nếu có, không thì theo thứ tự khai báo khoá (giá trị tuỳ ý sau), hoà thì so chuỗi.
+            const keys = Object.keys(values)
+            output.variantOrder[name] = {
+                keys: entries.map(([key]) => key),
+                compare: (a, b) => {
+                    const ka = a.value ?? 'DEFAULT'
+                    const kb = b.value ?? 'DEFAULT'
+                    const va = (Object.hasOwn(values, ka) ? values[ka] : undefined) ?? ka
+                    const vb = (Object.hasOwn(values, kb) ? values[kb] : undefined) ?? kb
+                    const ia = keys.includes(ka) ? keys.indexOf(ka) : keys.length
+                    const ib = keys.includes(kb) ? keys.indexOf(kb) : keys.length
+                    const result = typeof sort === 'function' ? (sort as (a: Json, b: Json) => number)({ value: va, modifier: a.modifier }, { value: vb, modifier: b.modifier }) : ia !== ib ? ia - ib : va === vb ? 0 : va < vb ? -1 : 1
+                    // Hoà (cùng giá trị, khác modifier): Tailwind để thứ tự gặp quyết định; ở đây không modifier trước.
+                    return result || (a.modifier === b.modifier ? 0 : a.modifier === null ? -1 : b.modifier === null ? 1 : a.modifier < b.modifier ? -1 : 1)
+                },
+            }
+            // Thứ tự đăng ký (dialect không nhận `variantOrder`): giá trị có tên theo `compare`.
+            entries.sort(([a], [b]) => output.variantOrder[name].compare({ value: a, modifier: null }, { value: b, modifier: null }))
+            for (const [key, value] of entries) {
                 try {
                     addVariant(key === 'DEFAULT' ? name : `${name}-${key}`, fn(value, { modifier: null }))
                 } catch (error) {
                     unsupported.add(`${name}-${key}: ${(error as Error).message}`)
                 }
             }
-            unsupported.add(`${name}-[…]: matchVariant với giá trị tuỳ ý`)
+            // Giá trị tuỳ ý `name-[x]` (và `/modifier`): mẫu dựng từ giá trị giả, kiểm lại bằng giá trị thử thứ hai.
+            const template = (value: string, modifier: string | null): string | null => {
+                try {
+                    return variantBody(fn(value, { modifier }))
+                } catch (_error) {
+                    return null
+                }
+            }
+            const SAMPLE = 'porbit-sample', SAMPLE_MOD = 'porbit-sample-mod'
+            const fill = (body: string, value: string, modifier: string) => body.split(VARIANT_VALUE).join(value).split(VARIANT_MODIFIER).join(modifier)
+            const plain = template(VARIANT_VALUE, null)
+            if (!plain || !plain.includes(VARIANT_VALUE) || fill(plain, SAMPLE, '') !== template(SAMPLE, null)) {
+                unsupported.add(`${name}-[…]: matchVariant với giá trị tuỳ ý`)
+                return
+            }
+            output.variants[`${name}-*`] = `{ ${plain} }`
+            const withModifier = template(VARIANT_VALUE, VARIANT_MODIFIER)
+            if (withModifier && fill(withModifier, SAMPLE, SAMPLE_MOD) === template(SAMPLE, SAMPLE_MOD)) output.variants[`${name}-*/*`] = `{ ${withModifier} }`
+            else unsupported.add(`${name}-[…]/…: matchVariant với modifier`)
         },
         theme,
         config(path, defaultValue) {
@@ -1106,12 +1178,13 @@ export const parsePluginOptions = (body: string): Record<string, unknown> => {
 }
 
 /** Gộp utility/biến thể mà CSS không viết được (`x-0.5`, `x-1/2`) vào stylesheet đã đọc. */
-export const applyTailwindPluginOutput = <T extends { utilities: Record<string, string>; variants: Record<string, string> }>(sheet: T, output: Pick<TailwindPluginOutput, 'utilities' | 'variants'>): T => {
+export const applyTailwindPluginOutput = <T extends { utilities: Record<string, string>; variants: Record<string, string>; variantOrder?: Record<string, TailwindVariantOrder> }>(sheet: T, output: Pick<TailwindPluginOutput, 'utilities' | 'variants'> & Partial<Pick<TailwindPluginOutput, 'variantOrder'>>): T => {
     for (const [name, body] of Object.entries(output.utilities)) {
         const bare = name.endsWith('-*') ? name.slice(0, -2) : name
         if (!CSS_UTILITY_NAME.test(bare) && !(name in sheet.utilities)) sheet.utilities[name] = body
     }
     for (const [name, body] of Object.entries(output.variants)) if (!CSS_VARIANT_NAME.test(name) && !(name in sheet.variants)) sheet.variants[name] = body
+    for (const [name, order] of Object.entries(output.variantOrder || {})) (sheet.variantOrder ||= {})[name] ??= order
     return sheet
 }
 
@@ -1187,7 +1260,7 @@ export interface TailwindPluginLoader {
     /** Chạy một plugin đã nạp (ví dụ từ `plugins` của tailwind.config.js) và trả CSS. */
     run(plugin: unknown, config?: Json, name?: string): string
     /** Gộp utility/biến thể mà CSS không viết được vào stylesheet sau `parseTailwindStylesheet`. */
-    apply<T extends { utilities: Record<string, string>; variants: Record<string, string> }>(sheet: T): T
+    apply<T extends { utilities: Record<string, string>; variants: Record<string, string>; variantOrder?: Record<string, TailwindVariantOrder> }>(sheet: T): T
     /** File plugin cục bộ đã nạp (cho chế độ watch). */
     files: string[]
     /** Lỗi/phần chưa hỗ trợ theo plugin. */
