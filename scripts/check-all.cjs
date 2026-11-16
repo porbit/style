@@ -42,7 +42,7 @@ const V3_FIXTURES = [
     ['v3-replace', 'eval/fixtures/v3-config/replace/app.css', 'eval/fixtures/v3-config/replace'],
     ...['prefix', 'important', 'important-selector', 'core-plugins', 'ts', 'css-flags', 'presets', 'plugins'].map((name) => [`v3-${name}`, `eval/fixtures/v3-config/${name}/app.css`, `eval/fixtures/v3-config/${name}`]),
 ]
-// Dự án mã nguồn mở khác: chưa khớp 100% nên dùng "bánh cóc" — không được tụt dưới mốc đã ghi.
+// Dự án mã nguồn mở khác: "bánh cóc" — không được tụt dưới mốc đã ghi; dự án có mốc đã khớp hết phải giữ 100%.
 const PROJECT_FIXTURES = ['hyperui', 'magicui', 'coss-ui', 'daisyui', 'tailadmin']
 const EVAL_MIN = { xcssValidAfterFix: 99, tailwindValid: 98, holdout: 85 }
 
@@ -210,9 +210,10 @@ const steps = [
             const hybridRows = Object.values(hybridReport.variants)
             const hybridOk = hybrid.ok && hybridRows.every((r) => r.correct === r.total)
             const realMin = Math.min(realReport.converted, ...Object.values(realReport.matched))
-            const ok = variants.ok && plugins.ok && real.ok && pluginsOk && report.base.percent >= 99.9 && report.variants.percent === 100 &&
-                report.runtime.percent === 100 && report.theme.matched === report.theme.checked && coverage.percent >= 95 &&
-                realMin / realReport.total >= 0.995 && realOk && v3Ok && orderOk && prettierOk && mergeOk && jsOk && hybridOk
+            // Mọi phần đòi 100%: không còn lệch đo được so với Tailwind (phần Tailwind không xác định: eval/README.md).
+            const ok = variants.ok && plugins.ok && real.ok && pluginsOk && report.base.percent === 100 && report.variants.percent === 100 &&
+                report.runtime.percent === 100 && report.theme.matched === report.theme.checked && coverage.percent === 100 &&
+                realMin === realReport.total && realOk && v3Ok && orderOk && prettierOk && mergeOk && jsOk && hybridOk
             return {
                 ok,
                 detail: `class ${report.base.percent}% · biến thể ${report.variants.percent}% · runtime ${report.runtime.percent}% · theme ${report.theme.matched}/${report.theme.checked} · độ phủ biến thể ${coverage.percent}%\n` +
@@ -247,8 +248,10 @@ const steps = [
                 current[name] = score
                 const base = baseline[name]
                 const regressed = base && ['converted', 'classes', 'combos'].some((k) => score[k] < base[k])
-                if (regressed) ok = false
-                lines.push(`${name}: class ${score.classes}/${score.total} (chuyển ${score.converted}), tổ hợp ${score.combos}/${score.comboTotal}${regressed ? ` TỤT so với mốc ${base.classes}/${base.combos}` : ''}`)
+                // Mọi dự án đã khớp hết: ngoài mốc, đòi 100% (dự án mới thêm chưa khớp hết thì ghi mốc rồi nâng dần).
+                const partial = base && base.classes === base.total && base.combos === base.comboTotal && (score.classes < score.total || score.combos < score.comboTotal || score.converted < score.total)
+                if (regressed || partial) ok = false
+                lines.push(`${name}: class ${score.classes}/${score.total} (chuyển ${score.converted}), tổ hợp ${score.combos}/${score.comboTotal}${regressed ? ` TỤT so với mốc ${base.classes}/${base.combos}` : partial ? ' CHƯA KHỚP HẾT' : ''}`)
             }
             if (args.includes('--update-baseline') || !fs.existsSync(baselineFile)) fs.writeFileSync(baselineFile, JSON.stringify(current, null, 2) + '\n')
             return { ok, detail: lines.join('\n') }
