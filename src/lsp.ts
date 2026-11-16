@@ -7,8 +7,11 @@
  *   - chẩn đoán: class x-css không sinh CSS (kèm bản sửa), class xung đột cùng thuộc tính,
  *   - hover: CSS thật mà class sinh ra (kể cả class Tailwind khi bật `"dialects": ["tailwind"]`),
  *   - gợi ý alias/giá trị trong thuộc tính class,
+ *   - ô màu (`textDocument/documentColor`) cho class màu,
  *   - code action: quick fix và "sắp xếp class trong file".
  * Cấu hình đọc từ presence-style.config.json ở gốc workspace (theo dõi thay đổi khi lưu).
+ * Client có thể gửi thêm thiết lập qua `initializationOptions` hoặc `workspace/didChangeConfiguration`
+ * (`settings.presenceStyle`): `tailwindFunctions`, `tailwindStylesheet`, `configFile` (xem `ServerSettings`).
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -49,17 +52,76 @@ const toOffset = (starts: number[], text: string, position: Position): number =>
 
 const CONFIG_FILE = 'presence-style.config.json'
 
-/** Đọc cấu hình workspace; lỗi/thiếu file -> cấu hình rỗng. */
-export const loadWorkspaceConfig = (rootDir: string | null): XCSSConfig => {
-    if (!rootDir) return {}
+/** Thiết lập từ editor (extension VS Code/Zed gửi qua `initializationOptions` / `didChangeConfiguration`). */
+export interface ServerSettings {
+    /** Hàm có đối số là chuỗi class (`cn`, `cva`, `tv`...), thêm vào danh sách mặc định. */
+    tailwindFunctions?: string[]
+    /** CSS của dự án Tailwind v4 (`src/app.css`), tương đối với gốc workspace: ghi đè `tailwindCss` của file cấu hình và bật phương ngữ Tailwind. */
+    tailwindStylesheet?: string
+    /** Tên file cấu hình thay cho `presence-style.config.json`. */
+    configFile?: string
+}
+
+const SETTING_KEYS = ['tailwindFunctions', 'tailwindStylesheet', 'configFile']
+const settingsObject = (input: unknown): Json | null => {
+    if (!input || typeof input !== 'object') return null
+    const source = input as Json
+    const raw = source.presenceStyle ?? source['presence-style'] ?? source
+    return raw && typeof raw === 'object' ? raw : null
+}
+/** `settings` của didChangeConfiguration có thiết lập cho server này không (Neovim/Zed gửi `{}` khi người dùng không đặt gì). */
+export const hasServerSettings = (input: unknown): boolean => {
+    if (!input || typeof input !== 'object') return false
+    const source = input as Json
+    if (source.presenceStyle || source['presence-style']) return true
+    return SETTING_KEYS.some((key) => key in source)
+}
+
+/** Lấy thiết lập từ `initializationOptions`/`settings`: dạng phẳng hoặc lồng trong `presenceStyle`/`presence-style`. */
+export const readServerSettings = (input: unknown): ServerSettings => {
+    const raw = settingsObject(input)
+    if (!raw) return {}
+    const settings: ServerSettings = {}
+    if (Array.isArray(raw.tailwindFunctions)) settings.tailwindFunctions = raw.tailwindFunctions.filter((name: unknown) => typeof name === 'string' && name)
+    if (typeof raw.tailwindStylesheet === 'string' && raw.tailwindStylesheet.trim()) settings.tailwindStylesheet = raw.tailwindStylesheet.trim()
+    if (typeof raw.configFile === 'string' && raw.configFile.trim()) settings.configFile = raw.configFile.trim()
+    return settings
+}
+
+/** Đọc file cấu hình JSON của workspace (thô, chưa chuẩn hoá); lỗi/thiếu file -> null. */
+const readRawConfig = (rootDir: string, file: string): Json | null => {
     try {
-        const raw = JSON.parse(readFileSync(join(rootDir, CONFIG_FILE), 'utf8'))
-        delete raw.safelist
+        const raw = JSON.parse(readFileSync(join(rootDir, file), 'utf8'))
+        return raw && typeof raw === 'object' ? raw : null
+    } catch (_error) {
+        return null
+    }
+}
+
+/** Đọc cấu hình workspace; lỗi/thiếu file -> cấu hình rỗng (hoặc chỉ phương ngữ Tailwind khi có `tailwindStylesheet`). */
+export const loadWorkspaceConfig = (rootDir: string | null, settings: ServerSettings = {}): XCSSConfig => {
+    if (!rootDir) return {}
+    const raw: Json = readRawConfig(rootDir, settings.configFile || CONFIG_FILE) ?? {}
+    delete raw.safelist
+    delete raw.tailwindFunctions
+    if (settings.tailwindStylesheet) {
+        raw.tailwindCss = settings.tailwindStylesheet
+        if (!Array.isArray(raw.dialects) || !raw.dialects.length) raw.dialects = ['tailwind']
+    }
+    try {
         return resolveConfigFile(raw, { readStylesheet: createStylesheetReader(rootDir), loadConfig: createConfigLoader(rootDir) })
     } catch (_error) {
         return {}
     }
 }
+
+/** `#rrggbb` -> màu LSP (kênh 0..1). */
+const toLspColor = (hex: string) => ({
+    red: parseInt(hex.slice(1, 3), 16) / 255,
+    green: parseInt(hex.slice(3, 5), 16) / 255,
+    blue: parseInt(hex.slice(5, 7), 16) / 255,
+    alpha: 1,
+})
 
 export interface LanguageServerOptions {
     input?: NodeJS.ReadableStream
@@ -75,6 +137,7 @@ export const startLanguageServer = (options: LanguageServerOptions = {}): { stop
     setTailwindFallback(tailwindFixFallback)
 
     let rootDir: string | null = null
+    let settings: ServerSettings = {}
     const service = createLanguageService({})
     const documents = new Map<string, { text: string; version: number; starts: number[] }>()
     const timers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -112,8 +175,14 @@ export const startLanguageServer = (options: LanguageServerOptions = {}): { stop
             publish(uri)
         }, debounce))
     }
+    const applySettings = () => {
+        // Hàm khai báo trong file cấu hình (`"tailwindFunctions": ["tv"]`) cộng với thiết lập của editor.
+        const fromFile = rootDir ? readRawConfig(rootDir, settings.configFile || CONFIG_FILE)?.tailwindFunctions : null
+        service.setFunctions([...(Array.isArray(fromFile) ? fromFile : []), ...(settings.tailwindFunctions ?? [])])
+        service.setConfig(loadWorkspaceConfig(rootDir, settings))
+    }
     const reloadConfig = () => {
-        service.setConfig(loadWorkspaceConfig(rootDir))
+        applySettings()
         documents.forEach((_doc, uri) => schedule(uri))
     }
 
@@ -121,11 +190,13 @@ export const startLanguageServer = (options: LanguageServerOptions = {}): { stop
         initialize: (params) => {
             const rootUri: string | undefined = params.rootUri ?? params.workspaceFolders?.[0]?.uri
             rootDir = rootUri?.startsWith('file:') ? fileURLToPath(rootUri) : params.rootPath ?? null
-            service.setConfig(loadWorkspaceConfig(rootDir))
+            settings = readServerSettings(params.initializationOptions)
+            applySettings()
             return {
                 capabilities: {
                     textDocumentSync: { openClose: true, change: 1, save: { includeText: false } },
                     hoverProvider: true,
+                    colorProvider: true,
                     completionProvider: { triggerCharacters: ['"', "'", ' ', '`', ':', '-'], resolveProvider: true },
                     codeActionProvider: { codeActionKinds: ['quickfix', 'source'] },
                 },
@@ -171,6 +242,16 @@ export const startLanguageServer = (options: LanguageServerOptions = {}): { stop
             const info = service.explain(item.data.name)
             return info.valid ? { ...item, documentation: { kind: 'markdown', value: '```css\n' + info.css.trim() + '\n```' } } : item
         },
+        'textDocument/documentColor': (params) => {
+            const doc = documents.get(params.textDocument.uri)
+            if (!doc) return []
+            return service.colors(doc.text).map((item) => ({
+                range: { start: toPosition(doc.starts, item.start), end: toPosition(doc.starts, item.end) },
+                color: toLspColor(item.color),
+            }))
+        },
+        // Ô màu chỉ để xem: không đề xuất đổi class khi chọn màu khác.
+        'textDocument/colorPresentation': () => [],
         'textDocument/codeAction': (params) => {
             const uri = params.textDocument.uri
             const doc = documents.get(uri)
@@ -216,10 +297,15 @@ export const startLanguageServer = (options: LanguageServerOptions = {}): { stop
             notify('textDocument/publishDiagnostics', { uri, diagnostics: [] })
         },
         'textDocument/didSave': (params) => {
-            if (String(params.textDocument.uri).endsWith(CONFIG_FILE) || /\.css$/.test(params.textDocument.uri)) reloadConfig()
+            if (String(params.textDocument.uri).endsWith(settings.configFile || CONFIG_FILE) || /\.css$/.test(params.textDocument.uri)) reloadConfig()
         },
         'workspace/didChangeWatchedFiles': () => reloadConfig(),
-        'workspace/didChangeConfiguration': () => reloadConfig(),
+        'workspace/didChangeConfiguration': (params) => {
+            // Client gửi `settings` (VS Code: `{ presenceStyle: {...} }`); rỗng/không liên quan thì giữ thiết lập cũ
+            // (thường là từ initializationOptions).
+            if (hasServerSettings(params?.settings)) settings = readServerSettings(params.settings)
+            reloadConfig()
+        },
     }
 
     const dispatch = (message: Json) => {

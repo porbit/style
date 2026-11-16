@@ -5,6 +5,12 @@
 **Sửa**
 - Bản 1.0.0 trên npm đóng gói CSS của `@tailwindcss/typography` 0.5.4 (sinh từ `node_modules` cũ) thay vì 0.5.20 đã khai báo. Plugin đóng gói giờ được ghim đúng phiên bản trong `devDependencies`; `gen:tailwind-plugins` dừng nếu `node_modules` lệch với bản ghim.
 
+**Editor**
+- Language server: ô màu (`textDocument/documentColor`) cho class màu Tailwind/x-css; thiết lập từ editor qua `initializationOptions`/`workspace/didChangeConfiguration` (`tailwindFunctions`, `tailwindStylesheet`, `configFile`); hover và ô màu trong đối số `cn()`/`clsx()`/`cva()` và hàm ở `tailwindFunctions` (file cấu hình cũng nhận khoá `tailwindFunctions`).
+- Extension VS Code (`editors/vscode`, 0.2.0) viết lại thành client LSP: ưu tiên `@porbit/style` cài trong dự án, không có thì dùng server đóng gói kèm; sẵn sàng đóng gói Marketplace (`npm run package`).
+- Extension Zed (`editors/zed`): chạy `presence-style lsp` bằng Node của Zed, tự cài `@porbit/style` từ npm khi dự án chưa có.
+- `scripts/lsp-smoke.cjs`: smoke test server qua stdio (initialize, completion, hover, documentColor, code action), chạy trên gói đã `npm pack` trong bước `package` của `check:all`.
+
 ## 1.0.0
 
 Bản phát hành đầu tiên dùng thay Tailwind cho dự án thật: đo trên 4 dự án mã nguồn mở, 8 cấu hình v3, 9 gói plugin JS và một ứng dụng Next.js thật (xem `docs/strategy/danh-gia-1.0.md`).

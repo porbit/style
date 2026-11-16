@@ -1,0 +1,22 @@
+id = "presence-style"
+name = "PresenceStyle"
+version = "0.1.0"
+schema_version = 1
+authors = ["porbit"]
+description = "Language server của @porbit/style: gợi ý class Tailwind v4/x-css kèm ô màu, hover hiện CSS, gạch lỗi và quick fix, sắp xếp class."
+repository = "https://github.com/porbit/style"
+
+[language_servers.presence-style]
+name = "PresenceStyle"
+languages = ["HTML", "JavaScript", "TSX", "TypeScript", "Vue.js", "Svelte", "Astro", "PHP", "Markdown"]
+
+[language_servers.presence-style.language_ids]
+"HTML" = "html"
+"JavaScript" = "javascriptreact"
+"TSX" = "typescriptreact"
+"TypeScript" = "typescript"
+"Vue.js" = "vue"
+"Svelte" = "svelte"
+"Astro" = "astro"
+"PHP" = "php"
+"Markdown" = "markdown"

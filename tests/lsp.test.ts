@@ -154,4 +154,62 @@ describe('language server (stdio)', () => {
         expect(hover.result.contents.value).toContain('padding:calc(var(--spacing')
         client.stop()
     })
+
+    it('ô màu (documentColor), thiết lập từ editor: tailwindStylesheet + tailwindFunctions, didChangeConfiguration', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'ps-lsp-settings-'))
+        writeFileSync(join(dir, 'app.css'), '@import "tailwindcss";\n@theme { --color-brand: #0a64e8; }')
+        const client = createClient()
+        const init = await client.request('initialize', {
+            rootUri: pathToFileURL(dir).href,
+            capabilities: {},
+            initializationOptions: { presenceStyle: { tailwindStylesheet: 'app.css', tailwindFunctions: ['tv'] } },
+        })
+        expect(init.result.capabilities.colorProvider).toBe(true)
+        const uri = pathToFileURL(join(dir, 'c.tsx')).href
+        const text = 'const b = tv("bg-brand p-2")\nexport const C = () => <div className="text-red-500 flex" />'
+        client.notify('textDocument/didOpen', { textDocument: { uri, languageId: 'typescriptreact', version: 1, text } })
+        expect((await client.diagnostics(uri)).params.diagnostics).toEqual([])
+
+        const colors = await client.request('textDocument/documentColor', { textDocument: { uri } })
+        expect(colors.result).toEqual([
+            { range: { start: { line: 0, character: 14 }, end: { line: 0, character: 22 } }, color: { red: 10 / 255, green: 100 / 255, blue: 232 / 255, alpha: 1 } },
+            { range: { start: { line: 1, character: 39 }, end: { line: 1, character: 51 } }, color: expect.objectContaining({ alpha: 1 }) },
+        ])
+        const presentation = await client.request('textDocument/colorPresentation', { textDocument: { uri }, color: colors.result[0].color, range: colors.result[0].range })
+        expect(presentation.result).toEqual([])
+
+        // Hover trong đối số của hàm khai báo ở `tailwindFunctions`.
+        const hover = await client.request('textDocument/hover', { textDocument: { uri }, position: { line: 0, character: 24 } })
+        expect(hover.result.contents.value).toContain('padding')
+
+        // `settings` rỗng (Neovim/Zed khi người dùng không đặt gì): giữ thiết lập từ initializationOptions.
+        client.notify('workspace/didChangeConfiguration', { settings: {} })
+        await client.diagnostics(uri)
+        const kept = await client.request('textDocument/hover', { textDocument: { uri }, position: { line: 0, character: 24 } })
+        expect(kept.result.contents.value).toContain('padding')
+
+        // Bỏ `tv` khỏi thiết lập: chuỗi trong `tv()` không còn là class.
+        client.notify('workspace/didChangeConfiguration', { settings: { presenceStyle: { tailwindStylesheet: 'app.css', tailwindFunctions: [] } } })
+        await client.diagnostics(uri)
+        const after = await client.request('textDocument/hover', { textDocument: { uri }, position: { line: 0, character: 24 } })
+        expect(after.result).toBeNull()
+        client.stop()
+    })
+})
+
+describe('thiết lập server', () => {
+    it('readServerSettings: phẳng hoặc lồng, bỏ giá trị sai kiểu', async () => {
+        const { readServerSettings } = await import('../src/lsp')
+        expect(readServerSettings({ tailwindFunctions: ['tv', 1, ''], tailwindStylesheet: ' src/app.css ' })).toEqual({ tailwindFunctions: ['tv'], tailwindStylesheet: 'src/app.css' })
+        expect(readServerSettings({ 'presence-style': { configFile: 'x.json', tailwindStylesheet: '' } })).toEqual({ configFile: 'x.json' })
+        expect(readServerSettings(null)).toEqual({})
+        const { hasServerSettings } = await import('../src/lsp')
+        expect([hasServerSettings({}), hasServerSettings(null), hasServerSettings({ presenceStyle: {} }), hasServerSettings({ tailwindFunctions: [] })]).toEqual([false, false, true, true])
+    })
+
+    it('x-css: ô màu từ CSS sinh ra', () => {
+        const service = createLanguageService()
+        const text = '<div class="bg#0af dF c[#ff0000]">'
+        expect(service.colors(text).map((c) => [text.slice(c.start, c.end), c.color])).toEqual([['bg#0af', '#00aaff'], ['c[#ff0000]', '#ff0000']])
+    })
 })

@@ -1,37 +1,81 @@
 {
-  "name": "presence-style-vscode",
-  "displayName": "PresenceStyle (x-css)",
-  "description": "Gạch lỗi class x-css, quick fix, hover hiện CSS, gợi ý alias và sắp xếp class cho @porbit/style.",
-  "version": "0.1.0",
-  "publisher": "vuits24",
-  "license": "MIT",
+  "name": "presence-style",
+  "displayName": "PresenceStyle (x-css, Tailwind v4)",
+  "description": "Language server của @porbit/style: gợi ý class Tailwind v4/x-css kèm ô màu, hover hiện CSS thật, gạch lỗi và quick fix, sắp xếp class.",
+  "version": "0.2.0",
+  "publisher": "porbit",
+  "license": "SEE LICENSE IN LICENSE",
+  "icon": "images/icon.png",
+  "homepage": "https://github.com/porbit/style/blob/main/docs/guides/editors.md",
   "repository": {
     "type": "git",
     "url": "https://github.com/porbit/style.git",
     "directory": "editors/vscode"
   },
+  "bugs": {
+    "url": "https://github.com/porbit/style/issues"
+  },
+  "keywords": [
+    "tailwind",
+    "tailwindcss",
+    "css",
+    "utility",
+    "x-css",
+    "intellisense",
+    "autocomplete",
+    "lsp"
+  ],
+  "galleryBanner": {
+    "color": "#0f172a",
+    "theme": "dark"
+  },
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.82.0"
   },
   "categories": [
-    "Linters",
     "Programming Languages",
+    "Linters",
+    "Formatters",
     "Other"
   ],
-  "main": "./extension.js",
+  "main": "./dist/extension.js",
   "activationEvents": [
     "onLanguage:html",
+    "onLanguage:javascript",
     "onLanguage:javascriptreact",
+    "onLanguage:typescript",
     "onLanguage:typescriptreact",
     "onLanguage:vue",
     "onLanguage:svelte",
-    "onLanguage:astro"
+    "onLanguage:astro",
+    "onLanguage:mdx",
+    "onLanguage:php",
+    "workspaceContains:**/presence-style.config.json",
+    "onStartupFinished"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Language server đọc cấu hình của dự án (tailwind.config.js, plugin) và có thể chạy @porbit/style trong node_modules của dự án."
+    },
+    "virtualWorkspaces": false
+  },
   "contributes": {
     "commands": [
       {
         "command": "presenceStyle.sortClasses",
-        "title": "PresenceStyle: Sắp xếp class trong file"
+        "title": "Sắp xếp class trong file",
+        "category": "PresenceStyle"
+      },
+      {
+        "command": "presenceStyle.restartServer",
+        "title": "Khởi động lại language server",
+        "category": "PresenceStyle"
+      },
+      {
+        "command": "presenceStyle.showOutput",
+        "title": "Mở nhật ký (Output)",
+        "category": "PresenceStyle"
       }
     ],
     "configuration": {
@@ -40,17 +84,103 @@
         "presenceStyle.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Bật kiểm tra class x-css."
+          "scope": "resource",
+          "description": "Bật language server PresenceStyle."
+        },
+        "presenceStyle.languages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "html",
+            "javascript",
+            "javascriptreact",
+            "typescript",
+            "typescriptreact",
+            "vue",
+            "svelte",
+            "astro",
+            "mdx",
+            "php"
+          ],
+          "scope": "resource",
+          "description": "Ngôn ngữ (language id của VS Code) được phục vụ."
+        },
+        "presenceStyle.tailwindFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "markdownDescription": "Hàm có đối số là chuỗi class (giống `tailwindFunctions` của Prettier), ví dụ `[\"tv\", \"classNames\"]`. Luôn có sẵn: `cn`, `clsx`, `cva`, `tw`, `twMerge`, `twJoin`."
+        },
+        "presenceStyle.tailwindStylesheet": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "CSS của dự án Tailwind v4 (`src/app.css`), tương đối với thư mục workspace: `@theme`, `@utility`, `@custom-variant`, `@plugin`. Đặt khoá này là bật phương ngữ Tailwind kể cả khi không có `presence-style.config.json`; ghi đè `tailwindCss` trong file cấu hình."
         },
         "presenceStyle.configFile": {
           "type": "string",
           "default": "presence-style.config.json",
-          "description": "File cấu hình (breakpoints, theme, aliases) tương đối với gốc workspace."
+          "scope": "resource",
+          "description": "File cấu hình (dialects, breakpoints, theme, aliases), tương đối với thư mục workspace."
+        },
+        "presenceStyle.server": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "workspace",
+            "bundled"
+          ],
+          "enumDescriptions": [
+            "Dùng @porbit/style cài trong dự án nếu có, không có thì dùng bản kèm extension.",
+            "Chỉ dùng @porbit/style của dự án (báo lỗi nếu chưa cài).",
+            "Luôn dùng bản kèm extension."
+          ],
+          "default": "auto",
+          "scope": "resource",
+          "description": "Nguồn language server."
+        },
+        "presenceStyle.serverPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "markdownDescription": "Đường dẫn tới server tự chọn (ví dụ `node_modules/@porbit/style/dist/cli-bin.js`), tương đối với thư mục workspace. Bỏ trống để tự tìm."
+        },
+        "presenceStyle.nodePath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "markdownDescription": "Node dùng để chạy server. Bỏ trống thì dùng Node đi kèm VS Code."
+        },
+        "presenceStyle.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "scope": "window",
+          "description": "Ghi tin nhắn LSP giữa VS Code và server vào Output (để gỡ lỗi)."
         }
       }
     }
   },
+  "scripts": {
+    "bundle": "node scripts/bundle.cjs",
+    "vscode:prepublish": "node scripts/bundle.cjs --production",
+    "package": "vsce package --no-dependencies",
+    "test": "node scripts/bundle.cjs && node ../../scripts/lsp-smoke.cjs --server server/presence-style-lsp.js"
+  },
   "dependencies": {
-    "@porbit/style": "^0.7.1"
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.2"
   }
 }

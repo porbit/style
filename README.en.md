@@ -131,7 +131,7 @@ Tools: `fix_classes`, `explain_class`, `generate_css`, `extract_css`, `lookup_di
 
 ## Editor
 
-`npx presence-style lsp` is a language server for any LSP editor (Neovim, Helix, Zed, Sublime, Emacs, VS Code): diagnostics, quick fixes, hover CSS (Tailwind classes too), completion and class sorting — setup in [docs/guides/editors.md](./docs/guides/editors.md) (Vietnamese). A VS Code extension lives in [editors/vscode](./editors/vscode).
+`npx presence-style lsp` is a language server for any LSP editor (Neovim, Helix, Zed, Sublime, Emacs, VS Code): diagnostics, quick fixes, hover CSS (Tailwind classes too), completion and class sorting — setup in [docs/guides/editors.md](./docs/guides/editors.md) (Vietnamese). Editor extensions using the same server: VS Code in [editors/vscode](./editors/vscode), Zed in [editors/zed](./editors/zed).
 
 ## When to Choose It
 

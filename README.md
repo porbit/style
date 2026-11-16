@@ -309,7 +309,7 @@ npx presence-style check src          # class không sinh CSS (kèm bản sửa)
 npx presence-style sort src --write   # sắp xếp class: media → layer → nhóm property → selector
 ```
 
-Mọi editor hỗ trợ LSP (Neovim, Helix, Zed, Sublime, Emacs, VS Code): `npx presence-style lsp` cho gạch lỗi, quick fix, hover hiện CSS (cả class Tailwind), gợi ý alias và sắp xếp class — xem [docs/guides/editors.md](./docs/guides/editors.md). VS Code có thêm extension ở [editors/vscode](./editors/vscode). Dùng trong công cụ riêng: `@porbit/style/lsp` (`createLanguageService`) hoặc `@porbit/style/analyze`.
+Mọi editor hỗ trợ LSP (Neovim, Helix, Zed, Sublime, Emacs, VS Code): `npx presence-style lsp` cho gạch lỗi, quick fix, hover hiện CSS (cả class Tailwind), gợi ý alias và sắp xếp class — xem [docs/guides/editors.md](./docs/guides/editors.md). Extension: VS Code ở [editors/vscode](./editors/vscode), Zed ở [editors/zed](./editors/zed) (cùng language server, thêm ô màu và thiết lập `tailwindFunctions`/`tailwindStylesheet`). Dùng trong công cụ riêng: `@porbit/style/lsp` (`createLanguageService`) hoặc `@porbit/style/analyze`.
 
 ## Bộ Component Mẫu
 
@@ -1107,7 +1107,7 @@ Chi tiết: [docs/operations/README.md](./docs/operations/README.md) mục 4.1.
 - Static-first và plugin Vite (CSS sinh sẵn lúc build): [docs/guides/static-first.md](./docs/guides/static-first.md)
 - Dùng thay Tailwind v4 (độ khớp, hiệu năng, cấu hình nâng cao, plugin): [docs/guides/tailwind.md](./docs/guides/tailwind.md)
 - Language server cho editor: [docs/guides/editors.md](./docs/guides/editors.md)
-- Extension VS Code (gạch lỗi, quick fix, hover CSS, gợi ý, sắp xếp): [editors/vscode](./editors/vscode)
+- Extension VS Code (client LSP: gợi ý kèm ô màu, hover CSS, gạch lỗi, quick fix, sắp xếp): [editors/vscode](./editors/vscode); extension Zed: [editors/zed](./editors/zed)
 - Đánh giá so với Tailwind và lộ trình tối ưu: [docs/strategy/danh-gia-va-dinh-huong.md](./docs/strategy/danh-gia-va-dinh-huong.md)
 - Dictionary đầy đủ: [DICTIONARY.md](./DICTIONARY.md)
 - Đặc tả cú pháp chuẩn (đa engine): [spec/SPEC.md](./spec/SPEC.md)
