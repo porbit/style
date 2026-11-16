@@ -248,17 +248,21 @@ export function Button({ primary, children }) {
 
 ## Chạy Class Tailwind v4 Như Tailwind
 
-Phương ngữ v4 được sinh từ chính compiler của Tailwind; đo trên Chromium so với Tailwind 4.3.5: khớp **23.285/23.286 class**, **680/680** tổ hợp biến thể, theme/`@utility`/`@apply` 28/28.
+Phương ngữ v4 được sinh từ chính compiler của Tailwind; đo trên Chromium so với Tailwind 4.3.5: khớp **23.286/23.286 class**, **956/956** tổ hợp biến thể (403/403 biến thể), plugin tw-animate-css/forms/typography 528/528, và dự án thật **shadcn/ui v4: 769/769 class** ở 4 trạng thái. Hỗ trợ `@theme`, `@utility` dạng hàm, `@custom-variant`, `@apply` kèm biến thể.
 
-Không build (thay `@tailwindcss/browser`: 55,6 KB so với 75,3 KB gzip, tới khi có style nhanh hơn ~35%):
+Không build (thay `@tailwindcss/browser`: 58,0 KB so với 75,3 KB gzip, tới khi có style nhanh hơn ~25%):
 
 ```html
 <script type="module" src="https://unpkg.com/@porbit/style/dist/tailwind-auto.mjs"></script>
-<style type="text/tailwindcss">@theme { --color-brand: #0a64e8; }</style>
+<style type="text/tailwindcss">
+  @import "tailwindcss";
+  @plugin "@tailwindcss/typography";
+  @theme { --color-brand: #0a64e8; }
+</style>
 <div class="flex items-center gap-4 p-4 rounded-lg bg-brand/90 hover:bg-brand md:grid-cols-3">…</div>
 ```
 
-Có build (0 KB JavaScript như Tailwind): `presenceStyle({ dialects: [tailwindV4Dialect({ preflight: true })] })` trong Vite. Chi tiết, số đo và phần chưa hỗ trợ: [docs/guides/tailwind.md](./docs/guides/tailwind.md).
+Có build (0 KB JavaScript như Tailwind): `presenceStyle({ dialects: [tailwindV4Dialect({ preflight: true })] })` trong Vite, hoặc `"tailwindCss": "src/app.css"` trong `presence-style.config.json` cho CLI. Chi tiết và số đo: [docs/guides/tailwind.md](./docs/guides/tailwind.md).
 
 ## Static-First Và Vite
 
@@ -288,7 +292,7 @@ npx presence-style check src          # class không sinh CSS (kèm bản sửa)
 npx presence-style sort src --write   # sắp xếp class: media → layer → nhóm property → selector
 ```
 
-Trong VS Code: cài extension ở [editors/vscode](./editors/vscode) để có gạch lỗi, quick fix, hover hiện CSS và gợi ý alias ngay khi gõ. Dùng logic này trong công cụ riêng: `import { analyzeClasses, fixClasses, sortClasses } from '@porbit/style/analyze'`.
+Mọi editor hỗ trợ LSP (Neovim, Helix, Zed, Sublime, Emacs, VS Code): `npx presence-style lsp` cho gạch lỗi, quick fix, hover hiện CSS (cả class Tailwind), gợi ý alias và sắp xếp class — xem [docs/guides/editors.md](./docs/guides/editors.md). VS Code có thêm extension ở [editors/vscode](./editors/vscode). Dùng trong công cụ riêng: `@porbit/style/lsp` (`createLanguageService`) hoặc `@porbit/style/analyze`.
 
 ## Bộ Component Mẫu
 
@@ -1084,7 +1088,8 @@ Chi tiết: [docs/operations/README.md](./docs/operations/README.md) mục 4.1.
 - Bộ component mẫu: [docs/guides/components.md](./docs/guides/components.md)
 - MCP server cho agent AI: [docs/guides/mcp.md](./docs/guides/mcp.md)
 - Static-first và plugin Vite (CSS sinh sẵn lúc build): [docs/guides/static-first.md](./docs/guides/static-first.md)
-- Dùng thay Tailwind v4 (độ khớp, hiệu năng, giới hạn): [docs/guides/tailwind.md](./docs/guides/tailwind.md)
+- Dùng thay Tailwind v4 (độ khớp, hiệu năng, cấu hình nâng cao, plugin): [docs/guides/tailwind.md](./docs/guides/tailwind.md)
+- Language server cho editor: [docs/guides/editors.md](./docs/guides/editors.md)
 - Extension VS Code (gạch lỗi, quick fix, hover CSS, gợi ý, sắp xếp): [editors/vscode](./editors/vscode)
 - Đánh giá so với Tailwind và lộ trình tối ưu: [docs/strategy/danh-gia-va-dinh-huong.md](./docs/strategy/danh-gia-va-dinh-huong.md)
 - Dictionary đầy đủ: [DICTIONARY.md](./DICTIONARY.md)

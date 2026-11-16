@@ -44,17 +44,21 @@ Any CSS property works by its full name: `view-transition-name[hero]`, `-webkit-
 
 ## Run Tailwind v4 Classes, Rendered Like Tailwind
 
-The v4 dialect is generated from Tailwind's own compiler. Measured in Chromium against tailwindcss 4.3.5: **23,285/23,286 classes** and **680/680** variant combinations render identically; theme, `@utility` and `@apply` 28/28.
+The v4 dialect is generated from Tailwind's own compiler. Measured in Chromium against tailwindcss 4.3.5: **23,286/23,286 classes**, **956/956** variant combinations (403/403 variants), the tw-animate-css/forms/typography plugins 528/528, and a real project — **shadcn/ui v4: 769/769 classes** in 4 states — render identically. `@theme`, functional `@utility`, `@custom-variant` and `@apply` with variants are supported.
 
-No build step (replaces `@tailwindcss/browser`: 55.6 KB vs 75.3 KB gzip, ~35% faster to first styled frame):
+No build step (replaces `@tailwindcss/browser`: 58.0 KB vs 75.3 KB gzip, ~25% faster to first styled frame):
 
 ```html
 <script type="module" src="https://unpkg.com/@porbit/style/dist/tailwind-auto.mjs"></script>
-<style type="text/tailwindcss">@theme { --color-brand: #0a64e8; }</style>
+<style type="text/tailwindcss">
+  @import "tailwindcss";
+  @plugin "@tailwindcss/typography";
+  @theme { --color-brand: #0a64e8; }
+</style>
 <div class="flex items-center gap-4 p-4 rounded-lg bg-brand/90 hover:bg-brand md:grid-cols-3">…</div>
 ```
 
-With Vite (zero runtime JS, like Tailwind): `presenceStyle({ dialects: [tailwindV4Dialect({ preflight: true })] })`. Details and limits: [docs/guides/tailwind.md](./docs/guides/tailwind.md) (Vietnamese).
+With Vite (zero runtime JS, like Tailwind): `presenceStyle({ dialects: [tailwindV4Dialect({ preflight: true })] })`, or `"tailwindCss": "src/app.css"` in `presence-style.config.json` for the CLI. Details and limits: [docs/guides/tailwind.md](./docs/guides/tailwind.md) (Vietnamese).
 
 ## Static-First and Vite
 
@@ -105,10 +109,11 @@ Tools: `fix_classes`, `explain_class`, `generate_css`, `extract_css`, `lookup_di
 | `presence-style sort <paths> [--write \| --check]` | Sort classes in static class attributes |
 | `presence-style init [--agents] [--mcp]` | Create config, agent rules and `.mcp.json` |
 | `presence-style mcp` / `mcp-config [client]` | Run the MCP server / print client setup |
+| `presence-style lsp` | Run the language server (stdio) for editors |
 
 ## Editor
 
-A VS Code extension (diagnostics, quick fixes, hover CSS, completion, sort command) lives in [editors/vscode](./editors/vscode).
+`npx presence-style lsp` is a language server for any LSP editor (Neovim, Helix, Zed, Sublime, Emacs, VS Code): diagnostics, quick fixes, hover CSS (Tailwind classes too), completion and class sorting — setup in [docs/guides/editors.md](./docs/guides/editors.md) (Vietnamese). A VS Code extension lives in [editors/vscode](./editors/vscode).
 
 ## When to Choose It
 

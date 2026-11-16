@@ -1,6 +1,6 @@
 {
   "name": "@porbit/style",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "PresenceStyle: utility CSS engine mở — parse class runtime, sinh CSS theo layer/media, trích xuất CSS tĩnh, bộ component mẫu và MCP server cho agent AI.",
   "type": "commonjs",
   "license": "MIT",
@@ -76,6 +76,12 @@
       "require": "./dist/tailwind-auto.js",
       "default": "./dist/tailwind-auto.mjs"
     },
+    "./tailwind-plugins": {
+      "types": "./dist/tailwind-plugins.d.ts",
+      "import": "./dist/tailwind-plugins.mjs",
+      "require": "./dist/tailwind-plugins.js",
+      "default": "./dist/tailwind-plugins.mjs"
+    },
     "./vite": {
       "types": "./dist/vite.d.ts",
       "import": "./dist/vite.mjs",
@@ -87,6 +93,12 @@
       "import": "./dist/analyze.mjs",
       "require": "./dist/analyze.js",
       "default": "./dist/analyze.mjs"
+    },
+    "./lsp": {
+      "types": "./dist/lsp.d.ts",
+      "import": "./dist/lsp.mjs",
+      "require": "./dist/lsp.js",
+      "default": "./dist/lsp.mjs"
     },
     "./mcp": {
       "types": "./dist/mcp.d.ts",
@@ -138,7 +150,7 @@
     "test:e2e": "npm run build && playwright test -c e2e/playwright.config.ts",
     "gen:spec": "node scripts/gen-spec.cjs",
     "gen:rust": "node scripts/gen-rust-dict.cjs",
-    "gen": "npm run gen:spec && npm run gen:rust && npm run gen:tailwind && npm run gen:llms",
+    "gen": "npm run gen:spec && npm run gen:rust && npm run gen:tailwind && npm run gen:tailwind-plugins && npm run gen:llms",
     "prepublishOnly": "node scripts/check-all.cjs",
     "typecheck": "tsc --noEmit",
     "test:run": "vitest run",
@@ -151,15 +163,20 @@
     "check:browser": "npm run build && node scripts/browser-checks.cjs",
     "hooks:install": "git config core.hooksPath .githooks && echo \"Đã bật git hook trong .githooks\"",
     "gen:tailwind": "node scripts/gen-tailwind-map.mjs",
-    "check:tailwind": "npm run build && node eval/tailwind-parity.mjs && node eval/tailwind-variants.mjs"
+    "gen:tailwind-plugins": "node scripts/gen-tailwind-plugins.mjs",
+    "check:tailwind": "npm run build && node eval/tailwind-parity.mjs && node eval/tailwind-variants.mjs && node eval/tailwind-plugins.mjs && node eval/real-project.mjs",
+    "eval:real": "node eval/real-project.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
+    "@tailwindcss/forms": "^0.5.11",
+    "@tailwindcss/typography": "^0.5.20",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.0.18",
     "apca-w3": "^0.1.9",
     "tailwindcss": "4.3.5",
     "tsup": "^8.0.0",
+    "tw-animate-css": "^1.4.0",
     "typescript": "^5.0.0",
     "vitest": "^4.0.18"
   },

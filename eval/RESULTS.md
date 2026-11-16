@@ -1,6 +1,6 @@
 # Kết Quả Đánh Giá
 
-Chạy: `node eval/score.cjs` (Chromium, phiên bản 0.8.0). Mỗi class được coi là hợp lệ khi engine sinh được CSS và trình duyệt chấp nhận declaration/selector.
+Chạy: `node eval/score.cjs` (Chromium, phiên bản 0.9.0). Mỗi class được coi là hợp lệ khi engine sinh được CSS và trình duyệt chấp nhận declaration/selector.
 
 | Lượt | File | Class | Ký tự class | Hợp lệ | Hợp lệ sau `fix_classes` | Nhóm xung đột |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: |

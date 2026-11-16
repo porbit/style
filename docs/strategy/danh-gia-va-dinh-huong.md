@@ -272,3 +272,57 @@ Trong lúc đo phát hiện và sửa thêm: khi kiểm bằng `CSS.supports`, c
 | 5 | Language server dùng chung cho VS Code/Neovim/Zed dựa trên `@porbit/style/analyze` | Lớn |
 | 6 | Đo trên mã thật: chạy bộ đo với các dự án mã nguồn mở viết bằng Tailwind v4 (shadcn/ui, Catalyst mẫu) | Nhỏ, nên làm sớm |
 
+
+## 12. Đóng Khoảng Cách Với Tailwind (0.9.0)
+
+### 12.1 Đã làm theo đề xuất 11.5
+
+| # | Việc | Kết quả |
+| :--- | :--- | :--- |
+| 6 → làm trước | Đo trên dự án thật | Bộ đo `eval/real-project.mjs` + fixture shadcn/ui v4 (45 component, `@custom-variant data-open`..., `@utility no-scrollbar`/`scroll-fade`, `@apply` trong `@layer base`, tw-animate-css). So computed style ở 4 trạng thái: mặc định, mở (`data-state=open`, `aria-*`... trên phần tử, cha `.group`, anh `.peer`), đóng, `.dark` |
+| 1 | `@utility` dạng hàm, `@custom-variant` | `--value()` (`number` bội 0,25, `integer`, `ratio`, `percentage`, `--ns-*`, `[type]`, `"literal"`), `--modifier()`, `--spacing()`, `--alpha()`, selector và `@media` lồng; `@custom-variant` dạng ngắn, at-rule, dạng khối `@slot`, danh sách selector, dùng sau `group-`/`peer-`/`not-`/`has-` |
+| 2 | `@apply` kèm biến thể | Dùng chính dialect: biến thể thành rule riêng (`.btn:hover`, `@media`), độ mờ, `!important`; `@layer base/components` đặt vào layer nền |
+| 3 | Plugin phổ biến | `scripts/gen-tailwind-plugins.mjs` chạy Tailwind có/không plugin, lấy phần chênh rồi viết lại thành CSS v4 (`@layer base`, `@utility`, `@custom-variant`): tw-animate-css (và `tailwindcss-animate`), `@tailwindcss/forms`, `@tailwindcss/typography`. File riêng 8,3 KB gzip, bản CDN chỉ tải khi cần |
+| 4 | Một class nhiều rule, ≥3 điều kiện media | Engine: token của một class được gom theo (media, layer, selector) liền kề thành nhiều rule; rule có selector trình duyệt không hỗ trợ bị bỏ riêng. Dialect: `container`, `not-hover`, `not-group-hover`..., `md:dark:hover` (gộp thành `@media a and b and c`), `not-@md` |
+| 5 | Language server dùng chung | `presence-style lsp` (stdio, không phụ thuộc thư viện): chẩn đoán, hover CSS, gợi ý, quick fix, sắp xếp class; đọc `presence-style.config.json`, kể cả `"tailwindCss"` để hiểu `@theme`/`@utility`/`@custom-variant`/plugin của dự án. Hướng dẫn Neovim, Helix, Zed, Sublime, Emacs |
+
+### 12.2 Lỗi chỉ lộ ra khi đo trên dự án thật
+
+- **Preflight còn nguyên `--theme(...)`**: hàm lúc build của Tailwind bị chép thẳng vào CSS nên `font-family` của `html` không hợp lệ. Nay dịch thành `var(...)` và nhúng giá trị theme của dự án (xử lý cả tham chiếu vòng `--font-sans: var(--font-sans)` của shadcn như trình duyệt).
+- **`@layer base` của dự án đứng sau thứ tự layer của engine**, tức là đè lên utility. Nay đặt vào layer nền như Tailwind.
+- **Engine từ chối cả class khi các token khác selector/media**: `slide-in-from-start` (2 rule `:dir()`), `prose` (hàng trăm rule), `data-open:` dạng danh sách đều không sinh CSS. Bài đo ban đầu không thấy vì phần tử mẫu không có `data-state` — đã thêm các trạng thái vào bộ đo.
+- **Gộp rule cùng selector nhưng không liền kề** làm đổi thứ tự cascade (`prose`: `figure` rồi `> :last-child`). Nay chỉ gộp token liền kề.
+- **Một selector không hỗ trợ làm mất cả class**: `ol[type="A" s]` của typography không qua `CSS.supports` trên Chromium. Nay bỏ riêng rule đó, như trình duyệt.
+- **Minify bỏ `@property` chỉ dùng trong `@keyframes`** (`--tw-enter-*` của tw-animate-css).
+- **Class v3 cũ vẫn hợp lệ ở v4** (`flex-shrink-0`, `bg-gradient-to-r`, `break-words`) không nằm trong `getClassList()` nên trước đây không có dữ liệu.
+- **`explainClass` gạch `p-4`** (luật "thiếu đơn vị" của x-css) dù phương ngữ Tailwind đã sinh CSS — lộ ra khi viết test cho LSP.
+
+### 12.3 Kết quả đo (Chromium, tailwindcss 4.3.5)
+
+| Trục | 0.8.0 | 0.9.0 |
+| :--- | :--- | :--- |
+| Class trong danh sách Tailwind | 23.285 / 23.286 | **23.286 / 23.286** |
+| Tổ hợp biến thể | 680 / 680 (23 kịch bản) | **956 / 956** (26 kịch bản: thêm quan hệ lồng, `not-@md`, ba điều kiện) |
+| Độ phủ biến thể | 385 / 403 | **403 / 403** |
+| Plugin tw-animate-css · forms · typography | Không có | **486/486 · 7/7 · 35/35** |
+| shadcn/ui v4 (769 class) | Chưa đo | **769/769 ở cả 4 trạng thái** |
+| Runtime không build (gzip) | 55,6 KB | 58,0 KB (+8,3 KB khi dùng plugin); Tailwind 75,3 KB |
+| Tới khi có style / thêm 2.000 phần tử | — | 150–172 / 83–85 ms; Tailwind 196–222 / 87–90 ms |
+| Editor | Extension VS Code | LSP cho mọi editor + extension VS Code |
+
+### 12.4 Đánh giá lại: đã thay thế hoàn toàn được chưa?
+
+- **Utility class, biến thể, cấu hình CSS-first của Tailwind v4: đạt.** Mọi class và biến thể trong danh sách của Tailwind khớp; `@theme`, `@utility` (cả dạng hàm), `@custom-variant`, `@apply` kèm biến thể đều chạy.
+- **Dự án thật dùng hệ sinh thái phổ biến nhất (shadcn/ui + tw-animate-css): đạt**, đo ở 4 trạng thái chứ không chỉ trạng thái mặc định.
+- **Không build: vượt** — nhẹ hơn ~23%, có style sớm hơn ~25%, dùng được cho production, hỗ trợ plugin mà `@tailwindcss/browser` cần build mới có.
+- **Còn thua ở:** plugin JS tuỳ ý (chỉ có plugin đã sinh sẵn; thêm plugin mới cần chạy generator), extension Zed và plugin Prettier chính thức chưa có (dùng LSP và `presence-style sort`), mức độ phổ biến/tài liệu cộng đồng.
+- **Kết luận:** với dự án Tailwind v4 dùng utility + CSS-first config + plugin phổ biến, có thể chuyển sang mà không đổi mã class. Dự án dựa vào plugin JS riêng cần sinh dữ liệu cho plugin đó trước.
+
+### 12.5 Việc tiếp theo
+
+| Ưu tiên | Việc |
+| :--- | :--- |
+| 1 | Đo thêm dự án thật khác (Catalyst, các template Next.js) bằng `eval/real-project.mjs`; thêm trạng thái hover/focus vào bộ đo dự án thật |
+| 2 | Cho phép sinh dữ liệu plugin JS bất kỳ ngay trong dự án người dùng (`presence-style tailwind-plugin <tên>`) thay vì chỉ bộ đóng gói sẵn |
+| 3 | Extension Zed và plugin Prettier dùng chung `@porbit/style/lsp`/`sortClasses` |
+| 4 | Engine Rust: gom nhiều rule cho một class như engine Node để bộ so Node/Rust phủ được phương ngữ |

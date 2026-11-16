@@ -2,12 +2,12 @@
   "tailwind": "4.3.5",
   "base": {
     "checked": 23286,
-    "matched": 23285,
+    "matched": 23286,
     "percent": 100
   },
   "variants": {
-    "checked": 680,
-    "matched": 680,
+    "checked": 956,
+    "matched": 956,
     "percent": 100
   },
   "theme": {
@@ -19,7 +19,5 @@
     "matched": 3327,
     "percent": 100
   },
-  "failingFamilies": {
-    "container": 1
-  }
+  "failingFamilies": {}
 }

@@ -4,8 +4,8 @@ Sinh bởi `node eval/tailwind-parity.mjs` với tailwindcss@4.3.5, Chromium. So
 
 | Phần | Khớp | Tỉ lệ |
 | :--- | ---: | ---: |
-| A. Mọi class trong danh sách của Tailwind | 23285/23286 | 100% |
-| B. Biến thể, độ mờ, !important, giá trị tuỳ ý | 680/680 | 100% |
+| A. Mọi class trong danh sách của Tailwind | 23286/23286 | 100% |
+| B. Biến thể, độ mờ, !important, giá trị tuỳ ý | 956/956 | 100% |
 | D. Theme tuỳ chỉnh, `@utility`, `@apply` (`<style type="text/tailwindcss">`) | 28/28 | 100.0% |
 | C. Đường runtime trong trình duyệt (tailwind-auto.mjs, mẫu 1/7 danh sách) | 3327/3327 | 100% |
 
@@ -34,9 +34,11 @@ Sinh bởi `node eval/tailwind-parity.mjs` với tailwindcss@4.3.5, Chromium. So
 | print | 12/12 |
 | not-dark ở chế độ sáng / not-md ở 700px | 24/24 |
 | in-focus / in-[.x] | 24/24 |
+| quan hệ lồng group-/peer-/in-/has-/not- (hover ép) | 192/192 |
+| not-@md / not-@max-md trong container | 48/48 |
+| ba điều kiện md:dark:hover ở 1000px | 36/36 |
 | độ mờ /50 và !important | 6/6 |
 | giá trị tuỳ ý | 14/14 |
 
 ## Lệch (tối đa 60 dòng)
 
-- `container`: `max-inline-size: tw=1024px | ours=none`; `max-width: tw=1024px | ours=none`

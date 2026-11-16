@@ -1,6 +1,6 @@
 # PresenceStyle (@porbit/style)
 
-> Utility CSS engine mở: class viết tắt (x-css) được đổi thành CSS lúc chạy (không cần build) hoặc lúc build. Mọi property CSS viết được thành class; ưu tiên tường minh bằng layer số. Có phương ngữ Tailwind ở runtime, bộ component mẫu, plugin Vite và MCP server. Phiên bản 0.8.0.
+> Utility CSS engine mở: class viết tắt (x-css) được đổi thành CSS lúc chạy (không cần build) hoặc lúc build. Mọi property CSS viết được thành class; ưu tiên tường minh bằng layer số. Có phương ngữ Tailwind ở runtime, bộ component mẫu, plugin Vite và MCP server. Phiên bản 0.9.0.
 
 ## Viết class @porbit/style (x-css)
 
@@ -29,8 +29,9 @@ Có MCP server `presence-style`: gọi `fix_classes` cho mọi chuỗi class t�
 - [docs/guides/tu-vung-mo.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/tu-vung-mo.md): Từ vựng mở: viết mọi property/giá trị CSS khi chưa có alias
 - [docs/guides/components.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/components.md): Bộ component mẫu: recipe, theme --ps-*, ghi đè bằng layer
 - [docs/guides/static-first.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/static-first.md): Static-first và plugin Vite
-- [docs/guides/tailwind.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/tailwind.md): Dùng thay Tailwind v4: độ khớp đo được, hiệu năng, giới hạn
+- [docs/guides/tailwind.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/tailwind.md): Dùng thay Tailwind v4: độ khớp đo được, hiệu năng, cấu hình nâng cao, plugin
 - [docs/guides/mcp.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/mcp.md): MCP server: cài cho từng agent, danh sách tool
+- [docs/guides/editors.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/editors.md): Language server (presence-style lsp): Neovim, Helix, Zed, Sublime, Emacs, VS Code
 - [DICTIONARY.md](https://raw.githubusercontent.com/porbit/style/main/DICTIONARY.md): Toàn bộ alias property và value
 - [spec/SPEC.md](https://raw.githubusercontent.com/porbit/style/main/spec/SPEC.md): Đặc tả cú pháp chuẩn
 

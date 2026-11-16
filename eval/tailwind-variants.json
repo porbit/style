@@ -1,25 +1,6 @@
 {
   "tailwindVariants": 403,
-  "supported": 385,
-  "percent": 95.5,
-  "unsupported": [
-    "not-group-hover",
-    "not-peer-hover",
-    "not-in-hover",
-    "not-@max-md",
-    "not-@md",
-    "not-@min-md",
-    "group-group-hover",
-    "group-peer-hover",
-    "group-in-hover",
-    "peer-group-hover",
-    "peer-peer-hover",
-    "peer-in-hover",
-    "in-group-hover",
-    "in-peer-hover",
-    "in-in-hover",
-    "has-group-hover",
-    "has-peer-hover",
-    "has-in-hover"
-  ]
+  "supported": 403,
+  "percent": 100,
+  "unsupported": []
 }

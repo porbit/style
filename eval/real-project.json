@@ -1,0 +1,21 @@
+{
+  "label": "shadcn/ui v4",
+  "candidates": 769,
+  "summary": {
+    "không build (parseTailwindStylesheet)": {
+      "converted": 769,
+      "total": 769,
+      "matched": {
+        "mặc định": 769,
+        "mở": 769,
+        "đóng": 769,
+        ".dark": 769
+      },
+      "exercised": {
+        "mở": 39,
+        "đóng": 18,
+        ".dark": 769
+      }
+    }
+  }
+}
