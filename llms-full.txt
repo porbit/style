@@ -728,7 +728,7 @@ So **toàn bộ computed style** của phần tử và phần tử con giữa CS
 | Plugin JS bất kỳ, chạy không cần cài `tailwindcss` (tailwindcss-motion, tailwindcss-animate, tailwind-scrollbar, tailwindcss-animated, react-aria-components...) | 100% class và biến thể (`eval/tailwind-js-plugins.mjs`) |
 | Dự án thật (11 lượt: mặc định, `data-*`/`aria-*` mở/đóng, `.dark`, `:hover`/`:focus`/`:focus-visible`/`:active` ép, 375–1600 px; cả không build và PostCSS): shadcn/ui v4 · HyperUI · Magic UI · coss ui | 769/769 · 619/619 · 586/586 · 1331/1331 |
 | Chuỗi class thật của component (nhiều class trên một phần tử) | 260/260 · 766/766 · 245/245 · 379/379 |
-| Dự án nâng cấp từ v3 (`@config`): extend, thay hẳn theme, `prefix`, `important`, `corePlugins`, `.ts`, cờ CSS v4 | 8 cấu hình, 100% |
+| Dự án nâng cấp từ v3 (`@config`): extend, thay hẳn theme, `prefix`, `important`, `corePlugins`, `.ts`, cờ CSS v4, `presets` + `blocklist` + `theme.container`, plugin tự viết (`matchVariant` giá trị tuỳ ý, `@apply` trong plugin) | 10 cấu hình, 100% |
 | Ứng dụng Next.js 15 thật (`bash eval/next-parity.sh`) | 0 khác biệt |
 
 Chạy lại: `npm run check:tailwind`. Chi tiết: [eval/TAILWIND-PARITY.md](../../eval/TAILWIND-PARITY.md), [eval/REAL-PROJECTS.md](../../eval/REAL-PROJECTS.md), bản đánh giá [danh-gia-1.0](../strategy/danh-gia-1.0.md). Đo dự án của bạn:
@@ -760,13 +760,33 @@ node eval/real-project.mjs --css=src/app.css --src=src --import=tw-animate-css=n
 | `@utility name {}` và `@utility name-* { x: --value(...) }` (`number`, `integer`, `ratio`, `percentage`, `--ns-*`, `[type]`, `"literal"`, `--modifier()`, `--spacing()`, `--alpha()`, selector lồng `&`, `@media` lồng) | Có |
 | `@custom-variant x (&:...)`, `(@media ...)`, dạng khối có `@slot`, danh sách selector, dùng sau `group-`/`peer-`/`not-`/`has-` | Có |
 | `@apply` kèm biến thể, độ mờ, `!important`; `@layer base/components` | Có |
-| `@config "./tailwind.config.js"`/`.ts` (v3): theme/extend, màu lồng `DEFAULT`, `fontSize` dạng mảng, `screens`, `darkMode`, `prefix`, `important`, `corePlugins`, plugin | Có (Node). Chưa: `presets`, `blocklist`, `theme.container` |
+| `@config "./tailwind.config.js"`/`.ts` (v3): theme/extend, màu lồng `DEFAULT`, `fontSize` dạng mảng, `screens`, `darkMode`, `prefix`, `important`, `corePlugins`, `presets`, `blocklist`, `theme.container`, plugin | Có (Node), chi tiết bên dưới |
 | Plugin `tw-animate-css`, `tailwindcss-animate`, `@tailwindcss/forms`, `@tailwindcss/typography` | Đóng gói sẵn (dùng được cả trên CDN) |
-| Plugin JS khác (`@plugin "x"` bất kỳ, `plugins: [require('x')]`) | Có (Node: PostCSS, CLI, LSP), không cần cài `tailwindcss`. Chưa: `matchVariant` giá trị tuỳ ý, `@apply` trong plugin |
+| Plugin JS khác (`@plugin "x"` bất kỳ, `plugins: [require('x')]`) | Có (Node: PostCSS, CLI, LSP), không cần cài `tailwindcss`, kể cả `matchVariant` với giá trị tuỳ ý (`name-[x]:`, `name-[x]/mod:`) và `@apply` trong CSS-in-JS |
+| `@source not inline("p-4 {m,p}x-2")` (class bị chặn, cả chế độ không build) | Có |
 | Class v3 cũ còn hợp lệ ở v4 (`flex-shrink-0`, `bg-gradient-to-r`, `rounded`...) | Có |
 | IntelliSense | `presence-style lsp`: gợi ý class Tailwind (cả theme của dự án), ô màu, hover CSS ([editors](./editors.md)) |
 | prettier-plugin-tailwindcss | `@porbit/style/prettier` (mục 6) |
 | tailwind-merge | `@porbit/style/merge` (mục 6) |
+
+### Cấu hình v3 qua `@config`
+
+Đọc như Tailwind 4.3.5 đọc cùng file (đo bằng `eval/real-project.mjs` trên `eval/fixtures/v3-config/*`):
+
+- **`presets`**: gộp theo thứ tự của Tailwind — preset lồng trước, rồi preset, rồi chính cấu hình. `theme.x` của cấu hình sau thay của cấu hình trước, `theme.extend` cộng dồn (gộp sâu), plugin của preset chạy trước plugin của cấu hình; `darkMode`, `prefix`, `important`, `blocklist` lấy cấu hình cuối có khai báo (nên `blocklist` của cấu hình thay hẳn của preset). Hàm trong `extend` đọc chính khoá đang giải (`extend.colors` gọi `theme('colors.x')`) không thấy giá trị, như Tailwind.
+- **`blocklist`**: Tailwind v4 vẫn đọc — class trùng **đúng cả chuỗi** (kể cả biến thể: chặn `p-4` không chặn `md:p-4`) không sinh CSS; mục RegExp bị bỏ qua. Đổi thành `@source not inline("...")`, có hiệu lực ở cả chế độ không build. (`@apply` một class bị chặn: Tailwind báo lỗi, ở đây bỏ qua class đó.)
+- **`theme.container`** (và `extend.container`): `center` → `margin-inline: auto`, `padding` (chuỗi, hoặc object có `DEFAULT` và khoá breakpoint), `screens` → cộng vào `container` sẵn có của v4 đúng thuật toán compat của Tailwind (`max-width: none` từ breakpoint nhỏ nhất rồi `max-width` theo từng màn hình; `padding` theo breakpoint gắn vào màn hình cùng tên). Breakpoint lấy từ cấu hình (`theme.screens`/`extend.screens`) hoặc mặc định v4; breakpoint chỉ khai báo trong `@theme` của CSS chưa được tính.
+- **Plugin**: `matchVariant` nhận giá trị có tên (`values`, `DEFAULT`), giá trị tuỳ ý `name-[x]:` (`_` là khoảng trắng), modifier `name-[x]/mod:`, ghép sau `group-`/`peer-`/`hover:`...; `sort` quyết định thứ tự giữa các giá trị có tên. `@apply` trong CSS-in-JS (`'.btn': { '@apply px-4 py-2': {}, '&:hover': { '@apply underline': {} } }`) như `@apply` trong `@utility`. Chưa hỗ trợ: thứ tự giữa giá trị tuỳ ý và giá trị có tên theo `sort` (giá trị tuỳ ý luôn xếp sau — chỉ khác khi hai biến thể của cùng plugin đặt cùng thuộc tính trên một phần tử), `matchVariant` mà kết quả không là mẫu của giá trị (dùng giá trị để rẽ nhánh: chỉ giá trị có tên).
+- Bỏ qua như Tailwind v4: `corePlugins`, `separator`, `safelist`, `future`, `experimental`.
+
+Plugin cộng đồng đã thử qua `@config` (so computed style với Tailwind 4.3.5 + chính plugin):
+
+| Plugin | Kết quả |
+| :--- | :--- |
+| `tailwindcss-radix`, `@headlessui/tailwindcss`, `tailwind-children`, `tailwind-gradient-mask-image`, `tailwindcss-animation-delay`, `tailwindcss-opentype`, `tailwindcss-highlights`, `tailwindcss-bg-patterns`, `tailwindcss-elevation`, `tailwindcss-intersect`, `tailwindcss-debug-screens` | 100% class và biến thể |
+| `@tailwindcss/container-queries` (v3) | 100%: Tailwind v4 có sẵn `@container`, `@container/main`, `@md:`, `@[300px]:`, `@max-[300px]/main:` nên không cần chạy plugin |
+| `@tailwindcss/aspect-ratio` (v3) | Plugin vẫn chạy như Tailwind v4: `aspect-w-*`, `aspect-h-*`, `aspect-none` khớp; plugin thay `theme.aspectRatio` nên `aspect-video`/`aspect-square` mất như Tailwind. Chưa: `aspect-1`…`aspect-16` (khoá `--aspect-*` tự định nghĩa) |
+| `@tailwindcss/line-clamp`, `tailwindcss-fluid-type`, `tailwindcss-3d`, `tailwind-clip-path`, `tailwindcss-text-fill`, `@savvywombat/tailwindcss-grid-areas`, `tailwindcss-hero-patterns`, `preline/plugin` (v2) | Chính Tailwind v4 báo lỗi build (API riêng của v3: `variants()`, `addDefaults`, selector có `/`). Ở đây không lỗi build: phần plugin chạy được vẫn dùng, phần lỗi ghi trong `messages` của bộ nạp; `line-clamp-*` đã có sẵn trong v4 |
 
 ## 6. Công Cụ Hệ Sinh Thái: Prettier, tailwind-merge
 
@@ -812,9 +832,24 @@ Tailwind build chỉ có CSS cho class viết sẵn trong mã nguồn; class gh�
 | :--- | ---: | ---: | ---: |
 | Tailwind build (CSS tĩnh) | 9 / 300 | — | 0 KB |
 | `@tailwindcss/browser` | 300 / 300 | 38,2 ms | 73,9 KB |
-| CSS tĩnh + `tailwind-auto data-hybrid` | 300 / 300 | 2,3 ms | 44,1 KB |
+| CSS tĩnh + `tailwind-auto data-hybrid` | 300 / 300 | 2,3 ms | 44,6 KB + 1,4 KB (`tailwind-hybrid.mjs`) |
 
-Giới hạn: rule sinh lúc chạy nằm sau CSS tĩnh, nên khi một class động và một class tĩnh cùng phần tử đụng nhau (`p-2` tĩnh, `px-4` động) thứ tự có thể khác Tailwind.
+**Thứ tự cascade như Tailwind.** Khi một class động và một class tĩnh cùng phần tử đụng nhau (cùng thuộc tính, cùng specificity), Tailwind quyết định bên thắng bằng thứ tự rule: `px-4` đứng sau `p-2` nên thắng, dù class nào có trong mã nguồn. Rule sinh lúc chạy vì thế không nằm ở sheet riêng (luôn đứng sau CSS tĩnh, nên `p-2` động sẽ đè `px-4` tĩnh) mà được chèn bằng CSSOM vào khối `@layer` của CSS tĩnh cùng nguồn, đúng vị trí theo thứ tự Tailwind:
+
+- Khối đích: `@layer lN` cuối cùng (CSS do plugin PostCSS/Vite/CLI của `@porbit/style` build) hoặc `@layer utilities` (CSS do chính Tailwind build). `<style>` và `<link>` cùng nguồn đều được; `<link>` khác nguồn (CDN không có CORS) không đọc được CSSOM, runtime rơi về sheet riêng như trước.
+- Vị trí: tìm nhị phân theo thứ tự Tailwind (`compare` của phương ngữ) giữa các rule có sẵn; khoá của rule tĩnh là class đầu tiên trong selector, rule không có class (preflight, theme) đứng trước mọi utility. Biến thể `hover:` gộp vào nhóm `@media (hover: hover)` có sẵn khi liền kề.
+- Không cần cấu hình; chỉ áp cho `data-hybrid`. Lõi engine nhận tuỳ chọn `preload.staticBlock` (hàm trả khối `@layer` đích theo layer); cách dựng khối cho Tailwind ở `src/hybrid.ts`.
+
+| 34 cặp xung đột × 8 trang lai (`eval/hybrid-order.mjs`, so với CSS Tailwind build đủ mọi class) | Trước | Sau |
+| :--- | ---: | ---: |
+| CSS tĩnh `<style>`/`<link>` của `@porbit/style`, A tĩnh + B động | 28 / 34 | **34 / 34** |
+| CSS tĩnh `<style>`/`<link>` của `@porbit/style`, B tĩnh + A động | 11 / 34 | **34 / 34** |
+| CSS do Tailwind build + runtime, hai chiều | 27 + 9 / 68 | **68 / 68** |
+| Tổng (8 trang: HTML ban đầu, chèn lúc chạy, `<link>`, CSS Tailwind) | 153 / 272 | **272 / 272** |
+
+Cặp đo gồm `p`/`px`, `inset`/`top`, `rounded`/`rounded-t`, `border`/`border-x`, `gap`/`gap-x`, màu cùng thuộc tính, `hover:` với `hover:`, `md:`/`lg:`/`2xl:` với nhau và với class gốc. Hiệu năng (`node eval/runtime-bench.mjs --hybrid`, CSS tĩnh 19,5 KB, 1.395 rule): tải ban đầu và 10 × 200 phần tử không đổi trong sai số, chèn 2.000 phần tử 81 → 57 ms (trung vị 11 lượt); bản CDN +0,3 KB gzip (44,4 KB).
+
+Giới hạn: CSS tĩnh bị thay sau khi tải (HMR của Vite khi dev) làm mất rule runtime đã chèn vào sheet cũ — tải lại trang; CSS tĩnh khác nguồn vẫn theo thứ tự sheet như trước.
 
 ## 8. Rút Gọn Tên Class Lúc Build (Tuỳ Chọn)
 
