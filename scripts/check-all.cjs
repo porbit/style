@@ -201,9 +201,10 @@ const steps = [
             const mergeReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/merge-accuracy.json'), 'utf8'))
             const jsReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-js-plugins.json'), 'utf8'))
             const jsRows = Object.entries(jsReport).filter(([, r]) => r && typeof r === 'object' && r.classes)
-            // Plugin chỉ có biến thể (tailwindcss-react-aria-components: class 0/0) không bị tính là lệch; biến thể cũng ≥ 99%.
-            const atLeast = (m) => !m || m.cases === 0 || m.matched / m.cases >= 0.99
-            const jsOk = jsPlugins.ok && jsRows.every(([, r]) => atLeast(r.classes) && atLeast(r.variants))
+            // Mọi plugin (kể cả bản đóng gói sẵn) khớp 100% class và biến thể; plugin chỉ có biến thể
+            // (tailwindcss-react-aria-components: class 0/0) không bị tính là lệch.
+            const full = (m) => !m || m.matched === m.cases
+            const jsOk = jsPlugins.ok && jsRows.every(([, r]) => full(r.classes) && full(r.variants))
             const mergeOk = merge.ok && Object.values(mergeReport).filter((r) => r && r.methods).every((r) => r.methods['@porbit/style/merge'].correct === r.pairs && r.methods['@porbit/style/merge/lite + bảng'].correct === r.pairs)
             const hybridReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/hybrid-order.json'), 'utf8'))
             const hybridRows = Object.values(hybridReport.variants)

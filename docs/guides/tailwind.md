@@ -90,7 +90,7 @@ So **toàn bộ computed style** của phần tử và phần tử con giữa CS
 | Theme tuỳ chỉnh, `@utility`, `@apply` | 28 / 28 |
 | Thứ tự rule (cascade) như Tailwind: class gốc, một biến thể, hai biến thể, shadcn/ui | 100% mỗi tập (`eval/tailwind-order.mjs`) |
 | Biến thể Tailwind được hỗ trợ | 403 / 403 (100%) |
-| Plugin đóng gói: tw-animate-css · tailwindcss-animate · forms · typography | 486/486 · 445/447 · 7/7 · 35/35 (198/198 biến thể) |
+| Plugin đóng gói: tw-animate-css · tailwindcss-animate · forms · typography | 486/486 · 447/447 · 7/7 · 35/35 (198/198 biến thể) |
 | Plugin JS bất kỳ, chạy không cần cài `tailwindcss` (tailwindcss-motion, tailwindcss-animate, tailwind-scrollbar, tailwindcss-animated, react-aria-components...) | 100% class và biến thể (`eval/tailwind-js-plugins.mjs`) |
 | Dự án thật (11 lượt: mặc định, `data-*`/`aria-*` mở/đóng, `.dark`, `:hover`/`:focus`/`:focus-visible`/`:active` ép, 375–1600 px; cả không build và PostCSS): shadcn/ui v4 · HyperUI · Magic UI · coss ui | 769/769 · 619/619 · 586/586 · 1331/1331 |
 | Chuỗi class thật của component (nhiều class trên một phần tử) | 260/260 · 766/766 · 245/245 · 379/379 |

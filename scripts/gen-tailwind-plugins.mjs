@@ -153,12 +153,13 @@ const BASE_CSS = '@import "tailwindcss";'
 const baseDs = await designSystem(BASE_CSS)
 const baseClasses = new Set(baseDs.getClassList().map(([name]) => name))
 const baseVariants = new Set(baseDs.getVariants().map((v) => v.name))
-const baseLayer = async (css) => {
-    const compiler = await compile(css, { base: root, loadStylesheet, loadModule })
-    const out = compiler.build([])
-    return blocks(out).filter((b) => b.head === '@layer base').map((b) => b.body).join('\n')
-}
+const compiled = async (css) => blocks((await compile(css, { base: root, loadStylesheet, loadModule })).build([]))
+const baseLayer = async (css) => (await compiled(css)).filter((b) => b.head === '@layer base').map((b) => b.body).join('\n')
 const preflight = squash(await baseLayer(BASE_CSS))
+// Khối cấp ngoài không thuộc layer mà Tailwind luôn phát cho plugin (`@keyframes enter/exit` từ `theme.extend.keyframes`
+// của tailwindcss-animate): thiếu thì `animate-in` không có keyframes, `transform` tính ra `none` thay vì ma trận đơn vị.
+const topLevel = async (css) => (await compiled(css)).filter((b) => b.head && !b.head.startsWith('@layer')).map((b) => squash(`${b.head}{${b.body}}`))
+const baseTopLevel = new Set(await topLevel(BASE_CSS))
 
 const fromJsPlugin = async (id) => {
     const css = `${BASE_CSS}\n@plugin "${id}";`
@@ -167,6 +168,7 @@ const fromJsPlugin = async (id) => {
     const base = squash(await baseLayer(css))
     const extraBase = base.startsWith(preflight) ? base.slice(preflight.length) : base
     if (extraBase.trim()) parts.push(`@layer base{${extraBase}}`)
+    parts.push(...(await topLevel(css)).filter((block) => !baseTopLevel.has(block)))
     const classes = ds.getClassList().map(([name]) => name).filter((name) => !baseClasses.has(name))
     const compiled = ds.candidatesToCss(classes)
     classes.forEach((name, i) => {
