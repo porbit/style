@@ -224,15 +224,43 @@ const acceptsValue = (index: number, value: string): boolean =>
     index === -1 ? BARE_TESTS['#q'](value) : valueSet(index).has(value) || bareKinds(index).some((kind) => BARE_TESTS[kind](value))
 /** Bảng thứ tự thuộc tính của Tailwind (getClassOrder). */
 const ORDER_PROPERTIES = DATA.props.slice(0, TW_ORDER.properties)
-/** @property, dự phòng (trình duyệt chưa hỗ trợ @property) và keyframes Tailwind cần (base CSS của phương ngữ). */
-const PROPERTIES_CSS = (() => {
-    const list = DATA.properties.map((entry) => (typeof entry === 'string' ? [entry] : entry)) as Array<readonly [string, string?, number?]>
-    return [
-        ...list.map(([name, initial, syntax]) => `@property --tw-${name} { syntax: "${DATA.syntaxes[syntax || 0]}"; inherits: false;${initial === undefined ? '' : ` initial-value: ${initial};`} }`),
-        DATA.fallback[0] + list.map(([name, initial]) => `--tw-${name}:${initial ?? 'initial'}`).join(';') + DATA.fallback[1],
-        ...DATA.keyframes,
-    ].join('\n')
-})()
+// @property chỉ đăng ký theo utility sẵn có được dùng, như Tailwind (CSS của plugin đọc `--tw-outline-style` mà không
+// đặt chỉ thấy giá trị khởi tạo khi trang có utility đăng ký biến đó). Bảng xếp theo nhóm biến Tailwind luôn đăng
+// ký cùng nhau (`+` trước tên: cùng nhóm với mục trước); mỗi nhóm thành các rule `@property` + dự phòng cho trình
+// duyệt chưa hỗ trợ @property. Quy tắc chọn nhóm: xem PROPERTY_NO_SET trong scripts/gen-tailwind-map.mjs.
+// Biến -> [nhóm, dấu sau tên trong bảng (`!` đặt không đăng ký, `?` đọc không đăng ký, `~` đọc kèm dự phòng vẫn đăng ký)].
+const PROPERTY_GROUP = new Map<string, [number, string]>()
+const PROPERTY_GROUP_RULES: string[][] = []
+{
+    const fallbacks: string[] = []
+    for (const entry of DATA.properties) {
+        const [raw, initial, syntax] = typeof entry === 'string' ? [entry] : entry
+        const [, plus, short, flags] = raw.match(/^(\+?)([\w-]+)(.*)$/) as RegExpMatchArray
+        const name = '--tw-' + short
+        if (!plus) {
+            fallbacks.push('')
+            PROPERTY_GROUP_RULES.push([])
+        }
+        const group = PROPERTY_GROUP_RULES.length - 1
+        PROPERTY_GROUP.set(name, [group, flags])
+        PROPERTY_GROUP_RULES[group].push(`@property ${name} { syntax: "${DATA.syntaxes[syntax || 0]}"; inherits: false;${initial === undefined ? '' : ` initial-value: ${initial};`} }`)
+        fallbacks[group] += `${fallbacks[group] ? ';' : ''}${name}:${initial ?? 'initial'}`
+    }
+    fallbacks.forEach((decls, group) => PROPERTY_GROUP_RULES[group].push(DATA.fallback[0] + decls + DATA.fallback[1]))
+}
+/** Thêm vào `out` nhóm @property mà các khai báo của một utility sẵn có làm Tailwind đăng ký. */
+const propertyGroups = (decls: ReadonlyArray<readonly [string, string]>, out: Set<number>) => {
+    // `skip`: dấu làm lần đặt/đọc này không đăng ký; `need`: dấu bắt buộc (đọc kèm dự phòng).
+    const add = (name: string, skip: string, need = '') => {
+        const entry = PROPERTY_GROUP.get(name)
+        if (entry && !entry[1].includes(skip) && entry[1].includes(need)) out.add(entry[0])
+    }
+    for (const [prop, value] of decls) {
+        add(prop, '!')
+        for (const m of value.matchAll(/var\((--tw-[\w-]+)\s*([),])/g)) m[2] === ')' ? add(m[1], '?') : add(m[1], '#', '~')
+    }
+}
+const propertyCss = (groups: Set<number>): string[] => [...groups].flatMap((group) => PROPERTY_GROUP_RULES[group])
 
 // ---------------------------------------------------------------------------
 // Tra rule của phần gốc (không biến thể)
@@ -1688,15 +1716,20 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     }
     // Utility của dự án/plugin trùng tên utility sẵn có (`@utility container`, `scrollbar-thumb-*` của plugin, kể cả
     // khi có modifier): cả hai cùng áp, phần của dự án đứng sau nên thắng như Tailwind.
+    // Rule sẵn có của lần gọi resolveAny ngoài cùng gần nhất (đặt ngay trước khi trả, sau mọi lần gọi lồng của `@apply`):
+    // nguồn của nhóm @property cần đăng ký.
+    let lastBuiltin: Rule | null = null
     const resolveAny = (name: string): Rule | null => {
         const builtin = resolveBuiltin(name)
         const own = userRules(name)
+        lastBuiltin = builtin
         if (own) return builtin ? chain([builtin, ...own]) : chain(own)
         if (builtin) return builtin
         // Utility của dự án không khai báo `--modifier()` mà class có modifier: áp độ mờ lên kết quả (như trước).
         const [head, modifier] = splitModifier(name)
         if (modifier === null) return null
         const plain = userRules(head)
+        lastBuiltin = null
         return plain && applyModifier(chain(plain), modifier)
     }
 
@@ -1720,7 +1753,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     type Placed = { media: string; sel: string; decls: Array<[string, string]> }
     /** Class Tailwind -> các rule đã đặt chỗ (selector có `&`, media key/at-rule nội tuyến, khai báo). */
     /** `inUtilities`: class sinh utility (áp `important` của dialect); false cho `@apply` (Tailwind không áp). */
-    const place = (fullName: string, inUtilities = true): { placed: Placed[]; important: boolean; base: Array<[string, string]>; signature: string; root: string; variants: string[] } | null => {
+    const place = (fullName: string, inUtilities = true): { placed: Placed[]; important: boolean; base: Array<[string, string]>; signature: string; root: string; variants: string[]; groups: Set<number> } | null => {
         activate()
         // Có tiền tố: chỉ nhận `tw:...` (kể cả trong `@apply`, như Tailwind), tiền tố đứng trước mọi biến thể.
         if (prefix && !fullName.startsWith(prefix + ':')) return null
@@ -1738,6 +1771,8 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
 
         const rule = resolveAny(base)
         if (!rule) return null
+        const groups = new Set<number>()
+        for (const each of lastBuiltin ? [lastBuiltin, ...(lastBuiltin.more || [])] : []) propertyGroups(each.decls, groups)
 
         const rules = [rule, ...(rule.more || [])]
         const baseDecls: Array<[string, string]> = rules.flatMap((each) => each.decls)
@@ -1766,9 +1801,13 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
                 placed.push({ ...at, decls })
             }
         }
-        if (placed.some((p) => /::(before|after)/.test(p.sel)) && !baseDecls.some(([p]) => p === 'content')) baseDecls.unshift(['content', 'var(--tw-content)'])
+        if (placed.some((p) => /::(before|after)/.test(p.sel))) {
+            // before:/after: đọc `--tw-content`: Tailwind đăng ký biến này cả khi utility tự đặt `content`.
+            propertyGroups([['content', 'var(--tw-content)']], groups)
+            if (!baseDecls.some(([p]) => p === 'content')) baseDecls.unshift(['content', 'var(--tw-content)'])
+        }
         if (importantAll && inUtilities) important = true
-        return placed.length ? { placed, important, base: baseDecls, signature: baseSignature, root: base, variants: parts } : null
+        return placed.length ? { placed, important, base: baseDecls, signature: baseSignature, root: base, variants: parts, groups } : null
     }
 
     // Khoá thứ tự kiểu Tailwind cho từng class (null: không phải class của phương ngữ).
@@ -1812,6 +1851,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
                 inline += `/* @apply ${name}: chưa hỗ trợ */`
                 continue
             }
+            result.groups.forEach((group) => appliedGroups.add(group))
             for (const { media, sel, decls } of result.placed) {
                 const body = decls.map(([p, v]) => `${p}:${v.trim() === '' && p.startsWith('--') ? 'initial' : withThemeFallback(v)}${result.important ? ' !important' : ''};`).join('')
                 if (!media && sel === '&') {
@@ -1829,6 +1869,8 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         }
         return { inline, extra }
     }
+    // Nhóm @property của utility được `@apply` trong CSS của dự án: đăng ký sẵn trong CSS nền (như Tailwind).
+    const appliedGroups = new Set<number>()
     const expandApply = (text: string): string => {
         let out = ''
         for (const item of parseCssItems(text)) {
@@ -1880,6 +1922,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         lastPlaced.set(className, result)
         // Utility người dùng trùng utility sẵn có cho cùng khai báo (`tab-4`): bỏ token lặp.
         const seen = new Set<string>()
+        lastBase = result.groups.size ? [className, propertyCss(result.groups)] : null
         return result.placed.flatMap(({ media, sel: placedSel, decls }) => {
             const sel = placedSel === '&' ? '' : placedSel.startsWith('&') && placedSel.indexOf('&', 1) === -1 ? placedSel.slice(1) : placedSel
             // Khoảng trắng trong chuỗi có nháy (`[class*=' h-']`) viết `\20 `: engine đọc `';` là dấu `;` thật.
@@ -1895,6 +1938,9 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
             }).filter((token) => !seen.has(token) && !!seen.add(token))
         })
     }) as XCSSDialect
+    // Rule nền class cần (`@property` của utility sẵn có), engine hỏi ngay sau khi dịch class: thêm vào sheet gốc một lần.
+    let lastBase: [string, string[]] | null = null
+    dialect.baseRules = (className) => (lastBase && lastBase[0] === className ? lastBase[1] : undefined)
     // Class có dạng utility Tailwind (gốc là họ/utility của Tailwind hoặc của dự án, giá trị viết kiểu Tailwind) mà
     // phương ngữ không sinh được (giá trị Tailwind không nhận, biến thể chưa hỗ trợ): engine không thử cú pháp x-css,
     // nên `z-1` không thành `z-index:-1`. Class x-css thật (`m-10px`, `dF`, `cRed@:hover`) không bị giữ.
@@ -1964,7 +2010,8 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     const themeCss = projectCss ? usedThemeCss(projectCss, ownTheme) : ''
     dialect.baseCss = [
         BASE_LAYER_ORDER,
-        PROPERTIES_CSS,
+        propertyCss(appliedGroups).join('\n'),
+        DATA.keyframes.join('\n'),
         themeCss ? `@layer l0{@layer theme{${themeCss}}}` : '',
         options.preflight ? themedPreflight().replace(/^@layer l0\{([\s\S]*)\}$/, '@layer l0{@layer base{$1}}') : '',
         projectCss,

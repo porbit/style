@@ -155,7 +155,38 @@ describe('phương ngữ Tailwind v4 (sinh từ chính Tailwind)', () => {
     it('cấu hình JSON "dialects": ["tailwind"] dùng bản v4', () => {
         const config = resolveConfigFile({ dialects: ['tailwind', 'tailwind-legacy'] })
         expect(config.dialects).toHaveLength(2)
-        expect((config.dialects![0] as any).baseCss).toContain('@property')
+        expect((config.dialects![0] as any).baseCss).toContain('@keyframes spin')
+        expect(typeof (config.dialects![0] as any).baseRules).toBe('function')
+    })
+
+    it('@property chỉ đăng ký theo utility sẵn có được dùng, như Tailwind', () => {
+        // Không utility nào: CSS nền không đăng ký biến nào (daisyUI đọc `--tw-outline-style` mà không đặt).
+        expect(css('')).not.toContain('@property')
+        const outline = css('outline-2')
+        expect(outline).toContain('@property --tw-outline-style { syntax: "*"; inherits: false; initial-value: solid; }')
+        expect(outline).not.toContain('@property --tw-border-style')
+        // Đặt biến kiểu (`outline-solid`, `border-dashed`) hay màu ring: Tailwind không đăng ký.
+        expect(css('outline-solid border-dashed ring-red-500 content-none')).not.toContain('@property')
+        // Cả nhóm: `shadow-md` đăng ký 14 biến của shadow/ring; `duration-150` đặt `--tw-duration` và đăng ký.
+        const shadow = css('shadow-md duration-150')
+        expect(shadow.match(/@property/g)).toHaveLength(15)
+        expect(shadow).toContain('@property --tw-ring-offset-width')
+        expect(shadow).toContain('--tw-duration:initial')
+        // Biến thể before:/after: đăng ký `--tw-content`; biến thể và giá trị tuỳ ý dùng nhóm của utility gốc.
+        expect(css('before:flex')).toContain('@property --tw-content')
+        expect(css('hover:translate-x-[3px]')).toContain('@property --tw-translate-z')
+        expect(css('scale-[1.2]')).not.toContain('@property')
+        // Mỗi rule chỉ một lần dù nhiều class cùng nhóm.
+        expect(css('outline-2 outline-4 hover:outline').match(/@property --tw-outline-style/g)).toHaveLength(1)
+    })
+
+    it('@property của utility được @apply nằm trong CSS nền; utility của dự án không đăng ký', () => {
+        const base = tailwindV4Dialect({ css: '.btn { @apply border-2; }', utilities: { 'my-ring': '--tw-outline-style: dashed;' } })
+        expect(base.baseCss).toContain('@property --tw-border-style')
+        expect(base.baseCss).not.toContain('@property --tw-outline-style')
+        expect(base.baseRules!('x')).toBeUndefined()
+        base('my-ring')
+        expect(base.baseRules!('my-ring')).toBeUndefined()
     })
 })
 

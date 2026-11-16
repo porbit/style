@@ -368,11 +368,6 @@ const fallbackDecls = [...propertyBlocks].map(([name, block]) => {
 })
 // @property + dự phòng cho trình duyệt chưa hỗ trợ @property (giống `@layer properties` của Tailwind).
 const FALLBACK_WRAP = ['@layer l0{@supports ((-webkit-hyphens: none) and (not (margin-trim: block))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))){*,::before,::after,::backdrop{', '}}}']
-const propertiesCss = [
-    ...propertyBlocks.values(),
-    FALLBACK_WRAP[0] + fallbackDecls.join(';') + FALLBACK_WRAP[1],
-    ...keyframes,
-].join('\n')
 // Dạng gọn của @property: `x` (syntax "*", không initial-value), [x, initial] hoặc [x, initial, chỉ số syntax]
 // với tên `--tw-x`; bộ giải mã dựng lại đúng chuỗi trên (kiểm ở cuối file).
 const propertySyntaxes = ['*']
@@ -384,6 +379,56 @@ const propertyList = [...propertyBlocks].map(([name, block]) => {
     if (m[3] === undefined && syntax) throw new Error(`@property có syntax nhưng không có initial-value: ${block}`)
     return m[3] === undefined ? m[1] : syntax ? [m[1], m[3], syntax] : [m[1], m[3]]
 })
+
+// @property chỉ đăng ký khi utility sẵn có cần nó được dùng, như Tailwind (không đăng ký sẵn cả bảng): CSS của dự
+// án/plugin đọc `--tw-*` mà không tự đặt (daisyUI: `outline-style: var(--tw-outline-style)`) chỉ thấy giá trị khởi
+// tạo khi trang có utility đăng ký biến đó. Quy tắc (bộ giải mã: `propertyRules` trong src/tailwind-v4.ts): utility
+// đăng ký cả NHÓM (các biến Tailwind luôn đăng ký cùng nhau, ví dụ 14 biến của shadow/ring) của mỗi biến nó đặt
+// (`--tw-x:`) hoặc đọc không kèm dự phòng (`var(--tw-x)`), trừ biến trong PROPERTY_NO_SET khi đặt (`outline-solid`,
+// `ring-red-500`, `content-none` không đăng ký), trong PROPERTY_NO_READ khi đọc (`bg-linear-to-r` đọc
+// `--tw-gradient-stops` mà không đăng ký); đọc kèm dự phòng (`var(--tw-x, ...)`) chỉ tính với PROPERTY_FALLBACK_READ.
+// Kiểm trên mọi class của getClassList: lệch ghi ở `propertyMismatch`, chỉ còn class cũ `transform`/`filter`/
+// `backdrop-filter` (đọc `var(--tw-x, )` như `transform-gpu` không đăng ký) và `text-shadow-none` (không đọc biến nào):
+// biến đọc kèm dự phòng rỗng mà không đăng ký cho cùng computed style.
+const PROPERTY_NO_SET = ['border-style', 'outline-style', 'ring-color', 'inset-ring-color', 'ring-offset-color', 'ring-offset-width', 'ring-offset-shadow', 'mask-radial-shape', 'mask-radial-size', 'mask-radial-position', 'gradient-position', 'gradient-via-stops', 'content']
+const PROPERTY_NO_READ = ['gradient-stops', 'ring-offset-width', 'ring-offset-color']
+const PROPERTY_FALLBACK_READ = ['text-shadow-color']
+const propertyTriggers = (css) => {
+    const out = new Set()
+    for (const m of css.matchAll(/(--tw-[\w-]+)\s*:/g)) if (!PROPERTY_NO_SET.includes(m[1].slice(5))) out.add(m[1])
+    for (const m of css.matchAll(/var\((--tw-[\w-]+)\s*([),])/g)) if (m[2] === ')' ? !PROPERTY_NO_READ.includes(m[1].slice(5)) : PROPERTY_FALLBACK_READ.includes(m[1].slice(5))) out.add(m[1])
+    return out
+}
+// Nhóm: biến có cùng tập class đăng ký nó (biến không class nào đăng ký: nhóm riêng).
+const registeredBy = classList.map((name, index) => {
+    const css = cssList[index] || ''
+    return { name, css: css.replace(/@property[^{]*\{[^}]*\}/g, ''), registered: new Set([...css.matchAll(/@property\s+(--[\w-]+)/g)].map((m) => m[1])) }
+})
+const propertyAtom = new Map()
+for (const name of propertyBlocks.keys()) {
+    const signature = registeredBy.map((c) => (c.registered.has(name) ? 1 : 0)).join('')
+    propertyAtom.set(name, signature.includes('1') ? signature : name)
+}
+const propertyMismatch = []
+for (const { name, css, registered } of registeredBy) {
+    const atoms = new Set([...propertyTriggers(css)].filter((v) => propertyAtom.has(v)).map((v) => propertyAtom.get(v)))
+    const derived = [...propertyBlocks.keys()].filter((v) => atoms.has(propertyAtom.get(v)))
+    if (derived.length !== registered.size || derived.some((v) => !registered.has(v))) propertyMismatch.push(name)
+}
+const PROPERTY_KNOWN_MISMATCH = ['transform', 'filter', 'backdrop-filter', 'text-shadow-none']
+if (propertyMismatch.some((name) => !PROPERTY_KNOWN_MISMATCH.includes(name))) throw new Error(`Quy tắc đăng ký @property lệch Tailwind: ${propertyMismatch.slice(0, 20).join(' ')}`)
+// Bảng gọn xếp lại theo nhóm (thứ tự xuất @property không ảnh hưởng gì); `+` trước tên: cùng nhóm với mục trước; dấu
+// sau tên: `!` thuộc PROPERTY_NO_SET, `?` thuộc PROPERTY_NO_READ, `~` thuộc PROPERTY_FALLBACK_READ.
+const atomOrder = [...new Set(propertyAtom.values())]
+const groupedProperties = [...propertyBlocks.keys()]
+    .map((name, index) => [name, propertyList[index]])
+    .sort((a, b) => atomOrder.indexOf(propertyAtom.get(a[0])) - atomOrder.indexOf(propertyAtom.get(b[0])))
+    .map(([name, entry], index, all) => {
+        const short = name.slice(5)
+        const label = (index && propertyAtom.get(all[index - 1][0]) === propertyAtom.get(name) ? '+' : '') + short +
+            (PROPERTY_NO_SET.includes(short) ? '!' : '') + (PROPERTY_NO_READ.includes(short) ? '?' : '') + (PROPERTY_FALLBACK_READ.includes(short) ? '~' : '')
+        return typeof entry === 'string' ? label : [label, ...entry.slice(1)]
+    })
 
 const preflightCss = readTw('preflight.css')
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -449,6 +494,7 @@ const stats = {
     explicit: Object.keys(explicit).length,
     arbitraryRoots: Object.keys(arbitrary).length,
     properties: propertyBlocks.size,
+    propertyMismatch: propertyMismatch.length,
     approximate: approximateClasses.size,
 }
 
@@ -635,22 +681,23 @@ const compactData = () => {
         hints: hintsOut,
         explicit: Object.fromEntries(Object.entries(explicitRules).map(([name, rule]) => [name, pack(rule)])),
         tpl: tplRules.map(pack),
-        properties: propertyList,
+        properties: groupedProperties,
         syntaxes: propertySyntaxes,
         fallback: FALLBACK_WRAP,
         keyframes,
     }
 }
 const DIST = compactData()
-// Bộ giải mã dựng lại CSS @property từ dạng gọn: kiểm khớp từng ký tự.
+// Bộ giải mã dựng lại CSS @property từ dạng gọn: kiểm khớp từng ký tự (từng khối và khai báo dự phòng).
 {
-    const list = DIST.properties.map((e) => (typeof e === 'string' ? [e] : e))
+    const list = DIST.properties.map((e) => (typeof e === 'string' ? [e] : e)).map(([n, ...rest]) => [n.replace(/[+!?~]/g, ''), ...rest])
     const rebuilt = [
-        ...list.map(([n, init, syntax]) => `@property --tw-${n} { syntax: "${DIST.syntaxes[syntax || 0]}"; inherits: false;${init === undefined ? '' : ` initial-value: ${init};`} }`),
-        DIST.fallback[0] + list.map(([n, init]) => `--tw-${n}:${init ?? 'initial'}`).join(';') + DIST.fallback[1],
+        ...list.map(([n, init, syntax]) => `@property --tw-${n} { syntax: "${DIST.syntaxes[syntax || 0]}"; inherits: false;${init === undefined ? '' : ` initial-value: ${init};`} }`).sort(),
+        DIST.fallback[0] + list.map(([n, init]) => `--tw-${n}:${init ?? 'initial'}`).sort().join(';') + DIST.fallback[1],
         ...DIST.keyframes,
     ].join('\n')
-    if (rebuilt !== propertiesCss) throw new Error('Dạng gọn của @property không dựng lại đúng CSS gốc')
+    const original = [...[...propertyBlocks.values()].sort(), FALLBACK_WRAP[0] + [...fallbackDecls].sort().join(';') + FALLBACK_WRAP[1], ...keyframes].join('\n')
+    if (rebuilt !== original) throw new Error('Dạng gọn của @property không dựng lại đúng CSS gốc')
 }
 const DIST_ORDER = { ...ORDER, properties: propertyOrder.length }
 

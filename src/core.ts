@@ -84,6 +84,11 @@ export type XCSSDialect = ((className: string) => string[] | null) & {
     /** CSS nền phương ngữ cần (ví dụ `@property` của Tailwind), đặt ngay sau câu khai báo thứ tự layer. */
     baseCss?: string
     /**
+     * Rule nền riêng của class vừa dịch (một rule mỗi chuỗi, ví dụ `@property` Tailwind chỉ đăng ký khi utility cần
+     * nó được dùng): engine gọi ngay sau lần gọi phương ngữ cho class đó và thêm vào sheet gốc một lần.
+     */
+    baseRules?: (className: string) => string[] | undefined
+    /**
      * Thứ tự rule trong CSS (cascade) giữa các class của phương ngữ, như thứ tự của Tailwind:
      * rule được chèn đúng vị trí thay vì nối theo thứ tự gặp class. Trả số âm nếu `a` đứng trước `b`.
      */
@@ -1698,6 +1703,22 @@ export const xcss = (
             dirtyLegacyMediaKeys.add(mediaKey)
         }
 
+        // Rule nền phát sinh theo class (một rule mỗi chuỗi): nối vào sheet gốc một lần, kể cả khi sheet gốc được
+        // thay bằng CSS từ cache (hydrateCacheAfterInit giữ lại các rule này).
+        const rootExtras = new Set<string>()
+        const addRootRule = (rule: string) => {
+            if (rootExtras.has(rule)) return
+            rootExtras.add(rule)
+            if (getSheetText('root').includes(rule)) return
+            ;(cssStyleSheetsText.root ||= []).push(rule)
+            const sheet = cssStyleSheetsDom.root
+            if (sheet) {
+                try {
+                    sheet.insertRule(rule, sheet.cssRules.length)
+                } catch (_error) {}
+            } else if (legacyStyleEls.root) scheduleLegacyStyleText('root')
+        }
+
         // Cache Key & Logic
         let currentConfigHash = hashConfig(modules)
         let debounceTimer: any = null
@@ -1907,7 +1928,10 @@ export const xcss = (
 
                 if (key === 'root') {
                     const cachedRoot = typeof data.cssText?.root === 'string' ? data.cssText.root : ''
-                    const txt = mergeRootCssText(rootBaseText, cachedRoot)
+                    let txt = mergeRootCssText(rootBaseText, cachedRoot)
+                    rootExtras.forEach((rule) => {
+                        if (!txt.includes(rule)) txt += '\n' + rule
+                    })
                     applySheetText('root', txt)
                     return
                 }
@@ -2063,6 +2087,7 @@ export const xcss = (
 
         const updateRules = (txtCls: string, d: any) => {
             let { media, property, selector, layer, className } = d
+            if (d.base) d.base.forEach(addRootRule)
 
             layer = Number(layer) || 0
             let cssExts = shouldHashOutputClassName ? CSS_KEYS.get(txtCls) : null
@@ -2667,6 +2692,8 @@ export const xcss = (
                 if (tokens && tokens.length) {
                     const order = typeof dialect.compare === 'function' ? { compare: dialect.compare, name: parseTarget } : undefined
                     const resolved = resolveTokenGroup(tokens, className, dialect.trusted === true, order)
+                    // Rule nền riêng của class (`@property` Tailwind đăng ký cho utility đó): xem addRootRule.
+                    if (resolved && dialect.baseRules) resolved.base = dialect.baseRules(parseTarget)
                     if (resolved) return resolved
                 }
             }
