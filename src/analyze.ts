@@ -599,7 +599,61 @@ const groupIndex = (cssProperty: string): number => {
  * (mặc định trước, rồi sm → md → lg...) → layer → nhóm property → selector → tên.
  * Thứ tự class KHÔNG đổi kết quả CSS; sắp xếp chỉ để dễ đọc và diff gọn.
  */
-export const sortClasses = (input: string, options: { mediaOrder?: string[] } = {}): string => {
+export interface SortOptions {
+    mediaOrder?: string[]
+    /**
+     * Thứ tự kiểu Tailwind (`tailwindV4Dialect().compare`): sắp như prettier-plugin-tailwindcss — class lạ
+     * đứng trước, `...` cuối, bỏ class trùng, gộp khoảng trắng.
+     */
+    compare?: (a: string, b: string) => number
+    /** Hàm có đối số là chuỗi class (`cn`, `clsx`, `cva`, `tw`...): chuỗi bên trong cũng được sắp. */
+    functions?: string[]
+}
+
+/** Port `sortClasses` của prettier-plugin-tailwindcss: cùng xử lý khoảng trắng, trùng lặp và `...`. */
+export const sortTailwindClassString = (
+    classStr: string,
+    compare: (a: string, b: string) => number,
+    { removeDuplicates = true, collapseWhitespace = true }: { removeDuplicates?: boolean; collapseWhitespace?: boolean } = {},
+): string => {
+    if (typeof classStr !== 'string' || classStr === '' || classStr.includes('{{')) return classStr
+    if (collapseWhitespace && /^[\t\r\f\n ]+$/.test(classStr)) return ' '
+    const parts = classStr.split(/([\t\r\f\n ]+)/)
+    const classes = parts.filter((_, i) => i % 2 === 0)
+    let whitespace = parts.filter((_, i) => i % 2 !== 0)
+    if (classes[classes.length - 1] === '') classes.pop()
+    if (collapseWhitespace) whitespace = whitespace.map(() => ' ')
+    const isDots = (name: string) => name === '...' || name === '…'
+    const sorted = classes.map((name, index) => ({ name, index })).sort((a, b) => {
+        if (isDots(a.name)) return 1
+        if (isDots(b.name)) return -1
+        if (a.name === b.name) return 0
+        return compare(a.name, b.name) || a.index - b.index
+    })
+    const removed = new Set<number>()
+    let list = sorted
+    if (removeDuplicates) {
+        const seen = new Set<string>()
+        // Chỉ bỏ trùng class đã biết (class lạ có thể mang nghĩa riêng của thư viện khác).
+        const known = (name: string) => compare(name, '\u0000__unknown__') > 0
+        list = sorted.filter(({ name }, index) => {
+            if (seen.has(name)) {
+                removed.add(index)
+                return false
+            }
+            if (known(name)) seen.add(name)
+            return true
+        })
+    }
+    whitespace = whitespace.filter((_, index) => !removed.has(index + 1))
+    let result = ''
+    for (let i = 0; i < list.length; i++) result += `${list[i].name}${whitespace[i] ?? ''}`
+    if (collapseWhitespace) result = result.replace(/^\s+/, '').replace(/\s+$/, '')
+    return result
+}
+
+export const sortClasses = (input: string, options: SortOptions = {}): string => {
+    if (options.compare) return sortTailwindClassString(input, options.compare)
     const mediaOrder = options.mediaOrder || DEFAULT_MEDIA_ORDER
     const tokens = input.split(/\s+/).filter(Boolean)
     const foreign: string[] = []
@@ -627,11 +681,64 @@ export const sortClasses = (input: string, options: { mediaOrder?: string[] } = 
     return [...foreign, ...known.map((k) => k.token)].join(' ')
 }
 
-/** Sắp xếp class trong mọi thuộc tính class tĩnh của một file nguồn. */
-export const sortClassesInSource = (source: string, options: { mediaOrder?: string[] } = {}): string => {
+/**
+ * Mọi chuỗi class trong mã nguồn: thuộc tính `class`/`className` (cả chuỗi trong biểu thức `className={a ? "x" : "y"}`)
+ * và chuỗi là đối số (kể cả trong object/mảng, trừ khoá object) của các hàm `functions` (`cn("...")`, `cva("...", {...})`).
+ */
+export const findClassStrings = (source: string, options: { functions?: string[] } = {}): ClassAttributeRange[] => {
+    const ranges = new Map<number, ClassAttributeRange>()
+    for (const range of findClassAttributes(source)) ranges.set(range.start, range)
+    // Quét một biểu thức (từ `open` tới ngoặc đóng tương ứng), thu chuỗi không phải khoá object.
+    const collect = (open: number) => {
+        let depth = 0
+        for (let i = open; i < source.length; i++) {
+            const ch = source[i]
+            if (ch === '(' || ch === '[' || ch === '{') depth++
+            else if (ch === ')' || ch === ']' || ch === '}') {
+                depth--
+                if (depth === 0) return
+            } else if (ch === '"' || ch === "'" || ch === '`') {
+                let end = i + 1
+                while (end < source.length && source[end] !== ch) {
+                    if (source[end] === '\\') end++
+                    end++
+                }
+                const value = source.slice(i + 1, end)
+                let after = end + 1
+                while (/\s/.test(source[after] || '')) after++
+                const isKey = source[after] === ':' && !/[?]\s*$/.test(source.slice(Math.max(0, i - 40), i))
+                if (!isKey && !(ch === '`' && value.includes('${')) && (ch !== "'" || !value.includes('\n'))) {
+                    if (!ranges.has(i + 1)) ranges.set(i + 1, { start: i + 1, end, value })
+                }
+                i = end
+            } else if (ch === '/' && source[i + 1] === '/') {
+                while (i < source.length && source[i] !== '\n') i++
+            }
+        }
+    }
+    const attr = /\b(?:class|className)\s*=\s*\{/g
+    for (let m = attr.exec(source); m; m = attr.exec(source)) collect(m.index + m[0].length - 1)
+    if (options.functions?.length) {
+        const names = options.functions.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+        const call = new RegExp(`(?<![\\w.$])(?:${names})\\s*\\(`, 'g')
+        for (let m = call.exec(source); m; m = call.exec(source)) collect(m.index + m[0].length - 1)
+    }
+    return [...ranges.values()].sort((a, b) => a.start - b.start)
+}
+
+/** Sắp xếp class trong mọi thuộc tính class tĩnh (và đối số của `functions`) của một file nguồn. */
+export const sortClassesInSource = (source: string, options: SortOptions = {}): string => {
     let output = ''
     let cursor = 0
-    for (const range of findClassAttributes(source)) {
+    const ranges = options.compare || options.functions ? findClassStrings(source, options) : findClassAttributes(source)
+    for (const range of ranges) {
+        if (range.start < cursor) continue
+        if (options.compare) {
+            const sorted = sortTailwindClassString(range.value, options.compare)
+            output += source.slice(cursor, range.start) + sorted
+            cursor = range.end
+            continue
+        }
         if (/[{}$`]/.test(range.value)) continue
         const sorted = sortClasses(range.value, options)
         const leading = range.value.match(/^\s*/)![0]

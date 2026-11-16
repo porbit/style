@@ -21,3 +21,4 @@ presence_style/examples/*/dist/
 test-results/
 playwright-report/
 eval/tailwind-parity.sample.json
+eval/.tmp-prettier-*

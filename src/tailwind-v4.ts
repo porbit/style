@@ -7,7 +7,7 @@
  *   xcss.cssObserve(document, { dialects: [tailwindV4Dialect({ preflight: true })] })
  */
 import type { XCSSDialect } from './core'
-import { TW_DATA, TW_PREFLIGHT_CSS, TW_PROPERTIES_CSS } from './tailwind-generated'
+import { TW_DATA, TW_ORDER, TW_PREFLIGHT_CSS, TW_PROPERTIES_CSS } from './tailwind-generated'
 
 /** Một rule: selector (`&` là phần tử), khai báo; `query` là điều kiện media riêng (`container`); `more` là rule kèm theo. */
 type Rule = { sel: string; decls: Array<[string, string]>; query?: string; more?: Rule[] }
@@ -33,7 +33,16 @@ export interface TailwindV4DialectOptions {
     darkMode?: 'media' | 'class'
 }
 
-const defaultTheme = TW_DATA.theme as Record<string, string>
+// Bảng màu nén (`red:97.1 0.013 17.38,...|...`) -> `--color-red-50: oklch(97.1% 0.013 17.38)`.
+const defaultTheme: Record<string, string> = { ...(TW_DATA.theme as Record<string, string>) }
+const PALETTE_SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
+for (const entry of (TW_DATA.palette as string).split('|').filter(Boolean)) {
+    const [family, values] = entry.split(':')
+    values.split(',').forEach((value, i) => {
+        const [l, c, h] = value.split(' ')
+        defaultTheme[`--color-${family}-${PALETTE_SHADES[i]}`] = `oklch(${l}% ${c} ${h})`
+    })
+}
 // Theme của phiên bản phương ngữ đang chạy (mặc định + theme người dùng). JS chạy đơn luồng nên đặt
 // lại ở đầu mỗi lần gọi phương ngữ là đủ.
 let theme: Record<string, string> = defaultTheme
@@ -50,6 +59,18 @@ const keysByNamespace = (ns: string) =>
 // Họ utility đọc biến theme theo giá trị (`var(--color-{v})`): giá trị ngoài bảng mặc định được nhận nếu
 // theme có biến tương ứng (`bg-brand` khi có `--color-brand`).
 const themePrefixCache = new Map<number, string[]>()
+/** Tiền tố biến theme mà mẫu đọc theo giá trị: `var(--color-{v})` -> `--color-`. */
+const templatePrefixes = (templateIndex: number): string[] => {
+    let prefixes = themePrefixCache.get(templateIndex)
+    if (!prefixes) {
+        const text = templates[templateIndex].slice(1).map((i) => declTable[i]).join(';')
+        prefixes = [...text.matchAll(/var\((--[\w-]*?)\{v\}\)/g)].map((m) => m[1])
+        themePrefixCache.set(templateIndex, prefixes)
+    }
+    return prefixes
+}
+/** Namespace theme bị thay hẳn trong dialect đang hoạt động. */
+let RESET_NAMESPACES: string[] = []
 const families = TW_DATA.families as unknown as Record<string, Array<[number, number]>>
 const explicit = TW_DATA.explicit as unknown as Record<string, readonly number[]>
 const arbitraryTemplates = TW_DATA.arbitrary as unknown as Record<string, number | Record<string, number>>
@@ -165,23 +186,39 @@ const resolveBase = (name: string): Rule | null => {
         const entries = families[root]
         if (!entries) continue
         for (const [templateIndex, setIndex] of entries) {
-            const accepted = setIndex === -1
+            // Giá trị trong `--spacing-*` (`p-gutter`, `p-18` từ cấu hình): Tailwind ưu tiên `var(--spacing-x)` trước hệ số.
+            if (theme[`--spacing-${value}`] !== undefined && /var\(--spacing\) \* -?\{v\}/.test(templates[templateIndex].slice(1).map((i) => declTable[i]).join(';'))) {
+                const named = `var(--spacing-${value})`
+                return unpack(templates[templateIndex], (t) => t
+                    .replace(/calc\(var\(--spacing\) \* -\{v\}\)/g, `calc(${named} * -1)`)
+                    .replace(/calc\(var\(--spacing\) \* \{v\}\)/g, named)
+                    .split('{v}').join(value))
+            }
+            let accepted = setIndex === -1
                 ? NUMBER_VALUE.test(value) && Number.isInteger(Number(value) * 4)
                 : valueSet(setIndex).has(value)
+            // Namespace bị thay (`--color-*: initial`): giá trị mặc định không còn (`bg-red-500`).
+            if (accepted && RESET_NAMESPACES.length) {
+                const prefixes = templatePrefixes(templateIndex)
+                if (prefixes.some((prefix) => RESET_NAMESPACES.some((ns) => prefix.startsWith(ns)) && theme[prefix + value] === undefined)) accepted = false
+            }
             if (accepted) return unpack(templates[templateIndex], (t) => fill(t, value))
         }
         if (theme !== defaultTheme) {
             const shadow = themeShadow(name)
             if (shadow) return shadow
             for (const [templateIndex] of entries) {
-                let prefixes = themePrefixCache.get(templateIndex)
-                if (!prefixes) {
-                    const text = templates[templateIndex].slice(1).map((i) => declTable[i]).join(';')
-                    prefixes = [...text.matchAll(/var\((--[\w-]*?)\{v\}\)/g)].map((m) => m[1])
-                    themePrefixCache.set(templateIndex, prefixes)
-                }
+                const prefixes = templatePrefixes(templateIndex)
                 if (prefixes.length && prefixes.every((prefix) => theme[prefix + value] !== undefined)) {
-                    return unpack(templates[templateIndex], (t) => fill(t, value))
+                    const rule = unpack(templates[templateIndex], (t) => fill(t, value))
+                    // `text-hero` khi theme không có `--text-hero--line-height`: Tailwind bỏ khai báo đó.
+                    rule.decls = rule.decls.filter(([, v]) => [...v.matchAll(/var\((--[\w.-]+--[\w-]+)\)/g)].every((m) => theme[m[1]] !== undefined))
+                    // `fontSize: ['3.5rem', { letterSpacing, fontWeight }]`: Tailwind thêm hai khai báo này.
+                    if (prefixes.includes('--text-')) {
+                        if (theme[`--text-${value}--letter-spacing`] !== undefined) rule.decls.push(['letter-spacing', `var(--tw-tracking, var(--text-${value}--letter-spacing))`])
+                        if (theme[`--text-${value}--font-weight`] !== undefined) rule.decls.push(['font-weight', `var(--tw-font-weight, var(--text-${value}--font-weight))`])
+                    }
+                    return rule
                 }
             }
         }
@@ -263,7 +300,12 @@ const PSEUDO_ELEMENTS: Record<string, string> = {
     backdrop: '::backdrop', 'details-content': '::details-content',
 }
 
-const breakpointValue = (key: string) => theme[`--breakpoint-${key}`]
+/**
+ * Breakpoint mặc định khi theme thay hẳn `--breakpoint-*` (`screens` của cấu hình v3): như Tailwind, biến thể
+ * `sm`...`2xl` vẫn chạy với giá trị cũ nhưng không có giá trị theme (khi sắp thứ tự coi như null).
+ */
+let GHOST_BREAKPOINTS: Record<string, string> = {}
+const breakpointValue = (key: string) => theme[`--breakpoint-${key}`] ?? GHOST_BREAKPOINTS[key]
 const MEDIA_FEATURES: Record<string, string> = {
     dark: '(prefers-color-scheme: dark)',
     print: 'print',
@@ -290,7 +332,7 @@ const mediaOf = (variant: string, darkMode: 'media' | 'class'): string | null =>
     const min = variant.replace(/^min-/, '')
     if (RESPONSIVE.includes(min)) return `(width >= ${breakpointValue(min)})`
     const max = variant.match(/^max-(.+)$/)
-    if (max && RESPONSIVE.includes(max[1])) return `(width < ${breakpointValue(max[1])})`
+    if (max && RESPONSIVE.includes(max[1]) && !GHOST_BREAKPOINTS[max[1]]) return `(width < ${breakpointValue(max[1])})`
     if (variant === 'dark' && darkMode === 'class') return null
     return MEDIA_FEATURES[variant] ?? null
 }
@@ -497,19 +539,14 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
 
     const unique = [...new Set(media)]
     if (inline) return unique.length || queries.length ? null : { media: inline, sel }
-    if (!queries.length) {
-        if (unique.length <= 1) return { media: unique.length ? `tw-${unique[0]}` : '', sel }
-        if (unique.length === 2) {
-            // Khớp tên key đã đăng ký: `md+max-lg`, `md+hover`, `max-sm+dark`, `dark+hover`.
-            const [a, b] = unique
-            const key = registeredKeys.has(`${a}+${b}`) ? `${a}+${b}` : registeredKeys.has(`${b}+${a}`) ? `${b}+${a}` : ''
-            if (key) return { media: `tw-${key}`, sel }
-        }
-    }
-    // ≥3 điều kiện (`md:dark:hover:`) hoặc tổ hợp chưa đăng ký: at-rule nội tuyến `@media a and b and c`.
-    const all = [...unique.map((key) => MEDIA_QUERY.get(key)), ...queries]
-    if (all.some((query) => query === undefined || query.startsWith('@'))) return null
-    return { media: encodeArbitrary(`@media ${[...new Set(all)].join(' and ')}`), sel }
+    // Mọi điều kiện thành at-rule nội tuyến trong sheet mặc định: thứ tự rule theo `compare` (như Tailwind),
+    // không phụ thuộc thứ tự các sheet media. Nhiều điều kiện media gộp bằng `and` (`md:dark:hover:`).
+    const all = [...new Set([...unique.map((key) => MEDIA_QUERY.get(key)), ...queries])]
+    if (!all.length) return { media: '', sel }
+    if (all.some((query) => query === undefined)) return null
+    const container = all.filter((query) => (query as string).startsWith('@'))
+    if (container.length) return container.length === 1 && all.length === 1 ? { media: encodeArbitrary(container[0] as string), sel } : null
+    return { media: encodeArbitrary(`@media ${all.join(' and ')}`), sel }
 }
 
 // ---------------------------------------------------------------------------
@@ -777,7 +814,7 @@ const evaluateUtility = (utility: UserUtility, value: string | null, modifier: s
     let matched = !utility.functional
     const rules: Rule[] = []
     for (const rule of utility.rules) {
-        const decls = new Map<string, string>()
+        const decls: Array<[string, string]> = []
         for (const [prop, raw] of rule.decls) {
             let next: string | null = raw
             if (next.includes('--value(')) {
@@ -793,11 +830,10 @@ const evaluateUtility = (utility: UserUtility, value: string | null, modifier: s
                 const [color, alpha] = args.split('/').map((s) => s.trim())
                 return alpha ? `color-mix(in oklab, ${color} ${alpha}, transparent)` : color
             }) as string
-            // Cùng thuộc tính khai báo nhiều lần: khai báo sau thắng (như cascade).
-            decls.delete(prop)
-            decls.set(prop, next)
+            // Cùng thuộc tính khai báo nhiều lần: giữ cả hai như Tailwind (khai báo sau thắng khi hợp lệ).
+            decls.push([prop, next])
         }
-        if (decls.size) rules.push({ sel: rule.sel, query: rule.query, decls: [...decls] })
+        if (decls.length) rules.push({ sel: rule.sel, query: rule.query, decls })
     }
     return matched && rules.length ? rules : null
 }
@@ -854,22 +890,235 @@ const atRuleOf = (media: string): string | null => {
     return inline ? arbitraryInner(inline[1]) : null
 }
 
+// ---------------------------------------------------------------------------
+// Thứ tự class như Tailwind (getClassOrder): dùng cho thứ tự rule trong CSS (cascade) và sắp xếp class.
+// ---------------------------------------------------------------------------
+
+type OrderVariant =
+    | { kind: 'arbitrary'; key: string; selector: string }
+    | { kind: 'static'; key: string; root: string }
+    | { kind: 'functional'; key: string; root: string; value: { kind: 'named' | 'arbitrary'; value: string } | null; modifier: string | null }
+    | { kind: 'compound'; key: string; root: string; variant: OrderVariant; modifier: string | null }
+
+const PROPERTY_INDEX = new Map<string, number>(TW_ORDER.properties.map((p, i) => [p, i]))
+/** Gốc biến thể của dialect đang hoạt động: [loại, thứ tự]; biến thể tự định nghĩa nối sau. */
+let ORDER_ROOTS: Record<string, readonly [string, number]> = TW_ORDER.variants
+const FUNCTIONAL_ROOTS = Object.keys(TW_ORDER.variants).filter((k) => TW_ORDER.variants[k as keyof typeof TW_ORDER.variants][0] === 'f').sort((a, b) => b.length - a.length)
+const COMPOUND_ROOTS = Object.keys(TW_ORDER.variants).filter((k) => TW_ORDER.variants[k as keyof typeof TW_ORDER.variants][0] === 'c')
+const GROUP_DIRECTION = TW_ORDER.groups as Record<string, 'asc' | 'desc'>
+
+/** Tách `x/name` (ngoài ngoặc) -> [x, name]. */
+const splitModifier = (text: string): [string, string | null] => {
+    let depth = 0
+    for (let i = text.length - 1; i >= 0; i--) {
+        const ch = text[i]
+        if (ch === ']' || ch === ')') depth++
+        else if (ch === '[' || ch === '(') depth--
+        else if (ch === '/' && depth === 0) return [text.slice(0, i), text.slice(i + 1)]
+    }
+    return [text, null]
+}
+
+const orderVariantCache = new Map<string, OrderVariant | null>()
+const parseOrderVariant = (variant: string): OrderVariant | null => {
+    const cached = orderVariantCache.get(variant)
+    if (cached !== undefined) return cached
+    let result: OrderVariant | null = null
+    if (/^\[.*\]$/.test(variant)) {
+        // Như Tailwind: `[svg]` -> `&:is(svg)`, `[&_svg]` -> `& svg`.
+        const inner = arbitraryInner(variant.slice(1, -1))
+        result = { kind: 'arbitrary', key: variant, selector: inner.startsWith('@') || inner.includes('&') ? inner : `&:is(${inner})` }
+    }
+    else if (ORDER_ROOTS[variant] && ORDER_ROOTS[variant][0] === 's') result = { kind: 'static', key: variant, root: variant }
+    if (!result) {
+        for (const root of COMPOUND_ROOTS) {
+            if (!variant.startsWith(root + '-')) continue
+            const [rest, modifier] = root === 'group' || root === 'peer' ? splitModifier(variant.slice(root.length + 1)) : [variant.slice(root.length + 1), null]
+            const inner = parseOrderVariant(rest)
+            if (inner) result = { kind: 'compound', key: variant, root, variant: inner, modifier }
+            break
+        }
+    }
+    if (!result) {
+        for (const root of FUNCTIONAL_ROOTS) {
+            const prefix = root === '@' ? '@' : root + '-'
+            if (variant !== root && !variant.startsWith(prefix)) continue
+            if (root === '@' && /^@(min|max)-/.test(variant)) continue
+            const [rest, modifier] = splitModifier(variant === root ? '' : variant.slice(prefix.length))
+            const value = rest === '' ? null : rest.startsWith('[') ? { kind: 'arbitrary' as const, value: rest.slice(1, -1) } : { kind: 'named' as const, value: rest }
+            result = { kind: 'functional', key: variant, root, value, modifier }
+            break
+        }
+    }
+    orderVariantCache.set(variant, result)
+    return result
+}
+
+/** So hai giá trị breakpoint/container như Tailwind: theo đơn vị, rồi theo số. */
+const compareBreakpointValues = (a: string, b: string, direction: 'asc' | 'desc'): number => {
+    if (a === b) return 0
+    const ia = a.indexOf('(')
+    const ib = b.indexOf('(')
+    const ua = ia === -1 ? a.replace(/[\d.]+/g, '') : a.slice(0, ia)
+    const ub = ib === -1 ? b.replace(/[\d.]+/g, '') : b.slice(0, ib)
+    const result = (ua === ub ? 0 : ua < ub ? -1 : 1) || (direction === 'asc' ? parseFloat(a) - parseFloat(b) : parseFloat(b) - parseFloat(a))
+    return Number.isNaN(result) ? (a < b ? -1 : 1) : result
+}
+const groupValue = (variant: OrderVariant): string | null => {
+    const container = variant.kind !== 'arbitrary' && variant.root.startsWith('@')
+    const ns = container ? '--container-' : '--breakpoint-'
+    if (variant.kind === 'static') return theme[ns + variant.root] ?? null
+    if (variant.kind !== 'functional' || !variant.value || (!container && variant.modifier)) return null
+    const value = variant.value.kind === 'arbitrary' ? arbitraryInner(variant.value.value) : theme[ns + variant.value.value]
+    return !value || value.includes('var(') ? null : value
+}
+
+const compareOrderVariants = (a: OrderVariant, b: OrderVariant): number => {
+    if (a.key === b.key) return 0
+    if (a.kind === 'arbitrary' && b.kind === 'arbitrary') return a.selector < b.selector ? -1 : 1
+    if (a.kind === 'arbitrary') return 1
+    if (b.kind === 'arbitrary') return -1
+    const oa = ORDER_ROOTS[a.root]?.[1] ?? 0
+    const ob = ORDER_ROOTS[b.root]?.[1] ?? 0
+    if (oa !== ob) return oa - ob
+    if (a.kind === 'compound' && b.kind === 'compound') {
+        const inner = compareOrderVariants(a.variant, b.variant)
+        if (inner !== 0) return inner
+        return a.modifier && b.modifier ? (a.modifier < b.modifier ? -1 : 1) : a.modifier ? 1 : b.modifier ? -1 : 0
+    }
+    const direction = GROUP_DIRECTION[oa]
+    if (direction) {
+        const va = groupValue(a)
+        const vb = groupValue(b)
+        if (va === null) return direction === 'asc' ? -1 : 1
+        if (vb === null) return direction === 'asc' ? 1 : -1
+        return compareBreakpointValues(va, vb, direction)
+    }
+    if (a.root !== b.root) return a.root < b.root ? -1 : 1
+    const fa = a.kind === 'functional' ? a.value : null
+    const fb = b.kind === 'functional' ? b.value : null
+    if (fa === null) return -1
+    if (fb === null || (fa.kind === 'arbitrary' && fb.kind !== 'arbitrary')) return 1
+    return (fa.kind !== 'arbitrary' && fb.kind === 'arbitrary') || fa.value < fb.value ? -1 : 1
+}
+
+/** So tên như Tailwind: số trong chuỗi so theo giá trị (`p-2` < `p-10`). */
+const compareNatural = (a: string, b: string): number => {
+    const n = Math.min(a.length, b.length)
+    for (let i = 0; i < n; i++) {
+        let ca = a.charCodeAt(i)
+        let cb = b.charCodeAt(i)
+        if (ca >= 48 && ca <= 57 && cb >= 48 && cb <= 57) {
+            let ea = i + 1
+            let eb = i + 1
+            for (ca = a.charCodeAt(ea); ca >= 48 && ca <= 57;) ca = a.charCodeAt(++ea)
+            for (cb = b.charCodeAt(eb); cb >= 48 && cb <= 57;) cb = b.charCodeAt(++eb)
+            const da = a.slice(i, ea)
+            const db = b.slice(i, eb)
+            const diff = Number(da) - Number(db)
+            if (diff) return diff
+            if (da < db) return -1
+            if (da > db) return 1
+            continue
+        }
+        if (ca !== cb) return ca - cb
+    }
+    return a.length - b.length
+}
+
+export interface TailwindOrderKey {
+    /** Biến thể đã sắp giảm dần (để so như bitmask của Tailwind). */
+    variants: OrderVariant[]
+    /** Chỉ số thuộc tính trong bảng thứ tự của Tailwind, tăng dần. */
+    properties: number[]
+    /** Số khai báo. */
+    count: number
+    name: string
+}
+
+const propertySort = (decls: Array<[string, string]>): { properties: number[]; count: number } => {
+    const seen = new Set<number>()
+    let count = 0
+    for (const [prop, value] of decls) {
+        count++
+        if (prop === '--tw-sort') {
+            const index = PROPERTY_INDEX.get(value.trim())
+            if (index !== undefined) {
+                seen.add(index)
+                break
+            }
+        }
+        const index = PROPERTY_INDEX.get(prop)
+        if (index !== undefined) seen.add(index)
+    }
+    return { properties: [...seen].sort((x, y) => x - y), count }
+}
+
+/** So hai khoá như `o.sort(...)` trong compiler của Tailwind. */
+export const compareTailwindOrderKeys = (a: TailwindOrderKey, b: TailwindOrderKey): number => {
+    // Bitmask biến thể: tập có biến thể "cao" nhất (khác nhau) đứng sau.
+    for (let i = 0; ; i++) {
+        const va = a.variants[i]
+        const vb = b.variants[i]
+        if (!va && !vb) break
+        if (!va) return -1
+        if (!vb) return 1
+        const c = compareOrderVariants(va, vb)
+        if (c !== 0) return c
+    }
+    let h = 0
+    while (h < a.properties.length && h < b.properties.length && a.properties[h] === b.properties[h]) h++
+    const pa = a.properties[h] ?? Infinity
+    const pb = b.properties[h] ?? Infinity
+    if (pa !== pb) return pa - pb
+    return b.count - a.count || compareNatural(a.name, b.name)
+}
+
+const sortVariantsDesc = (variants: OrderVariant[]): OrderVariant[] => {
+    const sorted = [...variants].sort((x, y) => compareOrderVariants(y, x))
+    return sorted.filter((v, i) => i === 0 || compareOrderVariants(sorted[i - 1], v) !== 0)
+}
+
 export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSDialect => {
     const darkMode = options.darkMode ?? 'media'
-    const ownTheme = options.theme && Object.keys(options.theme).length ? { ...defaultTheme, ...options.theme } : defaultTheme
+    // `--color-*: initial` (hoặc `--*: initial`): bỏ cả namespace mặc định như `@theme` của Tailwind.
+    const resetNamespaces = Object.entries(options.theme || {}).filter(([k, v]) => k.endsWith('*') && v.trim() === 'initial').map(([k]) => k.slice(0, -1))
+    const ownTheme = options.theme && Object.keys(options.theme).length
+        ? Object.fromEntries([
+            ...Object.entries(defaultTheme).filter(([k]) => !resetNamespaces.some((ns) => k.startsWith(ns))),
+            ...Object.entries(options.theme).filter(([k]) => !k.endsWith('*')),
+        ])
+        : defaultTheme
     const ownVariants: Record<string, string[][]> = {}
     for (const [name, body] of Object.entries(options.variants || {})) {
         const compiled = compileCustomVariant(body)
         if (compiled) ownVariants[name] = compiled
     }
+    // Biến thể tự định nghĩa: tên mới xếp sau mọi biến thể sẵn có (như `@custom-variant` của Tailwind),
+    // tên trùng (`dark`) giữ thứ tự cũ.
+    const ownRoots: Record<string, readonly [string, number]> = { ...TW_ORDER.variants }
+    let lastOrder = Math.max(...Object.values(ownRoots).map(([, order]) => order))
+    for (const name of Object.keys(ownVariants)) if (!ownRoots[name]) ownRoots[name] = ['s', ++lastOrder]
+    const ghostBreakpoints: Record<string, string> = resetNamespaces.includes('--breakpoint-')
+        ? Object.fromEntries(Object.entries(defaultTheme).filter(([k]) => k.startsWith('--breakpoint-') && ownTheme[k] === undefined).map(([k, v]) => [k.slice(13), v]))
+        : {}
     const activate = () => {
         CUSTOM_VARIANTS = ownVariants
+        RESET_NAMESPACES = resetNamespaces
+        if (ORDER_ROOTS !== ownRoots) {
+            ORDER_ROOTS = ownRoots
+            orderVariantCache.clear()
+        }
         if (theme === ownTheme) return
         theme = ownTheme
-        RESPONSIVE = keysByNamespace('--breakpoint-')
+        GHOST_BREAKPOINTS = ghostBreakpoints
+        RESPONSIVE = [...Object.keys(ghostBreakpoints), ...keysByNamespace('--breakpoint-')]
         CONTAINER_SIZES = keysByNamespace('--container-')
     }
     activate()
+    // Breakpoint tự định nghĩa (`--breakpoint-3xl`, `tablet` từ cấu hình v3): cùng nhóm thứ tự với `sm`...`2xl`.
+    for (const key of RESPONSIVE) if (!ownRoots[key]) ownRoots[key] = ['s', TW_ORDER.variants.sm[1]]
+    orderVariantCache.clear()
     const breakpoints = buildBreakpoints(darkMode)
 
     // `@utility name { ... }` / `@utility name-* { --value(...) }`: utility của người dùng (kể cả plugin CSS
@@ -927,7 +1176,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
 
     type Placed = { media: string; sel: string; decls: Array<[string, string]> }
     /** Class Tailwind -> các rule đã đặt chỗ (selector có `&`, media key/at-rule nội tuyến, khai báo). */
-    const place = (className: string): { placed: Placed[]; important: boolean } | null => {
+    const place = (className: string): { placed: Placed[]; important: boolean; base: Array<[string, string]>; signature: string; root: string; variants: string[] } | null => {
         activate()
         const parts = splitVariants(className)
         let base = parts.pop() as string
@@ -951,6 +1200,8 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         if (!rule) return null
 
         const rules = [rule, ...(rule.more || [])]
+        const baseDecls: Array<[string, string]> = rules.flatMap((each) => each.decls)
+        const baseSignature = (rule.sel || '') + '|' + rule.decls.map(([p]) => p).join(',')
         const placed: Placed[] = []
         for (const variantList of expandVariants(parts)) {
             for (const each of rules) {
@@ -965,7 +1216,38 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
                 placed.push({ ...at, decls })
             }
         }
-        return placed.length ? { placed, important } : null
+        if (placed.some((p) => /::(before|after)/.test(p.sel)) && !baseDecls.some(([p]) => p === 'content')) baseDecls.unshift(['content', 'var(--tw-content)'])
+        return placed.length ? { placed, important, base: baseDecls, signature: baseSignature, root: base, variants: parts } : null
+    }
+
+    // Khoá thứ tự kiểu Tailwind cho từng class (null: không phải class của phương ngữ).
+    const orderCache = new Map<string, TailwindOrderKey | null>()
+    const lastPlaced = new Map<string, ReturnType<typeof place>>()
+    const orderKey = (className: string): TailwindOrderKey | null => {
+        let key = orderCache.get(className)
+        if (key !== undefined) return key
+        // Kết quả place() của lần dịch class (engine gọi dialect trước khi chèn rule) dùng lại, không tính lại.
+        const result = lastPlaced.get(className) ?? place(className)
+        lastPlaced.delete(className)
+        if (!result) key = null
+        else {
+            const variants = result.variants.map((v) => parseOrderVariant(v) ?? ({ kind: 'arbitrary', key: v, selector: v } as OrderVariant))
+            // Khoá của Tailwind có `--tw-sort` ẩn/`@media` lồng mà khai báo đầu ra không có: dùng bảng sinh sẵn.
+            const override = (TW_ORDER.classes as Record<string, readonly number[]>)[result.root] ?? (TW_ORDER.signatures as Record<string, readonly number[]>)[result.signature]
+            const sort = override ? { properties: override.slice(1), count: override[0] } : propertySort(result.base)
+            key = { variants: sortVariantsDesc(variants), ...sort, name: className }
+        }
+        if (orderCache.size > 20000) orderCache.clear()
+        orderCache.set(className, key)
+        return key
+    }
+    /** So hai class theo thứ tự của Tailwind; class không thuộc phương ngữ đứng trước (như prettier-plugin-tailwindcss). */
+    const compare = (a: string, b: string): number => {
+        const ka = orderKey(a)
+        const kb = orderKey(b)
+        if (!ka || !kb) return ka ? 1 : kb ? -1 : 0
+        activate()
+        return compareTailwindOrderKeys(ka, kb)
     }
 
     // `@apply a md:b hover:c/50 !d;` trong CSS bổ sung: khai báo gốc đặt tại chỗ, biến thể thành rule riêng.
@@ -1028,6 +1310,8 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     const dialect = ((className: string): string[] | null => {
         const result = place(className)
         if (!result) return null
+        if (lastPlaced.size > 200) lastPlaced.clear()
+        lastPlaced.set(className, result)
         // Utility người dùng trùng utility sẵn có cho cùng khai báo (`tab-4`): bỏ token lặp.
         const seen = new Set<string>()
         return result.placed.flatMap(({ media, sel: placedSel, decls }) => {
@@ -1045,6 +1329,45 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     // Khai báo lấy nguyên văn từ compiler Tailwind: không cần CSS.supports cho từng khai báo.
     dialect.trusted = true
     dialect.breakpoints = breakpoints
+    dialect.compare = compare
+    // Danh sách class (cho gợi ý của editor): class tường minh, họ × bộ giá trị, giá trị theme của dự án,
+    // `@utility` của dự án. Chỉ giữ class mà phương ngữ thật sự sinh được CSS.
+    let classListCache: string[] | null = null
+    dialect.classList = () => {
+        if (classListCache) return classListCache
+        activate()
+        const names = new Set<string>(Object.keys(explicit))
+        const SPACING = ['0', '0.5', '1', '1.5', '2', '2.5', '3', '3.5', '4', '5', '6', '7', '8', '9', '10', '11', '12', '14', '16', '20', '24', '28', '32', '36', '40', '44', '48', '52', '56', '60', '64', '72', '80', '96']
+        for (const [root, entries] of Object.entries(families)) {
+            for (const [templateIndex, setIndex] of entries) {
+                if (setIndex === -1) SPACING.forEach((v) => names.add(`${root}-${v}`))
+                else valueSet(setIndex).forEach((v) => names.add(`${root}-${v}`))
+                if (ownTheme !== defaultTheme) {
+                    const text = templates[templateIndex].slice(1).map((i) => declTable[i]).join(';')
+                    for (const m of text.matchAll(/var\((--[\w-]*?)\{v\}\)/g)) {
+                        for (const key of Object.keys(options.theme || {})) {
+                            const suffix = key.slice(m[1].length)
+                            if (key.startsWith(m[1]) && suffix && !suffix.includes('--')) names.add(`${root}-${suffix}`)
+                        }
+                    }
+                }
+            }
+        }
+        for (const [name] of staticUtilities) names.add(name)
+        names.add('container')
+        classListCache = [...names].filter((name) => !!dialect(name)).sort(compare)
+        return classListCache
+    }
+    /** Tên biến thể dùng được trước `:` (cho gợi ý). */
+    dialect.variantList = () => {
+        activate()
+        const list = Object.entries(ORDER_ROOTS).filter(([, [kind]]) => kind === 's').map(([name]) => name)
+        for (const key of RESPONSIVE) list.push(`max-${key}`)
+        for (const size of CONTAINER_SIZES) list.push(`@${size}`, `@max-${size}`)
+        for (const state of ['hover', 'focus', 'focus-visible', 'focus-within', 'active', 'checked', 'disabled', 'invalid']) list.push(`group-${state}`, `peer-${state}`)
+        list.push('aria-checked', 'aria-disabled', 'aria-expanded', 'aria-invalid', 'aria-selected', 'has-checked', 'not-first', 'not-last')
+        return [...new Set(list)]
+    }
     dialect.baseCss = [
         TW_PROPERTIES_CSS,
         options.preflight ? themedPreflight() : '',
@@ -1068,6 +1391,11 @@ export interface TailwindStylesheet {
 export interface ParseTailwindOptions {
     /** Trả nội dung CSS cho `@import "x"` / `@plugin "x"` (ví dụ plugin đóng gói sẵn); null nếu không có. */
     resolve?: (id: string) => string | null
+    /**
+     * Nạp `@config "./tailwind.config.js"` (cấu hình JS kiểu v3): trả CSS v4 tương đương (xem `tailwindConfigToCss`),
+     * null nếu không đọc được. Chỉ có ở Node (`createConfigLoader`).
+     */
+    loadConfig?: (id: string) => string | null
 }
 
 /**
@@ -1095,6 +1423,13 @@ export const parseTailwindStylesheet = (source: string, options: ParseTailwindOp
                     else sheet.unresolved.push(id)
                     continue
                 }
+                const configFile = item.at.match(/^@config\s+["']([^"']+)["']/)
+                if (configFile) {
+                    const converted = options.loadConfig?.(configFile[1])
+                    if (converted !== null && converted !== undefined) read(converted)
+                    else sheet.unresolved.push(configFile[1])
+                    continue
+                }
                 const variant = item.at.match(/^@custom-variant\s+([\w-]+)\s+([\s\S]+)$/)
                 if (variant) sheet.variants[variant[1]] = variant[2].trim()
                 else if (!/^@(source|config|reference|tailwind|import|plugin)\b/.test(item.at)) sheet.css += item.at + ';\n'
@@ -1112,7 +1447,7 @@ export const parseTailwindStylesheet = (source: string, options: ParseTailwindOp
             }
             if (/^@theme\b/.test(item.head)) {
                 for (const kf of item.body.match(KEYFRAMES) || []) sheet.css += kf + '\n'
-                for (const decl of item.body.replace(KEYFRAMES, '').matchAll(/(--[\w.-]+(?:\\.[\w-]+)*)\s*:\s*([^;]+);/g)) {
+                for (const decl of item.body.replace(KEYFRAMES, '').matchAll(/(--[\w.-]*(?:\\.[\w-]+)*\*?)\s*:\s*([^;]+);/g)) {
                     sheet.theme[decl[1].replace(/\\\./g, '.')] = decl[2].trim()
                 }
                 continue

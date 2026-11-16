@@ -15,6 +15,39 @@
         "mở": 39,
         "đóng": 18,
         ".dark": 769
+      },
+      "combos": {
+        "total": 260,
+        "matched": {
+          "mặc định": 260,
+          "mở": 260,
+          "đóng": 260,
+          ".dark": 260
+        }
+      }
+    },
+    "plugin PostCSS (@porbit/style/postcss)": {
+      "converted": 769,
+      "total": 769,
+      "matched": {
+        "mặc định": 769,
+        "mở": 769,
+        "đóng": 769,
+        ".dark": 769
+      },
+      "exercised": {
+        "mở": 39,
+        "đóng": 18,
+        ".dark": 769
+      },
+      "combos": {
+        "total": 260,
+        "matched": {
+          "mặc định": 260,
+          "mở": 260,
+          "đóng": 260,
+          ".dark": 260
+        }
       }
     }
   }

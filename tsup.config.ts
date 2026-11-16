@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs'
 import { defineConfig } from 'tsup'
 import { version } from './package.json'
 
@@ -12,6 +13,10 @@ export default defineConfig({
         vite: 'src/vite.ts',
         analyze: 'src/analyze.ts',
         lsp: 'src/lsp-entry.ts',
+        prettier: 'src/prettier.ts',
+        postcss: 'src/postcss.ts',
+        merge: 'src/merge-entry.ts',
+        'merge-lite': 'src/merge.ts',
         'tailwind-v4': 'src/tailwind-v4-entry.ts',
         'tailwind-auto': 'src/tailwind-auto.ts',
         'tailwind-plugins': 'src/tailwind-plugins.ts',
@@ -31,6 +36,10 @@ export default defineConfig({
     treeshake: true,
     // `__dirname`/`import.meta.url` dùng được ở cả bản CJS lẫn ESM (MCP đọc tài liệu trong package).
     shims: true,
+    // Next.js và nhiều trình chạy PostCSS gọi `require('@porbit/style/postcss')(options)`: bản CJS phải là hàm.
+    onSuccess: async () => {
+        writeFileSync('dist/postcss.cjs', "'use strict'\nconst mod = require('./postcss.js')\nmodule.exports = Object.assign(mod.default, mod, { default: mod.default })\n")
+    },
     define: {
         __PRESENCE_STYLE_VERSION__: JSON.stringify(version),
     },

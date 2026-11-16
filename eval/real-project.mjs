@@ -33,10 +33,12 @@ const label = arg('label') || (useFixture ? 'shadcn/ui v4' : path.basename(srcDi
 const imports = Object.fromEntries(args('import').map((pair) => pair.split('=')).map(([k, v]) => [k, path.resolve(v)]))
 if (useFixture) {
     imports['tw-animate-css'] = path.join(root, 'node_modules/tw-animate-css/dist/tw-animate.css')
-    imports['shadcn/tailwind.css'] = path.join(fixture, 'shadcn-tailwind.css')
+    imports['./shadcn-tailwind.css'] = path.join(fixture, 'shadcn-tailwind.css')
 }
 
 const entry = fs.readFileSync(entryPath, 'utf8')
+// Plugin JS và `@config` (cấu hình kiểu v3) của dự án.
+const loadModule = async (id, base) => ({ base, path: id, module: require(id.startsWith('.') ? path.resolve(base, id) : require.resolve(id, { paths: [base, root] })) })
 const loadStylesheet = async (id, base) => {
     if (imports[id]) return { base, path: imports[id], content: fs.readFileSync(imports[id], 'utf8') }
     const file = id === 'tailwindcss' ? 'index.css' : id.replace(/^tailwindcss\//, '')
@@ -50,7 +52,7 @@ const resolve = (id) => (imports[id] ? fs.readFileSync(imports[id], 'utf8') : pl
 const { extractCandidates, extractFromClasses } = await import(path.join(root, 'dist/index.mjs'))
 const tw = await import(path.join(root, 'dist/tailwind.mjs'))
 
-const ds = await __unstable__loadDesignSystem(entry, { base: path.dirname(entryPath), loadStylesheet })
+const ds = await __unstable__loadDesignSystem(entry, { base: path.dirname(entryPath), loadStylesheet, loadModule })
 const sources = []
 const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : /\.(tsx?|jsx?|html|vue|svelte)$/.test(e.name) && sources.push(path.join(dir, e.name))))
 walk(srcDir)
@@ -59,7 +61,33 @@ for (const file of sources) for (const c of extractCandidates(fs.readFileSync(fi
 const twCssList = ds.candidatesToCss([...found])
 const candidates = [...found].filter((_, i) => twCssList[i])
 
-const compiler = await compile(entry, { base: path.dirname(entryPath), loadStylesheet })
+// Tổ hợp thật: mỗi chuỗi class trong mã (chuỗi trong cn()/cva()/className) và chuỗi gốc của cva() ghép
+// với từng biến thể — kiểm thứ tự cascade giữa các class cùng phần tử (`px-4 has-[>svg]:px-3`, `p-2 px-4`...).
+const validSet = new Set(candidates)
+const combos = new Set()
+for (const file of sources) {
+    const text = fs.readFileSync(file, 'utf8')
+    const toList = (literal) => {
+        const tokens = literal.trim().split(/\s+/)
+        const ok = tokens.filter((t) => validSet.has(t))
+        return tokens.length >= 2 && ok.length / tokens.length >= 0.8 ? ok : null
+    }
+    for (const m of text.matchAll(/(["'`])((?:(?!\1)[^\\\n])+)\1/g)) {
+        const list = toList(m[2])
+        if (list && list.length >= 2) combos.add(list.join(' '))
+    }
+    for (const m of text.matchAll(/cva\(\s*(["'`])([^"'`]+)\1([\s\S]*?)\n\)/g)) {
+        const base = toList(m[2])
+        if (!base) continue
+        for (const v of m[3].matchAll(/(["'`])((?:(?!\1)[^\\\n])+)\1/g)) {
+            const list = toList(v[2])
+            if (list) combos.add([...base, ...list].join(' '))
+        }
+    }
+}
+const comboList = [...combos]
+
+const compiler = await compile(entry, { base: path.dirname(entryPath), loadStylesheet, loadModule })
 const twCss = compiler.build(candidates)
 
 const variantsOf = (c) => {
@@ -78,9 +106,17 @@ const variantsOf = (c) => {
 }
 
 const modes = []
-const sheet = tw.parseTailwindStylesheet(entry, { resolve })
+const { createConfigLoader } = await import(path.join(root, 'dist/postcss.mjs'))
+const sheet = tw.parseTailwindStylesheet(entry, { resolve, loadConfig: createConfigLoader(path.dirname(entryPath)) })
 if (sheet.unresolved.length) console.warn('chưa giải được:', sheet.unresolved)
-modes.push({ name: 'không build (parseTailwindStylesheet)', dialect: tw.tailwindV4Dialect({ preflight: true, darkMode: 'class', theme: sheet.theme, css: sheet.css, utilities: sheet.utilities, variants: sheet.variants }) })
+modes.push({ name: 'không build (parseTailwindStylesheet)', dialect: tw.tailwindV4Dialect({ preflight: true, darkMode: arg('dark') === 'media' ? 'media' : 'class', theme: sheet.theme, css: sheet.css, utilities: sheet.utilities, variants: sheet.variants }) })
+// Plugin PostCSS (thay @tailwindcss/postcss): chạy postcss thật trên file CSS của dự án, tự quét mã nguồn.
+{
+    const { default: postcss } = await import('postcss')
+    const { default: presenceStylePostcss } = await import(path.join(root, 'dist/postcss.mjs'))
+    const processed = await postcss([presenceStylePostcss({ base: srcDir })]).process(entry, { from: entryPath })
+    modes.push({ name: 'plugin PostCSS (@porbit/style/postcss)', dialect: modes[0].dialect, css: processed.css })
+}
 
 const launch = async () => {
     for (const executablePath of [process.env.CHROMIUM_PATH, undefined, '/opt/pw-browsers/chromium']) {
@@ -129,13 +165,14 @@ const STATES = {
     'mở': 'data-state="open" data-open data-active data-checked data-selected="true" data-disabled data-orientation="horizontal" data-side="bottom" data-inset="true" data-size="sm" data-variant="outline" data-slot="x" aria-invalid="true" aria-expanded="true" aria-selected="true" aria-checked="true" aria-disabled="true"',
     'đóng': 'data-state="closed" data-closed data-unchecked data-orientation="vertical" data-side="left" aria-invalid="false" aria-expanded="false"',
 }
-const htmlFor = (attrs) => candidates.map((c) => `<div class="group peer" ${attrs}><span class="peer" ${attrs}></span><div data-k ${attrs} class="${escapeHtml(c)}"${/animate|slide|fade|zoom|spin/.test(c) ? ' data-anim="1"' : ''}><i>a</i><i>b</i></div></div>`).join('')
+const htmlFor = (attrs, list = candidates) => list.map((c) => `<div class="group peer" ${attrs}><span class="peer" ${attrs}></span><div data-k ${attrs} class="${escapeHtml(c)}"${/animate|slide|fade|zoom|spin/.test(c) ? ' data-anim="1"' : ''}><i>a</i><i>b</i></div></div>`).join('')
 const lines = [`# Đo Trên Dự Án Thật: ${label}`, '', `${sources.length} file nguồn, ${found.size} ứng viên, **${candidates.length} class Tailwind hợp lệ** (Tailwind ${JSON.parse(fs.readFileSync(path.join(twDir, 'package.json'), 'utf8')).version}, Chromium, so computed style ở trạng thái mặc định, mở, đóng và trong \`.dark\`).`, '', `| Chế độ | Chuyển được | ${Object.keys(STATES).map((k) => `Khớp (${k})`).join(' | ')} | Khớp (.dark) |`, `| :--- | ---: | ${Object.keys(STATES).map(() => '---: | ').join('')}---: |`]
 const details = []
 const summary = {}
 for (const mode of modes) {
     const unsupported = candidates.filter((c) => !mode.dialect(c))
-    const oursCss = (await extractFromClasses(candidates, { hashClassName: false, silent: true, minify: true, dialects: [mode.dialect] })).css
+    const order = process.env.REVERSE ? [...candidates].reverse() : candidates
+    const oursCss = mode.css ?? (await extractFromClasses(order, { hashClassName: false, silent: true, minify: true, dialects: [mode.dialect] })).css
     const counts = {}
     let twDefault = null
     const exercised = {}
@@ -154,6 +191,17 @@ for (const mode of modes) {
     lines.push(`| ${mode.name} | ${pct(candidates.length - unsupported.length)} | ${runs.map(([name]) => pct(counts[name])).join(' | ')} |`)
     summary[mode.name] = { converted: candidates.length - unsupported.length, total: candidates.length, matched: counts, exercised }
     lines.push('', `Số class Tailwind đổi style so với lượt mặc định (biến thể được kiểm): ${Object.entries(exercised).map(([k, n]) => `${k} ${n}`).join(', ')}.`)
+    // Tổ hợp thật (nhiều class trên một phần tử).
+    const comboCounts = {}
+    for (const [name, attrs, dark] of runs) {
+        const html = htmlFor(attrs, comboList)
+        const [a, b] = await Promise.all([signatures(twCss, html, dark), signatures(oursCss, html, dark)])
+        const failed = comboList.map((c, i) => [c, diff(a[i], b[i], oursCss)]).filter(([, d]) => d.length)
+        comboCounts[name] = comboList.length - failed.length
+        details.push(`### ${mode.name} — tổ hợp, ${name}: lệch ${failed.length}`, '', ...failed.slice(0, 25).map(([c, d]) => `- \`${c}\`: ${d.slice(0, 2).map((x) => '`' + x.slice(0, 140) + '`').join('; ')}`), '')
+    }
+    summary[mode.name].combos = { total: comboList.length, matched: comboCounts }
+    lines.push('', `Tổ hợp thật (${comboList.length} chuỗi class của component, nhiều class trên một phần tử): ${runs.map(([name]) => `${name} ${comboCounts[name]}/${comboList.length}`).join(' · ')}.`)
     const byVariant = {}
     for (const c of unsupported) {
         const v = variantsOf(c).join(':') || '(gốc)'
@@ -163,6 +211,8 @@ for (const mode of modes) {
 }
 await browser.close()
 lines.push('', ...details)
-fs.writeFileSync(path.join(root, `eval/REAL-PROJECT.md`), lines.join('\n'))
-fs.writeFileSync(path.join(root, `eval/real-project.json`), JSON.stringify({ label, candidates: candidates.length, summary }, null, 2) + '\n')
-console.log(lines.slice(0, 6 + modes.length).join('\n'))
+// Fixture mặc định: eval/REAL-PROJECT.md; dự án khác: eval/REAL-PROJECT-<nhãn>.md.
+const suffix = useFixture ? '' : '-' + label.replace(/[^\w-]+/g, '-')
+fs.writeFileSync(path.join(root, `eval/REAL-PROJECT${suffix}.md`), lines.join('\n'))
+fs.writeFileSync(path.join(root, `eval/real-project${suffix}.json`), JSON.stringify({ label, candidates: candidates.length, summary }, null, 2) + '\n')
+console.log(lines.filter((l) => l.startsWith('|') || l.startsWith('Tổ hợp')).join('\n'))

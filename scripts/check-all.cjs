@@ -22,10 +22,10 @@ const only = (args.find((a) => a.startsWith('--only=')) || '').slice(7).split(',
 
 // Ngân sách: vượt là lỗi. Cập nhật có chủ đích khi thay đổi được chấp nhận.
 const BUDGET = {
-    'dist/index-auto.mjs': 23 * 1024, // bản CDN
+    'dist/index-auto.mjs': 24 * 1024, // bản CDN (+chèn rule có thứ tự)
     'dist/index.mjs': 36 * 1024,
     'dist/components.mjs': 8 * 1024,
-    'dist/tailwind-auto.mjs': 59 * 1024, // thay @tailwindcss/browser (75 KB); +@utility hàm, @custom-variant, @apply biến thể
+    'dist/tailwind-auto.mjs': 63 * 1024, // thay @tailwindcss/browser (75 KB); +thứ tự cascade như Tailwind
 }
 const EVAL_MIN = { xcssValidAfterFix: 99, tailwindValid: 98, holdout: 85 }
 
@@ -130,19 +130,38 @@ const steps = [
             const variants = run('node', ['eval/tailwind-variants.mjs'])
             const plugins = run('node', ['eval/tailwind-plugins.mjs'])
             const real = run('node', ['eval/real-project.mjs'])
+            // Dự án nâng cấp từ v3 (`@config "./tailwind.config.js"`): extend và thay hẳn theme.
+            const v3 = [
+                run('node', ['eval/real-project.mjs', '--css=eval/fixtures/v3-config/app.css', '--src=eval/fixtures/v3-config/src', '--label=v3-extend']),
+                run('node', ['eval/real-project.mjs', '--css=eval/fixtures/v3-config/replace/app.css', '--src=eval/fixtures/v3-config/replace', '--label=v3-replace']),
+            ]
+            const order = run('node', ['eval/tailwind-order.mjs'])
+            const prettier = run('node', ['eval/prettier-sort.mjs'])
+            const merge = run('node', ['eval/merge-accuracy.mjs'])
             const report = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-parity.sample.json'), 'utf8'))
             const coverage = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-variants.json'), 'utf8'))
             const pluginReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-plugins.json'), 'utf8'))
             const realReport = Object.values(JSON.parse(fs.readFileSync(path.join(root, 'eval/real-project.json'), 'utf8')).summary)[0]
             const pluginsOk = Object.values(pluginReport).every((p) => p.matched === p.cases)
+            const allModes = (file) => Object.values(JSON.parse(fs.readFileSync(path.join(root, file), 'utf8')).summary)
+            const fullMatch = (mode) => mode.converted === mode.total && Object.values(mode.matched).every((n) => n === mode.total) && (!mode.combos || Object.values(mode.combos.matched).every((n) => n === mode.combos.total))
+            const v3Ok = v3.every((r) => r.ok) && ['eval/real-project-v3-extend.json', 'eval/real-project-v3-replace.json'].every((f) => allModes(f).every(fullMatch))
+            const realOk = allModes('eval/real-project.json').every(fullMatch)
+            const orderReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-order.json'), 'utf8'))
+            const orderOk = order.ok && Object.values(orderReport).every((r) => r.wrong === 0)
+            const prettierReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/prettier-sort.json'), 'utf8'))
+            const prettierOk = prettier.ok && prettierReport.identical === prettierReport.files
+            const mergeReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/merge-accuracy.json'), 'utf8'))
+            const mergeOk = merge.ok && Object.values(mergeReport).filter((r) => r && r.methods).every((r) => r.methods['@porbit/style/merge'].correct === r.pairs && r.methods['@porbit/style/merge/lite + bảng'].correct === r.pairs)
             const realMin = Math.min(realReport.converted, ...Object.values(realReport.matched))
             const ok = variants.ok && plugins.ok && real.ok && pluginsOk && report.base.percent >= 99.9 && report.variants.percent === 100 &&
                 report.runtime.percent === 100 && report.theme.matched === report.theme.checked && coverage.percent >= 95 &&
-                realMin / realReport.total >= 0.995
+                realMin / realReport.total >= 0.995 && realOk && v3Ok && orderOk && prettierOk && mergeOk
             return {
                 ok,
                 detail: `class ${report.base.percent}% · biến thể ${report.variants.percent}% · runtime ${report.runtime.percent}% · theme ${report.theme.matched}/${report.theme.checked} · độ phủ biến thể ${coverage.percent}%\n` +
-                    `plugin ${Object.entries(pluginReport).map(([id, p]) => `${id} ${p.matched}/${p.cases}`).join(', ')} · shadcn/ui ${realMin}/${realReport.total}`,
+                    `plugin ${Object.entries(pluginReport).map(([id, p]) => `${id} ${p.matched}/${p.cases}`).join(', ')} · shadcn/ui ${realMin}/${realReport.total} (+tổ hợp, PostCSS) ${realOk ? '✓' : '✗'} · cấu hình v3 ${v3Ok ? '✓' : '✗'}\n` +
+                    `thứ tự class ${orderOk ? '100%' : '✗'} · Prettier ${prettierReport.identical}/${prettierReport.files} file · gộp class ${mergeOk ? '100%' : '✗'} (tailwind-merge: ${Object.values(mergeReport).filter((r) => r && r.methods).map((r) => r.methods['tailwind-merge 3.7'].percent + '%').join(' / ')})`,
             }
         },
     },

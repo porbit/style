@@ -1,0 +1,54 @@
+{
+  "label": "v3-extend",
+  "candidates": 61,
+  "summary": {
+    "không build (parseTailwindStylesheet)": {
+      "converted": 61,
+      "total": 61,
+      "matched": {
+        "mặc định": 61,
+        "mở": 61,
+        "đóng": 61,
+        ".dark": 61
+      },
+      "exercised": {
+        "mở": 0,
+        "đóng": 0,
+        ".dark": 2
+      },
+      "combos": {
+        "total": 11,
+        "matched": {
+          "mặc định": 11,
+          "mở": 11,
+          "đóng": 11,
+          ".dark": 11
+        }
+      }
+    },
+    "plugin PostCSS (@porbit/style/postcss)": {
+      "converted": 61,
+      "total": 61,
+      "matched": {
+        "mặc định": 61,
+        "mở": 61,
+        "đóng": 61,
+        ".dark": 61
+      },
+      "exercised": {
+        "mở": 0,
+        "đóng": 0,
+        ".dark": 2
+      },
+      "combos": {
+        "total": 11,
+        "matched": {
+          "mặc định": 11,
+          "mở": 11,
+          "đóng": 11,
+          ".dark": 11
+        }
+      }
+    }
+  }
+}

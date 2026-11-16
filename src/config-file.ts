@@ -16,6 +16,8 @@ export interface ResolveConfigOptions {
      * `@apply`, `@import`/`@plugin` (plugin đóng gói sẵn dùng khi không có trên đĩa).
      */
     readStylesheet?: (id: string) => string | null
+    /** Nạp `@config` trong stylesheet (Node: `createConfigLoader`). */
+    loadConfig?: (id: string) => string | null
 }
 
 export const resolveConfigFile = <T extends Record<string, any>>(input: T, options: ResolveConfigOptions = {}): T & XCSSConfig => {
@@ -26,7 +28,7 @@ export const resolveConfigFile = <T extends Record<string, any>>(input: T, optio
     // `@import "./x.css"` trong stylesheet: tương đối với thư mục của stylesheet đó.
     const sheetDir = source ? String(config.tailwindCss).replace(/[^/\\]*$/, '') : ''
     const resolveImport = (id: string) => read?.(/^\.\.?\//.test(id) ? sheetDir + id : id) ?? resolveTailwindPlugin(id)
-    const sheet = source ? parseTailwindStylesheet(source, { resolve: resolveImport }) : null
+    const sheet = source ? parseTailwindStylesheet(source, { resolve: resolveImport, loadConfig: options.loadConfig ? (id) => options.loadConfig!(/^\.\.?\//.test(id) ? sheetDir + id : id) : undefined }) : null
     if (Array.isArray(config.dialects)) {
         config.dialects = config.dialects
             .map((entry: unknown): XCSSDialect | null => {

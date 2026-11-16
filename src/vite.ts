@@ -9,6 +9,7 @@
  *   import 'virtual:presence-style.css'
  *   import manifest from 'virtual:presence-style-manifest'
  *   xcss.cssObserve(document, { hashClassName: false, preload: manifest })
+ *   import { cn } from 'virtual:presence-style-merge'   // gộp class xung đột, bảng theo class của dự án
  *
  * Không phụ thuộc gói `vite` lúc chạy; kiểu được khai báo tối giản để không bắt buộc cài.
  */
@@ -17,6 +18,7 @@ import { extname, isAbsolute, relative, resolve } from 'node:path'
 import { collectFiles, DEFAULT_EXTENSIONS } from './files'
 import { getComponentClasses } from './components'
 import { createPreloadManifest, extractCandidates, extractFromClasses, type ExtractOptions, type PreloadManifest } from './extract'
+import { buildMergeTable, type MergeTable } from './merge'
 
 export interface PresenceStyleViteOptions extends ExtractOptions {
     /** Thư mục/file cần quét, tương đối với root của Vite. Mặc định `['src', 'index.html']`. */
@@ -32,8 +34,11 @@ export interface PresenceStyleViteOptions extends ExtractOptions {
 
 export const VIRTUAL_CSS_ID = 'virtual:presence-style.css'
 export const VIRTUAL_MANIFEST_ID = 'virtual:presence-style-manifest'
+/** `cn()`/`twMerge()` với bảng gộp sinh từ class của dự án (cần một phương ngữ, ví dụ `tailwindV4Dialect()`). */
+export const VIRTUAL_MERGE_ID = 'virtual:presence-style-merge'
 const RESOLVED_CSS_ID = '\0' + VIRTUAL_CSS_ID
 const RESOLVED_MANIFEST_ID = '\0' + VIRTUAL_MANIFEST_ID
+const RESOLVED_MERGE_ID = '\0' + VIRTUAL_MERGE_ID
 
 interface MinimalModule {
     id: string | null
@@ -57,7 +62,7 @@ export default function presenceStyle(options: PresenceStyleViteOptions = {}) {
     let server: MinimalServer | null = null
     const fileCandidates = new Map<string, string[]>()
     let scanned = false
-    let output: Promise<{ css: string; manifest: PreloadManifest }> | null = null
+    let output: Promise<{ css: string; manifest: PreloadManifest; table: MergeTable }> | null = null
 
     const isTracked = (file: string): boolean => {
         const ext = extname(file).slice(1).toLowerCase()
@@ -86,7 +91,11 @@ export default function presenceStyle(options: PresenceStyleViteOptions = {}) {
             const all = new Set<string>()
             fileCandidates.forEach((list) => list.forEach((c) => all.add(c)))
             const result = await extractFromClasses([...all], engineOptions)
-            return { css: result.css, manifest: createPreloadManifest(result, { hashClassName: engineOptions.hashClassName }) }
+            return {
+                css: result.css,
+                manifest: createPreloadManifest(result, { hashClassName: engineOptions.hashClassName }),
+                table: buildMergeTable(result.matchedClasses, engineOptions.dialects?.[0]),
+            }
         })()
         return output
     }
@@ -103,11 +112,15 @@ export default function presenceStyle(options: PresenceStyleViteOptions = {}) {
         resolveId(id: string) {
             if (id === VIRTUAL_CSS_ID) return RESOLVED_CSS_ID
             if (id === VIRTUAL_MANIFEST_ID) return RESOLVED_MANIFEST_ID
+            if (id === VIRTUAL_MERGE_ID) return RESOLVED_MERGE_ID
             return null
         },
         async load(id: string) {
             if (id === RESOLVED_CSS_ID) return (await generate()).css
             if (id === RESOLVED_MANIFEST_ID) return `export default ${JSON.stringify((await generate()).manifest)}`
+            if (id === RESOLVED_MERGE_ID) {
+                return `import { clsx, createMerge } from '@porbit/style/merge/lite'\nexport const table = ${JSON.stringify((await generate()).table)}\nexport const twMerge = createMerge({ table })\nexport const cn = (...inputs) => twMerge(clsx(...inputs))\nexport default cn\n`
+            }
             return null
         },
         async handleHotUpdate(ctx: { file: string; modules: MinimalModule[] }) {
@@ -116,7 +129,7 @@ export default function presenceStyle(options: PresenceStyleViteOptions = {}) {
             await scanFile(ctx.file)
             if ((fileCandidates.get(ctx.file) || []).join(' ') === before) return
             output = null
-            const mods = [RESOLVED_CSS_ID, RESOLVED_MANIFEST_ID]
+            const mods = [RESOLVED_CSS_ID, RESOLVED_MANIFEST_ID, RESOLVED_MERGE_ID]
                 .map((id) => server?.moduleGraph.getModuleById(id))
                 .filter((mod): mod is MinimalModule => !!mod)
             mods.forEach((mod) => server?.moduleGraph.invalidateModule(mod))

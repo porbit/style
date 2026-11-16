@@ -6,8 +6,8 @@
 | :--- | :--- |
 | Chẩn đoán | Class x-css không sinh CSS (kèm bản sửa), class xung đột cùng thuộc tính |
 | Hover | CSS thật mà class sinh ra, kể cả class Tailwind khi bật phương ngữ |
-| Gợi ý | Alias và giá trị x-css khi con trỏ ở trong `class`/`className` |
-| Code action | Quick fix (`c-red` → `c[red]`, `w-full` → `w100%`), "sắp xếp class trong file" |
+| Gợi ý | Class Tailwind (cả theme/`@utility` của dự án) kèm ô màu và CSS khi chọn, biến thể sau `md:hover:`; alias x-css với dự án x-css. Cả trong `cn()`/`clsx()`/`cva()` |
+| Code action | Quick fix (`c-red` → `c[red]`, `w-full` → `w100%`), "sắp xếp class trong file" (thứ tự như prettier-plugin-tailwindcss khi bật phương ngữ Tailwind) |
 
 Server đọc `presence-style.config.json` ở gốc workspace và đọc lại khi file này (hoặc file `.css`) được lưu.
 
@@ -22,7 +22,7 @@ Server đọc `presence-style.config.json` ở gốc workspace và đọc lại 
 }
 ```
 
-Với `tailwindCss`, server hiểu `@theme`, `@utility` (cả dạng hàm `tab-*`), `@custom-variant`, `@apply` và `@import`/`@plugin` của dự án (`tw-animate-css`, `@tailwindcss/forms`, `@tailwindcss/typography` có sẵn nếu không tìm thấy trong `node_modules`). Class Tailwind hợp lệ không bị gạch; hover hiện đúng CSS mà trang nhận. Cùng khoá này được CLI `extract`/`check` dùng.
+Với `tailwindCss`, server hiểu `@config "./tailwind.config.js"` (v3), `@theme`, `@utility` (cả dạng hàm `tab-*`), `@custom-variant`, `@apply` và `@import`/`@plugin` của dự án (`tw-animate-css`, `@tailwindcss/forms`, `@tailwindcss/typography` có sẵn nếu không tìm thấy trong `node_modules`). Class Tailwind hợp lệ không bị gạch; hover hiện đúng CSS mà trang nhận. Cùng khoá này được CLI `extract`/`check` dùng.
 
 ## VS Code
 

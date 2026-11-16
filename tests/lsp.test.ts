@@ -84,6 +84,27 @@ describe('dịch vụ ngôn ngữ', () => {
     })
 })
 
+describe('gợi ý class Tailwind', () => {
+    it('gợi ý class sau tiền tố biến thể, mục màu có mã hex, class theme của dự án', () => {
+        const service = createLanguageService(resolveConfigFile({ dialects: ['tailwind'] }))
+        const text = '<div className="flex md:hover:bg-re"></div>'
+        const offset = text.indexOf('bg-re') + 5
+        const items = service.completions(text, offset)
+        const red = items.find((i) => i.label === 'bg-red-500')!
+        expect(red).toMatchObject({ kind: 'color', color: '#fb2c36', replaceStart: text.indexOf('bg-re') })
+        expect(items.find((i) => i.label === 'hover:')?.kind).toBe('variant')
+        expect(items.some((i) => i.label === 'p-4' && i.kind === 'class')).toBe(true)
+        expect(service.completions('<div className="x"></div>', 2)).toEqual([])
+    })
+
+    it('oklch -> hex', async () => {
+        const { cssColorToHex } = await import('../src/language-service')
+        expect(cssColorToHex('oklch(63.7% 0.237 25.331)')).toBe('#fb2c36')
+        expect(cssColorToHex('oklch(100% 0 0)')).toBe('#ffffff')
+        expect(cssColorToHex('#0af')).toBe('#00aaff')
+    })
+})
+
 describe('language server (stdio)', () => {
     it('initialize -> didOpen -> diagnostics -> hover -> completion -> codeAction -> didChange', async () => {
         const client = createClient()

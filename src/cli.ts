@@ -7,7 +7,7 @@
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, relative, resolve } from 'node:path'
-import { collectFiles, createStylesheetReader, DEFAULT_EXTENSIONS, readTextSync } from './files'
+import { collectFiles, createConfigLoader, createStylesheetReader, DEFAULT_EXTENSIONS, readTextSync } from './files'
 import { createPreloadManifest, extractFromClasses, extractCandidates, type ExtractOptions } from './extract'
 import { startMcpServer } from './mcp'
 import { startLanguageServer } from './lsp'
@@ -16,6 +16,7 @@ import { resolveConfigFile } from './config-file'
 import { getComponentClasses } from './components'
 import { explainClass, findClassAttributes, findClassTokens, isXcssLike, sortClassesInSource } from './analyze'
 import { findClassConflicts } from './class-tools'
+import { buildMergeTable } from './merge'
 import { MCP_CLIENTS, renderMcpConfig } from './mcp-config'
 
 const HELP = `presence-style — trích xuất CSS tĩnh cho @porbit/style
@@ -33,6 +34,9 @@ Cách dùng:
                                             bật phương ngữ Tailwind trong cấu hình
   presence-style mcp [--root <thư-mục>]     Chạy MCP server qua stdio cho agent AI
   presence-style mcp-config [client]        In lệnh/cấu hình cài MCP cho từng agent
+  presence-style merge-table <đường-dẫn...> [--out <file>]
+                                            Bảng gộp class của dự án cho cn() nhẹ
+                                            (@porbit/style/merge/lite)
   presence-style lsp [--stdio]              Chạy language server (LSP) qua stdio cho editor
                                             (VS Code, Neovim, Zed, Helix...)
                                             (claude, claude-desktop, codex, cursor, vscode,
@@ -145,7 +149,7 @@ const runSourceCommand = async (command: 'sort' | 'check', argv: string[]): Prom
     }
     if (options.config) {
         try {
-            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions, { readStylesheet: createStylesheetReader(dirname(resolve(options.config))) })
+            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions, { readStylesheet: createStylesheetReader(dirname(resolve(options.config))), loadConfig: createConfigLoader(dirname(resolve(options.config))) })
         } catch (error) {
             process.stderr.write(`Không đọc được file cấu hình ${options.config}: ${(error as Error).message}\n`)
             return 1
@@ -154,6 +158,11 @@ const runSourceCommand = async (command: 'sort' | 'check', argv: string[]): Prom
     const files: string[] = []
     for (const input of options.inputs) files.push(...(await collectFiles(input, options.extensions)))
 
+    // Phương ngữ có thứ tự (Tailwind): sắp như prettier-plugin-tailwindcss, cả chuỗi trong cn()/cva()...
+    const compare = config.dialects?.find((dialect) => typeof dialect.compare === 'function')?.compare
+    const sortOptions = compare
+        ? { compare, functions: Array.isArray((config as Record<string, unknown>).sortFunctions) ? ((config as Record<string, unknown>).sortFunctions as string[]) : ['cn', 'clsx', 'cva', 'tw', 'twMerge', 'twJoin'] }
+        : {}
     let problems = 0
     for (const file of files) {
         const source = await readFile(file, 'utf8').catch(() => null)
@@ -161,7 +170,7 @@ const runSourceCommand = async (command: 'sort' | 'check', argv: string[]): Prom
         const shown = relative(process.cwd(), file) || file
 
         if (command === 'sort') {
-            const sorted = sortClassesInSource(source)
+            const sorted = sortClassesInSource(source, sortOptions)
             if (sorted === source) continue
             problems++
             if (write) await writeFile(file, sorted, 'utf8')
@@ -281,7 +290,7 @@ export const runCli = async (argv: string[]): Promise<number> => {
         return 0
     }
 
-    if (command !== 'extract') {
+    if (command !== 'extract' && command !== 'merge-table') {
         process.stderr.write(`Lệnh không hỗ trợ: ${command}\n\n${HELP}`)
         return 1
     }
@@ -299,7 +308,7 @@ export const runCli = async (argv: string[]): Promise<number> => {
     }
     if (options.config) {
         try {
-            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions, { readStylesheet: createStylesheetReader(dirname(resolve(options.config))) })
+            config = resolveConfigFile(JSON.parse(await readFile(resolve(options.config), 'utf8')) as ExtractOptions, { readStylesheet: createStylesheetReader(dirname(resolve(options.config))), loadConfig: createConfigLoader(dirname(resolve(options.config))) })
         } catch (error) {
             process.stderr.write(`Không đọc được file cấu hình ${options.config}: ${(error as Error).message}\n`)
             return 1
@@ -319,6 +328,17 @@ export const runCli = async (argv: string[]): Promise<number> => {
     const candidates = new Set<string>()
     for (const file of files) {
         for (const candidate of extractCandidates(readTextSync(file))) candidates.add(candidate)
+    }
+
+    // Bảng gộp class cho `createMerge({ table })` (@porbit/style/merge/lite).
+    if (command === 'merge-table') {
+        const json = JSON.stringify(buildMergeTable(candidates, config.dialects?.[0])) + '\n'
+        if (options.out) {
+            await mkdir(dirname(resolve(options.out)), { recursive: true })
+            await writeFile(resolve(options.out), json, 'utf8')
+            process.stderr.write(`Đã ghi bảng gộp ${options.out} (${(json.length / 1024).toFixed(1)} KB)\n`)
+        } else process.stdout.write(json)
+        return 0
     }
 
     if (options.components) {

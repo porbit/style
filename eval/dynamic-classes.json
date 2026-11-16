@@ -1,0 +1,24 @@
+{
+  "elements": 300,
+  "newClasses": 411,
+  "variants": {
+    "Tailwind build (CSS tĩnh)": {
+      "correct": 9,
+      "total": 300,
+      "msToStyle": 3.9,
+      "jsKbGzip": 0
+    },
+    "@tailwindcss/browser": {
+      "correct": 300,
+      "total": 300,
+      "msToStyle": 29.9,
+      "jsKbGzip": 73.9
+    },
+    "@porbit/style: CSS tĩnh + tailwind-auto data-hybrid": {
+      "correct": 300,
+      "total": 300,
+      "msToStyle": 2.4,
+      "jsKbGzip": 62.8
+    }
+  }
+}

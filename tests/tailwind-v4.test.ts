@@ -109,7 +109,7 @@ describe('phương ngữ Tailwind v4 (sinh từ chính Tailwind)', () => {
         expect(d('ratio-16/9')).toEqual(['aspect-ratio[16_/_9]'])
         expect(d('tint-[#f00]/1')).toEqual(['color[#f00]', 'opacity[1]'])
         expect(d('no-scrollbar')).toEqual(['scrollbar-width[none]', 'display[none]@::-webkit-scrollbar'])
-        expect(d('md:no-scrollbar')).toEqual(['tw-md:scrollbar-width[none]', 'tw-md:display[none]@::-webkit-scrollbar'])
+        expect(d('md:no-scrollbar')).toEqual(['[@media_(width_>=_48rem)]:scrollbar-width[none]', '[@media_(width_>=_48rem)]:display[none]@::-webkit-scrollbar'])
     })
 
     it('@apply kèm biến thể, modifier, !important; @layer base về layer nền', () => {
@@ -125,15 +125,26 @@ describe('phương ngữ Tailwind v4 (sinh từ chính Tailwind)', () => {
         expect(out).not.toContain('chưa hỗ trợ')
     })
 
+    it('thứ tự rule như Tailwind: không phụ thuộc thứ tự gặp class (`px-4` thắng `p-2`)', async () => {
+        const d = tailwindV4Dialect()
+        expect(['px-4', 'hover:flex', 'p-2', 'md:p-1', 'focus:flex', 'flex'].sort(d.compare!)).toEqual(['flex', 'p-2', 'px-4', 'hover:flex', 'focus:flex', 'md:p-1'])
+        for (const order of [['px-4', 'p-2'], ['p-2', 'px-4']]) {
+            const out = (await extractFromClasses(order, { hashClassName: false, silent: true, dialects: [d] })).css
+            expect(out.indexOf('.p-2{')).toBeLessThan(out.indexOf('.px-4{'))
+        }
+        // Class không thuộc phương ngữ đứng trước (như prettier-plugin-tailwindcss).
+        expect(['flex', 'my-btn', 'p-2'].sort(d.compare!)).toEqual(['my-btn', 'flex', 'p-2'])
+    })
+
     it('plugin đóng gói sẵn: tw-animate-css, forms, typography (biến thể prose-*)', () => {
         expect(TAILWIND_PLUGINS).toEqual(expect.arrayContaining(['tw-animate-css', '@tailwindcss/forms', '@tailwindcss/typography', 'tailwindcss-animate']))
         const sheet = parseTailwindStylesheet('@import "tailwindcss"; @import "tw-animate-css"; @plugin "@tailwindcss/typography"; @plugin "@tailwindcss/forms"; @plugin "khong-co";', { resolve: resolveTailwindPlugin })
         expect(sheet.unresolved).toEqual(['khong-co'])
         const d = tailwindV4Dialect({ theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, css: sheet.css })
-        expect(d('fade-in-50')).toEqual(['--tw-enter-opacity[var(--percentage-50,_.5)]'])
+        expect(d('fade-in-50')).toEqual(['--tw-enter-opacity[calc(50/100)]', '--tw-enter-opacity[var(--percentage-50,_.5)]'])
         expect(d('slide-in-from-start')).toEqual(['--tw-enter-translate-x[-100%]@:dir(ltr)', '--tw-enter-translate-x[100%]@:dir(rtl)'])
         // Trùng tên utility sẵn có (`delay-*`): cả hai cùng áp như Tailwind.
-        expect(d('delay-150')).toEqual(['transition-delay[150ms]', 'animation-delay[var(--animation-delay-150,_.15s)]', '--tw-animation-delay[var(--animation-delay-150,_.15s)]'])
+        expect(d('delay-150')).toEqual(['transition-delay[150ms]', 'animation-delay[calc(150*1ms)]', 'animation-delay[var(--animation-delay-150,_.15s)]', '--tw-animation-delay[calc(150*1ms)]', '--tw-animation-delay[var(--animation-delay-150,_.15s)]'])
         expect(d('prose')!.length).toBeGreaterThan(100)
         expect(d('prose-headings:underline')![0]).toContain(':where(h1,;h2,;h3,;h4,;h5,;h6,;th)')
         expect(d('form-input')).not.toBeNull()
