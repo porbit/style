@@ -1,0 +1,164 @@
+/**
+ * Plugin PostCSS thay `@tailwindcss/postcss`: đổi một dòng trong cấu hình là chạy.
+ *
+ *   // postcss.config.mjs (Next.js, Remix, Astro, Angular...)
+ *   export default { plugins: { '@porbit/style/postcss': {} } }
+ *
+ * File CSS có `@import "tailwindcss"` (hoặc `@tailwind base/components/utilities`) được thay bằng CSS sinh từ
+ * class trong mã nguồn: preflight, theme, `@utility`, `@custom-variant`, `@apply`, plugin đóng gói sẵn.
+ * Nguồn quét: thư mục gốc dự án (bỏ node_modules, thư mục trong .gitignore), `@source "../x"`, `@source not`,
+ * `@source inline("...")`, `@import "tailwindcss" source("../src")` / `source(none)`.
+ * Không phụ thuộc gói `postcss` (dùng `postcss` do trình chạy truyền vào).
+ */
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { extractCandidates, extractFromClasses, type ExtractOptions } from './extract'
+import { collectFilesSync, createStylesheetReader } from './files'
+import { resolveTailwindPlugin } from './tailwind-plugins'
+import { parseTailwindStylesheet, tailwindV4Dialect } from './tailwind-v4'
+
+export interface PresenceStylePostcssOptions extends Omit<ExtractOptions, 'dialects'> {
+    /** Thư mục gốc để quét mã nguồn. Mặc định thư mục làm việc (`process.cwd()`). */
+    base?: string
+    /** Phần mở rộng file được quét. */
+    extensions?: string[]
+    /** Thu gọn CSS (bỏ `@property`/`@keyframes` không dùng). Mặc định true. */
+    optimize?: boolean
+}
+
+export const POSTCSS_EXTENSIONS = ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'mts', 'cts', 'vue', 'svelte', 'astro', 'mdx', 'md', 'php', 'erb', 'hbs', 'liquid', 'twig', 'njk']
+const PLUGIN_NAME = '@porbit/style/postcss'
+const TAILWIND_ENTRY = /@import\s+["']tailwindcss(?:\/[\w./-]+)?["']|@tailwind\s+(?:base|components|utilities)\b/
+
+/** Mở rộng `{a,b}` và `{100..900..100}` như `@source inline()` của Tailwind. */
+export const expandBraces = (pattern: string): string[] => {
+    const match = pattern.match(/^(.*?)\{([^{}]*)\}(.*)$/s)
+    if (!match) return [pattern]
+    const [, before, body, after] = match
+    let options: string[]
+    const range = body.match(/^(-?\d+)\.\.(-?\d+)(?:\.\.(\d+))?$/)
+    if (range) {
+        const [from, to, step] = [Number(range[1]), Number(range[2]), Number(range[3] || 1)]
+        options = []
+        for (let v = from; from <= to ? v <= to : v >= to; v += from <= to ? step : -step) options.push(String(v))
+    } else options = body.split(',')
+    return options.flatMap((option) => expandBraces(before + option + after))
+}
+
+/** Đọc .gitignore gốc: tên thư mục/file và mẫu `*` đơn giản. */
+const gitignoreMatcher = (baseDir: string): ((rel: string) => boolean) => {
+    const file = join(baseDir, '.gitignore')
+    if (!existsSync(file)) return () => false
+    const patterns = readFileSync(file, 'utf8').split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('#') && !line.startsWith('!'))
+    const regexes = patterns.map((p) => {
+        const anchored = p.startsWith('/')
+        const body = p.replace(/^\//, '').replace(/\/$/, '').replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*')
+        return new RegExp(anchored ? `^${body}(/|$)` : `(^|/)${body}(/|$)`)
+    })
+    return (rel) => regexes.some((re) => re.test(rel))
+}
+
+// Bộ nhớ đệm theo mtime: chế độ watch chỉ đọc lại file đã đổi.
+const candidateCache = new Map<string, { mtime: number; candidates: string[] }>()
+const candidatesOf = (file: string): string[] => {
+    let mtime = 0
+    try {
+        mtime = statSync(file).mtimeMs
+    } catch (_error) {
+        return []
+    }
+    const cached = candidateCache.get(file)
+    if (cached && cached.mtime === mtime) return cached.candidates
+    let candidates: string[] = []
+    try {
+        candidates = extractCandidates(readFileSync(file, 'utf8'))
+    } catch (_error) {
+        candidates = []
+    }
+    candidateCache.set(file, { mtime, candidates })
+    return candidates
+}
+
+export interface CompiledTailwindCss {
+    css: string
+    /** Thư mục đã quét (cho chế độ watch). */
+    directories: string[]
+    /** File CSS đã đọc qua `@import`. */
+    imports: string[]
+    candidates: number
+}
+
+/** Biên dịch một file CSS kiểu Tailwind v4 (dùng chung cho plugin PostCSS và công cụ khác). */
+export const compileTailwindCss = async (css: string, options: PresenceStylePostcssOptions & { from?: string } = {}): Promise<CompiledTailwindCss> => {
+    const { base = process.cwd(), extensions = POSTCSS_EXTENSIONS, optimize = true, from, safelist = [], ...rest } = options
+    const cssDir = from ? dirname(from) : base
+    const imports: string[] = []
+    const reader = createStylesheetReader(cssDir)
+    const read = (id: string) => {
+        const content = reader(id)
+        if (content !== null && (id.startsWith('.') || isAbsolute(id))) imports.push(resolve(cssDir, id))
+        return content
+    }
+    const sheet = parseTailwindStylesheet(css, { resolve: (id) => read(id) ?? resolveTailwindPlugin(id) })
+
+    // Nguồn quét.
+    const sourceOption = css.match(/@import\s+["']tailwindcss["'][^;]*\bsource\(\s*(none|["']([^"']+)["'])\s*\)/)
+    const roots: string[] = sourceOption ? (sourceOption[1] === 'none' ? [] : [resolve(cssDir, sourceOption[2])]) : [resolve(base)]
+    const excluded: string[] = []
+    const inline: string[] = []
+    for (const m of css.matchAll(/@source\s+(not\s+)?(?:inline\(\s*(["'])(.*?)\2\s*\)|(["'])(.*?)\4)\s*;/g)) {
+        const negated = !!m[1]
+        if (m[3] !== undefined) {
+            if (!negated) inline.push(...m[3].split(/\s+/).filter(Boolean).flatMap(expandBraces))
+            continue
+        }
+        const target = resolve(cssDir, m[5].replace(/\/\*\*.*$/, '').replace(/\/\*.*$/, ''))
+        ;(negated ? excluded : roots).push(target)
+    }
+    const files = new Set<string>()
+    for (const dir of roots) {
+        const ignored = gitignoreMatcher(dir)
+        for (const file of collectFilesSync(dir, extensions)) {
+            const rel = relative(dir, file).split(sep).join('/')
+            if (ignored(rel) || excluded.some((ex) => file === ex || file.startsWith(ex + sep))) continue
+            files.add(file)
+        }
+    }
+    const candidates = new Set<string>(inline)
+    for (const file of files) for (const candidate of candidatesOf(file)) candidates.add(candidate)
+
+    const preflight = /@import\s+["']tailwindcss(?:\/preflight(?:\.css)?)?["']|@tailwind\s+base\b/.test(css)
+    const dialect = tailwindV4Dialect({ preflight, theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, css: sheet.css })
+    const result = await extractFromClasses([...candidates], { ...rest, safelist, hashClassName: false, silent: true, minify: optimize, dialects: [dialect] })
+    return { css: result.css, directories: roots, imports, candidates: candidates.size }
+}
+
+interface MinimalRoot {
+    toString(): string
+    removeAll(): void
+    append(node: unknown): void
+}
+interface MinimalHelpers {
+    result: { opts: { from?: string }; messages: unknown[] }
+    postcss: { parse: (css: string, options?: { from?: string }) => unknown }
+}
+
+const presenceStylePostcss = (options: PresenceStylePostcssOptions = {}) => ({
+    postcssPlugin: PLUGIN_NAME,
+    async Once(root: MinimalRoot, { result, postcss }: MinimalHelpers) {
+        const css = root.toString()
+        if (!TAILWIND_ENTRY.test(css)) return
+        const from = result.opts.from
+        const compiled = await compileTailwindCss(css, { ...options, from })
+        root.removeAll()
+        root.append(postcss.parse(compiled.css, { from }))
+        const extensions = options.extensions ?? POSTCSS_EXTENSIONS
+        for (const dir of compiled.directories) {
+            result.messages.push({ type: 'dir-dependency', plugin: PLUGIN_NAME, dir, glob: `**/*.{${extensions.join(',')}}`, parent: from })
+        }
+        for (const file of compiled.imports) result.messages.push({ type: 'dependency', plugin: PLUGIN_NAME, file, parent: from })
+    },
+})
+presenceStylePostcss.postcss = true
+
+export default presenceStylePostcss

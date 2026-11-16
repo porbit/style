@@ -9,6 +9,11 @@
 Số class Tailwind đổi style so với lượt mặc định (biến thể được kiểm): mở 39, đóng 18, .dark 769.
 
 Tổ hợp thật (260 chuỗi class của component, nhiều class trên một phần tử): mặc định 260/260 · mở 260/260 · đóng 260/260 · .dark 260/260.
+| plugin PostCSS (@porbit/style/postcss) | 769/769 (100.0%) | 769/769 (100.0%) | 769/769 (100.0%) | 769/769 (100.0%) | 769/769 (100.0%) |
+
+Số class Tailwind đổi style so với lượt mặc định (biến thể được kiểm): mở 39, đóng 18, .dark 769.
+
+Tổ hợp thật (260 chuỗi class của component, nhiều class trên một phần tử): mặc định 260/260 · mở 260/260 · đóng 260/260 · .dark 260/260.
 
 ### không build (parseTailwindStylesheet) — mặc định: lệch 0
 
@@ -35,4 +40,31 @@ Tổ hợp thật (260 chuỗi class của component, nhiều class trên một 
 
 
 ### không build (parseTailwindStylesheet) — chưa chuyển (0)
+
+
+### plugin PostCSS (@porbit/style/postcss) — mặc định: lệch 0
+
+
+### plugin PostCSS (@porbit/style/postcss) — mở: lệch 0
+
+
+### plugin PostCSS (@porbit/style/postcss) — đóng: lệch 0
+
+
+### plugin PostCSS (@porbit/style/postcss) — .dark: lệch 0
+
+
+### plugin PostCSS (@porbit/style/postcss) — tổ hợp, mặc định: lệch 0
+
+
+### plugin PostCSS (@porbit/style/postcss) — tổ hợp, mở: lệch 0
+
+
+### plugin PostCSS (@porbit/style/postcss) — tổ hợp, đóng: lệch 0
+
+
+### plugin PostCSS (@porbit/style/postcss) — tổ hợp, .dark: lệch 0
+
+
+### plugin PostCSS (@porbit/style/postcss) — chưa chuyển (0)
 

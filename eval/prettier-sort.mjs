@@ -20,7 +20,7 @@ const tmp = fs.mkdtempSync(path.join(root, 'eval', '.tmp-prettier-'))
 const stylesheet = path.join(tmp, 'app.css')
 fs.writeFileSync(stylesheet, fs.readFileSync(path.join(fixture, 'app.css'), 'utf8')
     .replace('@import "tw-animate-css";', `@import "${path.join(root, 'node_modules/tw-animate-css/dist/tw-animate.css')}";`)
-    .replace('@import "shadcn/tailwind.css";', `@import "${path.join(fixture, 'shadcn-tailwind.css')}";`))
+    .replace('@import "./shadcn-tailwind.css";', `@import "${path.join(fixture, 'shadcn-tailwind.css')}";`))
 
 const plugins = {
     'prettier-plugin-tailwindcss': path.join(root, 'node_modules/prettier-plugin-tailwindcss/dist/index.mjs'),

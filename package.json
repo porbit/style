@@ -109,7 +109,7 @@
     "./postcss": {
       "types": "./dist/postcss.d.ts",
       "import": "./dist/postcss.mjs",
-      "require": "./dist/postcss.js",
+      "require": "./dist/postcss.cjs",
       "default": "./dist/postcss.mjs"
     },
     "./mcp": {
@@ -127,6 +127,7 @@
   "files": [
     "dist/**/*.js",
     "dist/**/*.mjs",
+    "dist/**/*.cjs",
     "dist/**/*.d.ts",
     "dist/**/*.d.mts",
     "spec/dictionary.json",
@@ -186,6 +187,7 @@
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.0.18",
     "apca-w3": "^0.1.9",
+    "postcss": "^8.5.33",
     "prettier": "^3.10.1",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "4.3.5",

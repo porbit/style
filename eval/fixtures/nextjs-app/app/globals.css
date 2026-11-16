@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+@custom-variant dark (&:is(.dark *));
+@theme { --color-brand: #0a64e8; }
+@utility tab-* { tab-size: --value(integer); }
+.btn { @apply rounded-lg px-4 py-2 bg-brand text-white hover:bg-brand/90; }

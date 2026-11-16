@@ -19,7 +19,7 @@ const twDir = path.dirname(require.resolve('tailwindcss/package.json'))
 const fixture = path.join(root, 'eval/fixtures/shadcn-v4')
 const imports = {
     'tw-animate-css': path.join(root, 'node_modules/tw-animate-css/dist/tw-animate.css'),
-    'shadcn/tailwind.css': path.join(fixture, 'shadcn-tailwind.css'),
+    './shadcn-tailwind.css': path.join(fixture, 'shadcn-tailwind.css'),
 }
 const loadStylesheet = async (id, base) => {
     if (imports[id]) return { base, path: id, content: fs.readFileSync(imports[id], 'utf8') }

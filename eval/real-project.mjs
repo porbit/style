@@ -33,7 +33,7 @@ const label = arg('label') || (useFixture ? 'shadcn/ui v4' : path.basename(srcDi
 const imports = Object.fromEntries(args('import').map((pair) => pair.split('=')).map(([k, v]) => [k, path.resolve(v)]))
 if (useFixture) {
     imports['tw-animate-css'] = path.join(root, 'node_modules/tw-animate-css/dist/tw-animate.css')
-    imports['shadcn/tailwind.css'] = path.join(fixture, 'shadcn-tailwind.css')
+    imports['./shadcn-tailwind.css'] = path.join(fixture, 'shadcn-tailwind.css')
 }
 
 const entry = fs.readFileSync(entryPath, 'utf8')
@@ -107,6 +107,13 @@ const modes = []
 const sheet = tw.parseTailwindStylesheet(entry, { resolve })
 if (sheet.unresolved.length) console.warn('chưa giải được:', sheet.unresolved)
 modes.push({ name: 'không build (parseTailwindStylesheet)', dialect: tw.tailwindV4Dialect({ preflight: true, darkMode: 'class', theme: sheet.theme, css: sheet.css, utilities: sheet.utilities, variants: sheet.variants }) })
+// Plugin PostCSS (thay @tailwindcss/postcss): chạy postcss thật trên file CSS của dự án, tự quét mã nguồn.
+if (useFixture) {
+    const { default: postcss } = await import('postcss')
+    const { default: presenceStylePostcss } = await import(path.join(root, 'dist/postcss.mjs'))
+    const processed = await postcss([presenceStylePostcss({ base: srcDir })]).process(entry, { from: entryPath })
+    modes.push({ name: 'plugin PostCSS (@porbit/style/postcss)', dialect: modes[0].dialect, css: processed.css })
+}
 
 const launch = async () => {
     for (const executablePath of [process.env.CHROMIUM_PATH, undefined, '/opt/pw-browsers/chromium']) {
@@ -162,7 +169,7 @@ const summary = {}
 for (const mode of modes) {
     const unsupported = candidates.filter((c) => !mode.dialect(c))
     const order = process.env.REVERSE ? [...candidates].reverse() : candidates
-    const oursCss = (await extractFromClasses(order, { hashClassName: false, silent: true, minify: true, dialects: [mode.dialect] })).css
+    const oursCss = mode.css ?? (await extractFromClasses(order, { hashClassName: false, silent: true, minify: true, dialects: [mode.dialect] })).css
     const counts = {}
     let twDefault = null
     const exercised = {}
@@ -203,4 +210,4 @@ await browser.close()
 lines.push('', ...details)
 fs.writeFileSync(path.join(root, `eval/REAL-PROJECT.md`), lines.join('\n'))
 fs.writeFileSync(path.join(root, `eval/real-project.json`), JSON.stringify({ label, candidates: candidates.length, summary }, null, 2) + '\n')
-console.log(lines.slice(0, 6 + modes.length).join('\n'))
+console.log(lines.filter((l) => l.startsWith('|') || l.startsWith('Tổ hợp')).join('\n'))
