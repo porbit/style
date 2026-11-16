@@ -169,6 +169,14 @@ const resolveBase = (name: string): Rule | null => {
                 ? NUMBER_VALUE.test(value) && Number.isInteger(Number(value) * 4)
                 : valueSet(setIndex).has(value)
             if (accepted) return unpack(templates[templateIndex], (t) => fill(t, value))
+            // Giá trị đặt tên trong `--spacing-*` (`p-gutter`): Tailwind đọc `var(--spacing-gutter)`.
+            if (theme[`--spacing-${value}`] !== undefined && !NUMBER_VALUE.test(value) && /var\(--spacing\) \* -?\{v\}/.test(templates[templateIndex].slice(1).map((i) => declTable[i]).join(';'))) {
+                const named = `var(--spacing-${value})`
+                return unpack(templates[templateIndex], (t) => t
+                    .replace(/calc\(var\(--spacing\) \* -\{v\}\)/g, `calc(${named} * -1)`)
+                    .replace(/calc\(var\(--spacing\) \* \{v\}\)/g, named)
+                    .split('{v}').join(value))
+            }
         }
         if (theme !== defaultTheme) {
             const shadow = themeShadow(name)
@@ -181,7 +189,10 @@ const resolveBase = (name: string): Rule | null => {
                     themePrefixCache.set(templateIndex, prefixes)
                 }
                 if (prefixes.length && prefixes.every((prefix) => theme[prefix + value] !== undefined)) {
-                    return unpack(templates[templateIndex], (t) => fill(t, value))
+                    const rule = unpack(templates[templateIndex], (t) => fill(t, value))
+                    // `text-hero` khi theme không có `--text-hero--line-height`: Tailwind bỏ khai báo đó.
+                    rule.decls = rule.decls.filter(([, v]) => [...v.matchAll(/var\((--[\w.-]+--[\w-]+)\)/g)].every((m) => theme[m[1]] !== undefined))
+                    return rule
                 }
             }
         }

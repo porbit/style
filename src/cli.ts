@@ -16,6 +16,7 @@ import { resolveConfigFile } from './config-file'
 import { getComponentClasses } from './components'
 import { explainClass, findClassAttributes, findClassTokens, isXcssLike, sortClassesInSource } from './analyze'
 import { findClassConflicts } from './class-tools'
+import { buildMergeTable } from './merge'
 import { MCP_CLIENTS, renderMcpConfig } from './mcp-config'
 
 const HELP = `presence-style — trích xuất CSS tĩnh cho @porbit/style
@@ -33,6 +34,9 @@ Cách dùng:
                                             bật phương ngữ Tailwind trong cấu hình
   presence-style mcp [--root <thư-mục>]     Chạy MCP server qua stdio cho agent AI
   presence-style mcp-config [client]        In lệnh/cấu hình cài MCP cho từng agent
+  presence-style merge-table <đường-dẫn...> [--out <file>]
+                                            Bảng gộp class của dự án cho cn() nhẹ
+                                            (@porbit/style/merge/lite)
   presence-style lsp [--stdio]              Chạy language server (LSP) qua stdio cho editor
                                             (VS Code, Neovim, Zed, Helix...)
                                             (claude, claude-desktop, codex, cursor, vscode,
@@ -286,7 +290,7 @@ export const runCli = async (argv: string[]): Promise<number> => {
         return 0
     }
 
-    if (command !== 'extract') {
+    if (command !== 'extract' && command !== 'merge-table') {
         process.stderr.write(`Lệnh không hỗ trợ: ${command}\n\n${HELP}`)
         return 1
     }
@@ -324,6 +328,17 @@ export const runCli = async (argv: string[]): Promise<number> => {
     const candidates = new Set<string>()
     for (const file of files) {
         for (const candidate of extractCandidates(readTextSync(file))) candidates.add(candidate)
+    }
+
+    // Bảng gộp class cho `createMerge({ table })` (@porbit/style/merge/lite).
+    if (command === 'merge-table') {
+        const json = JSON.stringify(buildMergeTable(candidates, config.dialects?.[0])) + '\n'
+        if (options.out) {
+            await mkdir(dirname(resolve(options.out)), { recursive: true })
+            await writeFile(resolve(options.out), json, 'utf8')
+            process.stderr.write(`Đã ghi bảng gộp ${options.out} (${(json.length / 1024).toFixed(1)} KB)\n`)
+        } else process.stdout.write(json)
+        return 0
     }
 
     if (options.components) {

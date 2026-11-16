@@ -32,6 +32,8 @@ const classList = ds.getClassList().map(([name]) => name)
     for (const pos of ['left-top', 'left-bottom', 'right-top', 'right-bottom']) legacy.push(`bg-${pos}`, `object-${pos}`)
     for (const dir of ['t', 'tr', 'r', 'br', 'b', 'bl', 'l', 'tl']) legacy.push(`bg-gradient-to-${dir}`)
     for (const key of ['sm', 'md', 'lg', 'xl', '2xl']) legacy.push(`max-w-screen-${key}`)
+    // Gốc họ class đứng một mình (`rounded`, `shadow`...): hợp lệ nhưng có thể vắng trong getClassList.
+    for (const name of new Set(classList.map((c) => c.replace(/-[^-]+$/, '')))) legacy.push(name)
     const known = new Set(classList)
     const css = ds.candidatesToCss(legacy)
     legacy.forEach((name, i) => css[i] && !known.has(name) && classList.push(name))

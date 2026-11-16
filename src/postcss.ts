@@ -16,6 +16,8 @@ import { extractCandidates, extractFromClasses, type ExtractOptions } from './ex
 import { collectFilesSync, createStylesheetReader } from './files'
 import { resolveTailwindPlugin } from './tailwind-plugins'
 import { parseTailwindStylesheet, tailwindV4Dialect } from './tailwind-v4'
+import { buildMergeTable } from './merge'
+import { writeFileSync } from 'node:fs'
 
 export interface PresenceStylePostcssOptions extends Omit<ExtractOptions, 'dialects'> {
     /** Thư mục gốc để quét mã nguồn. Mặc định thư mục làm việc (`process.cwd()`). */
@@ -24,6 +26,11 @@ export interface PresenceStylePostcssOptions extends Omit<ExtractOptions, 'diale
     extensions?: string[]
     /** Thu gọn CSS (bỏ `@property`/`@keyframes` không dùng). Mặc định true. */
     optimize?: boolean
+    /**
+     * Ghi bảng gộp class của dự án (JSON) cho `createMerge({ table })` của `@porbit/style/merge/lite`:
+     * `cn()` đúng theo theme/@utility của dự án, ~1,5 KB code + bảng nhỏ. Đường dẫn tương đối với `base`.
+     */
+    mergeTable?: string
 }
 
 export const POSTCSS_EXTENSIONS = ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'mts', 'cts', 'vue', 'svelte', 'astro', 'mdx', 'md', 'php', 'erb', 'hbs', 'liquid', 'twig', 'njk']
@@ -90,7 +97,7 @@ export interface CompiledTailwindCss {
 
 /** Biên dịch một file CSS kiểu Tailwind v4 (dùng chung cho plugin PostCSS và công cụ khác). */
 export const compileTailwindCss = async (css: string, options: PresenceStylePostcssOptions & { from?: string } = {}): Promise<CompiledTailwindCss> => {
-    const { base = process.cwd(), extensions = POSTCSS_EXTENSIONS, optimize = true, from, safelist = [], ...rest } = options
+    const { base = process.cwd(), extensions = POSTCSS_EXTENSIONS, optimize = true, from, safelist = [], mergeTable, ...rest } = options
     const cssDir = from ? dirname(from) : base
     const imports: string[] = []
     const reader = createStylesheetReader(cssDir)
@@ -130,6 +137,18 @@ export const compileTailwindCss = async (css: string, options: PresenceStylePost
     const preflight = /@import\s+["']tailwindcss(?:\/preflight(?:\.css)?)?["']|@tailwind\s+base\b/.test(css)
     const dialect = tailwindV4Dialect({ preflight, theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, css: sheet.css })
     const result = await extractFromClasses([...candidates], { ...rest, safelist, hashClassName: false, silent: true, minify: optimize, dialects: [dialect] })
+    if (mergeTable) {
+        const target = resolve(base, mergeTable)
+        const json = JSON.stringify(buildMergeTable(result.matchedClasses, dialect)) + '\n'
+        let previous = ''
+        try {
+            previous = readFileSync(target, 'utf8')
+        } catch (_error) {
+            previous = ''
+        }
+        // Chỉ ghi khi đổi: tránh vòng lặp watch.
+        if (previous !== json) writeFileSync(target, json)
+    }
     return { css: result.css, directories: roots, imports, candidates: candidates.size }
 }
 

@@ -15,6 +15,8 @@ export default defineConfig({
         lsp: 'src/lsp-entry.ts',
         prettier: 'src/prettier.ts',
         postcss: 'src/postcss.ts',
+        merge: 'src/merge-entry.ts',
+        'merge-lite': 'src/merge.ts',
         'tailwind-v4': 'src/tailwind-v4-entry.ts',
         'tailwind-auto': 'src/tailwind-auto.ts',
         'tailwind-plugins': 'src/tailwind-plugins.ts',
