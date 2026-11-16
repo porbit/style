@@ -5,6 +5,8 @@
  *   npm run build && node eval/runtime-bench.mjs [--runs=9] [--ours=dist/tailwind-auto.mjs] [--no-write]
  *
  * `--ours=a.mjs,b.mjs` so nhiều bản build cùng lúc (trước/sau một thay đổi), xen kẽ trong từng lượt.
+ * `--hybrid`: chế độ lai — trang có CSS tĩnh (plugin PostCSS build từ eval/runs/tailwind) và `data-hybrid`, chỉ đo
+ * bản của @porbit/style (class mới lúc chạy chèn vào khối @layer của CSS tĩnh); ghi eval/runtime-bench-hybrid.json.
  *
  * Mỗi lượt mở một trang mới (context riêng, không có cache localStorage) gồm ~970 phần tử ghép từ
  * eval/runs/tailwind/*.html, rồi đo:
@@ -32,6 +34,7 @@ const arg = (name, fallback) => {
 const runs = Number(arg('runs', 9))
 const oursPaths = arg('ours', 'dist/tailwind-auto.mjs').split(',').map((file) => path.resolve(root, file))
 const write = !args.includes('--no-write')
+const hybrid = args.includes('--hybrid')
 const executablePath = process.env.CHROMIUM_PATH || (fs.existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined)
 
 const twBrowser = fs.readFileSync(path.join(path.dirname(require.resolve('@tailwindcss/browser/package.json')), 'dist/index.global.js'), 'utf8')
@@ -41,11 +44,16 @@ const pages = fs.readdirSync(runsDir).filter((f) => f.endsWith('.html')).sort().
 // che mất chi phí của engine.
 const body = Array.from({ length: 12 }, () => pages.replace(/backdrop-blur-sm/g, '')).join('\n') + '<div id="probe" class="mt-[7px] bg-emerald-600/40 md:p-[9px]">x</div>'
 
+// Lai: CSS tĩnh cho class của trang ban đầu (thẻ dò `#probe` không có trong đó, runtime sinh).
+const staticCss = hybrid
+    ? (await (await import(path.join(root, 'dist/postcss.mjs'))).compileTailwindCss('@import "tailwindcss";', { base: runsDir })).css
+    : ''
 const engines = [
-    ['@tailwindcss/browser', `<script>${twBrowser}</script>`],
+    ...(hybrid ? [] : [['@tailwindcss/browser', `<script>${twBrowser}</script>`]]),
     ...oursPaths.map((file, index) => [
-        oursPaths.length > 1 ? `@porbit/style ${path.basename(file)}` : '@porbit/style tailwind-auto',
-        `<script type="module" src="/ours${index}.mjs"></script>`,
+        oursPaths.length > 1 ? `@porbit/style ${path.relative(root, file)}` : '@porbit/style tailwind-auto',
+        // Đường dẫn chứa `tailwind-auto`: bản CDN tìm thẻ script của nó theo tên để đọc `data-*`.
+        `${hybrid ? `<style>${staticCss}</style>` : ''}<script type="module" src="/ours${index}/tailwind-auto.mjs"${hybrid ? ' data-hybrid' : ''}></script>`,
         fs.readFileSync(file, 'utf8'),
     ]),
 ]
@@ -201,6 +209,7 @@ if (write) {
         results: summary,
         samples,
     }
-    fs.writeFileSync(path.join(root, 'eval/runtime-bench.json'), JSON.stringify(out, null, 2) + '\n')
-    console.log('Đã ghi eval/runtime-bench.json')
+    const file = hybrid ? 'eval/runtime-bench-hybrid.json' : 'eval/runtime-bench.json'
+    fs.writeFileSync(path.join(root, file), JSON.stringify(hybrid ? { ...out, staticCssKb: Math.round(staticCss.length / 102.4) / 10 } : out, null, 2) + '\n')
+    console.log(`Đã ghi ${file}`)
 }

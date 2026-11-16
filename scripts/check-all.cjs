@@ -160,8 +160,8 @@ const steps = [
     },
     {
         name: 'tailwind',
-        // Khớp Tailwind thật (mẫu 4.000 class + biến thể + runtime + theme), độ phủ biến thể, plugin đóng gói sẵn
-        // và dự án thật (shadcn/ui v4: 4 trạng thái).
+        // Khớp Tailwind thật (mẫu 4.000 class + biến thể + runtime + theme), độ phủ biến thể, plugin đóng gói sẵn,
+        // dự án thật (shadcn/ui v4: 4 trạng thái) và thứ tự cascade ở chế độ lai (CSS tĩnh + runtime).
         run: () => {
             const parity = run('node', ['eval/tailwind-parity.mjs', '--limit=4000'])
             if (!parity.ok) {
@@ -178,6 +178,8 @@ const steps = [
             const merge = run('node', ['eval/merge-accuracy.mjs'])
             // Plugin JS tuỳ ý chạy qua API giả lập (không cần cài tailwindcss).
             const jsPlugins = run('node', ['eval/tailwind-js-plugins.mjs'])
+            // Chế độ lai: class tĩnh và class động cùng phần tử xung đột theo đúng thứ tự Tailwind.
+            const hybrid = run('node', ['eval/hybrid-order.mjs'])
             const report = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-parity.sample.json'), 'utf8'))
             const coverage = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-variants.json'), 'utf8'))
             const pluginReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-plugins.json'), 'utf8'))
@@ -198,14 +200,18 @@ const steps = [
             const atLeast = (m) => !m || m.cases === 0 || m.matched / m.cases >= 0.99
             const jsOk = jsPlugins.ok && jsRows.every(([, r]) => atLeast(r.classes) && atLeast(r.variants))
             const mergeOk = merge.ok && Object.values(mergeReport).filter((r) => r && r.methods).every((r) => r.methods['@porbit/style/merge'].correct === r.pairs && r.methods['@porbit/style/merge/lite + bảng'].correct === r.pairs)
+            const hybridReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/hybrid-order.json'), 'utf8'))
+            const hybridRows = Object.values(hybridReport.variants)
+            const hybridOk = hybrid.ok && hybridRows.every((r) => r.correct === r.total)
             const realMin = Math.min(realReport.converted, ...Object.values(realReport.matched))
             const ok = variants.ok && plugins.ok && real.ok && pluginsOk && report.base.percent >= 99.9 && report.variants.percent === 100 &&
                 report.runtime.percent === 100 && report.theme.matched === report.theme.checked && coverage.percent >= 95 &&
-                realMin / realReport.total >= 0.995 && realOk && v3Ok && orderOk && prettierOk && mergeOk && jsOk
+                realMin / realReport.total >= 0.995 && realOk && v3Ok && orderOk && prettierOk && mergeOk && jsOk && hybridOk
             return {
                 ok,
                 detail: `class ${report.base.percent}% · biến thể ${report.variants.percent}% · runtime ${report.runtime.percent}% · theme ${report.theme.matched}/${report.theme.checked} · độ phủ biến thể ${coverage.percent}%\n` +
                     `plugin ${Object.entries(pluginReport).map(([id, p]) => `${id} ${p.matched}/${p.cases}`).join(', ')} · shadcn/ui ${realMin}/${realReport.total} (+tổ hợp, PostCSS) ${realOk ? '✓' : '✗'} · cấu hình v3 ${v3Ok ? '✓' : '✗'}\n` +
+                    `lai (CSS tĩnh + runtime) ${hybridRows.reduce((n, r) => n + r.correct, 0)}/${hybridRows.reduce((n, r) => n + r.total, 0)} cặp xung đột ${hybridOk ? '✓' : '✗'} · ` +
                     `plugin JS ${jsRows.map(([id, r]) => `${id} ${r.classes.matched}/${r.classes.cases}`).join(', ') || '✗'} ${jsOk ? '✓' : '✗'}\n` +
                     `thứ tự class ${orderOk ? '100%' : '✗'} · Prettier ${prettierReport.identical}/${prettierReport.files} file · gộp class ${mergeOk ? '100%' : '✗'} (tailwind-merge: ${Object.values(mergeReport).filter((r) => r && r.methods).map((r) => r.methods['tailwind-merge 3.7'].percent + '%').join(' / ')})`,
             }

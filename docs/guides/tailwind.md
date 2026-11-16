@@ -174,6 +174,21 @@ Tailwind build chỉ có CSS cho class viết sẵn trong mã nguồn; class gh�
 | :--- | ---: | ---: | ---: |
 | Tailwind build (CSS tĩnh) | 9 / 300 | — | 0 KB |
 | `@tailwindcss/browser` | 300 / 300 | 38,2 ms | 73,9 KB |
-| CSS tĩnh + `tailwind-auto data-hybrid` | 300 / 300 | 2,3 ms | 44,1 KB |
+| CSS tĩnh + `tailwind-auto data-hybrid` | 300 / 300 | 2,3 ms | 44,4 KB |
 
-Giới hạn: rule sinh lúc chạy nằm sau CSS tĩnh, nên khi một class động và một class tĩnh cùng phần tử đụng nhau (`p-2` tĩnh, `px-4` động) thứ tự có thể khác Tailwind.
+**Thứ tự cascade như Tailwind.** Khi một class động và một class tĩnh cùng phần tử đụng nhau (cùng thuộc tính, cùng specificity), Tailwind quyết định bên thắng bằng thứ tự rule: `px-4` đứng sau `p-2` nên thắng, dù class nào có trong mã nguồn. Rule sinh lúc chạy vì thế không nằm ở sheet riêng (luôn đứng sau CSS tĩnh, nên `p-2` động sẽ đè `px-4` tĩnh) mà được chèn bằng CSSOM vào khối `@layer` của CSS tĩnh cùng nguồn, đúng vị trí theo thứ tự Tailwind:
+
+- Khối đích: `@layer lN` cuối cùng (CSS do plugin PostCSS/Vite/CLI của `@porbit/style` build) hoặc `@layer utilities` (CSS do chính Tailwind build). `<style>` và `<link>` cùng nguồn đều được; `<link>` khác nguồn (CDN không có CORS) không đọc được CSSOM, runtime rơi về sheet riêng như trước.
+- Vị trí: tìm nhị phân theo thứ tự Tailwind (`compare` của phương ngữ) giữa các rule có sẵn; khoá của rule tĩnh là class đầu tiên trong selector, rule không có class (preflight, theme) đứng trước mọi utility. Biến thể `hover:` gộp vào nhóm `@media (hover: hover)` có sẵn khi liền kề.
+- Không cần cấu hình; chỉ áp cho `data-hybrid`. Lõi engine nhận tuỳ chọn `preload.staticBlock` (hàm trả khối `@layer` đích theo layer); cách dựng khối cho Tailwind ở `src/hybrid.ts`.
+
+| 34 cặp xung đột × 8 trang lai (`eval/hybrid-order.mjs`, so với CSS Tailwind build đủ mọi class) | Trước | Sau |
+| :--- | ---: | ---: |
+| CSS tĩnh `<style>`/`<link>` của `@porbit/style`, A tĩnh + B động | 28 / 34 | **34 / 34** |
+| CSS tĩnh `<style>`/`<link>` của `@porbit/style`, B tĩnh + A động | 11 / 34 | **34 / 34** |
+| CSS do Tailwind build + runtime, hai chiều | 27 + 9 / 68 | **68 / 68** |
+| Tổng (8 trang: HTML ban đầu, chèn lúc chạy, `<link>`, CSS Tailwind) | 153 / 272 | **272 / 272** |
+
+Cặp đo gồm `p`/`px`, `inset`/`top`, `rounded`/`rounded-t`, `border`/`border-x`, `gap`/`gap-x`, màu cùng thuộc tính, `hover:` với `hover:`, `md:`/`lg:`/`2xl:` với nhau và với class gốc. Hiệu năng (`node eval/runtime-bench.mjs --hybrid`, CSS tĩnh 19,5 KB, 1.395 rule): tải ban đầu và 10 × 200 phần tử không đổi trong sai số, chèn 2.000 phần tử 81 → 57 ms (trung vị 11 lượt); bản CDN +0,3 KB gzip (44,4 KB).
+
+Giới hạn: CSS tĩnh bị thay sau khi tải (HMR của Vite khi dev) làm mất rule runtime đã chèn vào sheet cũ — tải lại trang; CSS tĩnh khác nguồn vẫn theo thứ tự sheet như trước.

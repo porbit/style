@@ -110,6 +110,24 @@ export type XCSSPreloadManifest = {
      * Chỉ bật khi chắc chắn CSS tĩnh phủ hết HTML ban đầu.
      */
     skipInitialScan?: boolean
+    /**
+     * Chế độ lai (CSS tĩnh build sẵn + runtime): trả khối `@layer` của stylesheet tĩnh để chèn rule sinh lúc
+     * chạy của `layer` vào đó, đúng vị trí theo thứ tự của phương ngữ, thay vì vào sheet riêng (luôn đứng sau CSS
+     * tĩnh). Không trả gì: dùng sheet riêng như thường. Xem `staticLayerBlock` trong src/hybrid.ts.
+     */
+    staticBlock?: (layer: number) => XCSSStaticBlock | null | undefined
+}
+
+/**
+ * Khối `@layer` có sẵn mà runtime chèn rule vào (chế độ lai). `b`: khối; `g`: với mỗi rule của khối theo thứ tự,
+ * nhóm chứa nó (null: rule nằm thẳng trong khối; nhóm `@media`/`@supports` chỉ chứa style rule: chính nhóm, wrap ghi
+ * ở thuộc tính `w`); `k`: khoá thứ tự tương ứng (`compare` của phương ngữ + tên class; undefined: đứng trước mọi
+ * class có thứ tự).
+ */
+export type XCSSStaticBlock = {
+    b: CSSGroupingRule
+    g: any[]
+    k: Array<{ compare: (a: string, b: string) => number; name: string } | undefined>
 }
 
 type CssPropertyMap = Record<string, string>
@@ -1986,6 +2004,8 @@ export const xcss = (
         // rule nằm thẳng trong khối), wrap của nhóm ghi ở thuộc tính `w` của chính nhóm.
         // Trình duyệt thiếu @layer: "khối" là chính sheet (một dãy cho cả sheet như text store), `o` = số rule có
         // sẵn ở đầu sheet (CSS nạp từ cache lúc khởi tạo).
+        // Chế độ lai (`preload.staticBlock`): "khối" là khối `@layer` của CSS tĩnh, dãy khoá dựng từ rule có sẵn
+        // (CSS tĩnh build theo cùng thứ tự nên cả khối là vùng có thứ tự). Dựng lại sau mỗi lần xoá layerBlocks.
         const insertIntoLayer = (sheet: CSSStyleSheet, media: string, layer: number, body: string, wrap: string, order?: { compare: (a: string, b: string) => number; name: string }) => {
             const key = '@' + media + (supportsAtLayer ? ' ' + layer : '')
             let blk = layerBlocks[key]
@@ -1993,9 +2013,10 @@ export const xcss = (
             try {
                 if (!blk) {
                     const o = sheet.cssRules.length
-                    blk = layerBlocks[key] = supportsAtLayer ? { b: sheet.cssRules[sheet.insertRule(`@layer l${layer}{}`, o)] as CSSGroupingRule, g: [], o: 0 } : { b: sheet, g: [], o }
-                    orderKeysByMedia[key] = []
-                    orderedCountByMedia[key] = 0
+                    const target = supportsAtLayer && !sheet.media.length && modules?.preload?.staticBlock?.(layer)
+                    blk = layerBlocks[key] = target ? { b: target.b, g: target.g, o: 0 } : supportsAtLayer ? { b: sheet.cssRules[sheet.insertRule(`@layer l${layer}{}`, o)] as CSSGroupingRule, g: [], o: 0 } : { b: sheet, g: [], o }
+                    orderKeysByMedia[key] = target ? target.k : []
+                    orderedCountByMedia[key] = target ? target.k.length : 0
                 }
                 const { b, g } = blk
                 i = ruleInsertIndex(key, g.length, order)
