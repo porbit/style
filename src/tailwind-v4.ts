@@ -7,6 +7,9 @@
  *   xcss.cssObserve(document, { dialects: [tailwindV4Dialect({ preflight: true })] })
  */
 import type { XCSSDialect } from './core'
+
+declare const __XCSS_EDITOR__: boolean | undefined
+const EDITOR_BUILD = typeof __XCSS_EDITOR__ === 'undefined' || __XCSS_EDITOR__
 import { TW_DATA, TW_ORDER, TW_PREFLIGHT_CSS } from './tailwind-generated'
 
 /** Một rule: selector (`&` là phần tử), khai báo; `query` là điều kiện media riêng (`container`); `more` là rule kèm theo. */
@@ -1824,43 +1827,46 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     dialect.trusted = true
     dialect.breakpoints = breakpoints
     dialect.compare = compare
-    // Danh sách class (cho gợi ý của editor): class tường minh, họ × bộ giá trị, giá trị theme của dự án,
-    // `@utility` của dự án. Chỉ giữ class mà phương ngữ thật sự sinh được CSS.
-    let classListCache: string[] | null = null
-    dialect.classList = () => {
-        if (classListCache) return classListCache
-        activate()
-        const names = new Set<string>(Object.keys(explicit))
-        const SPACING = ['0', '0.5', '1', '1.5', '2', '2.5', '3', '3.5', '4', '5', '6', '7', '8', '9', '10', '11', '12', '14', '16', '20', '24', '28', '32', '36', '40', '44', '48', '52', '56', '60', '64', '72', '80', '96']
-        for (const [root, entries] of Object.entries(families)) {
-            for (const [templateIndex, setIndex] of entries) {
-                if (setIndex === -1) SPACING.forEach((v) => names.add(`${root}-${v}`))
-                else valueSet(setIndex).forEach((v) => names.add(`${root}-${v}`))
-                if (ownTheme !== defaultTheme) {
-                    const text = templates[templateIndex].slice(1).map((i) => declTable[i]).join(';')
-                    for (const m of text.matchAll(/var\((--[\w-]*?)\{v\}\)/g)) {
-                        for (const key of Object.keys(options.theme || {})) {
-                            const suffix = key.slice(m[1].length)
-                            if (key.startsWith(m[1]) && suffix && !suffix.includes('--')) names.add(`${root}-${suffix}`)
+    // Danh sách class/biến thể chỉ dùng cho editor (LSP): bản CDN (`__XCSS_EDITOR__` = false) bỏ hẳn phần này.
+    if (EDITOR_BUILD) {
+        // Danh sách class (cho gợi ý của editor): class tường minh, họ × bộ giá trị, giá trị theme của dự án,
+        // `@utility` của dự án. Chỉ giữ class mà phương ngữ thật sự sinh được CSS.
+        let classListCache: string[] | null = null
+        dialect.classList = () => {
+            if (classListCache) return classListCache
+            activate()
+            const names = new Set<string>(Object.keys(explicit))
+            const SPACING = ['0', '0.5', '1', '1.5', '2', '2.5', '3', '3.5', '4', '5', '6', '7', '8', '9', '10', '11', '12', '14', '16', '20', '24', '28', '32', '36', '40', '44', '48', '52', '56', '60', '64', '72', '80', '96']
+            for (const [root, entries] of Object.entries(families)) {
+                for (const [templateIndex, setIndex] of entries) {
+                    if (setIndex === -1) SPACING.forEach((v) => names.add(`${root}-${v}`))
+                    else valueSet(setIndex).forEach((v) => names.add(`${root}-${v}`))
+                    if (ownTheme !== defaultTheme) {
+                        const text = templates[templateIndex].slice(1).map((i) => declTable[i]).join(';')
+                        for (const m of text.matchAll(/var\((--[\w-]*?)\{v\}\)/g)) {
+                            for (const key of Object.keys(options.theme || {})) {
+                                const suffix = key.slice(m[1].length)
+                                if (key.startsWith(m[1]) && suffix && !suffix.includes('--')) names.add(`${root}-${suffix}`)
+                            }
                         }
                     }
                 }
             }
+            for (const [name] of staticUtilities) names.add(name)
+            names.add('container')
+            classListCache = [...names].map((name) => (prefix ? `${prefix}:${name}` : name)).filter((name) => !!dialect(name)).sort(compare)
+            return classListCache
         }
-        for (const [name] of staticUtilities) names.add(name)
-        names.add('container')
-        classListCache = [...names].map((name) => (prefix ? `${prefix}:${name}` : name)).filter((name) => !!dialect(name)).sort(compare)
-        return classListCache
-    }
-    /** Tên biến thể dùng được trước `:` (cho gợi ý). */
-    dialect.variantList = () => {
-        activate()
-        const list = Object.entries(ORDER_ROOTS).filter(([, [kind]]) => kind === 's').map(([name]) => name)
-        for (const key of RESPONSIVE) list.push(`max-${key}`)
-        for (const size of CONTAINER_SIZES) list.push(`@${size}`, `@max-${size}`)
-        for (const state of ['hover', 'focus', 'focus-visible', 'focus-within', 'active', 'checked', 'disabled', 'invalid']) list.push(`group-${state}`, `peer-${state}`)
-        list.push('aria-checked', 'aria-disabled', 'aria-expanded', 'aria-invalid', 'aria-selected', 'has-checked', 'not-first', 'not-last')
-        return [...new Set(list)]
+        /** Tên biến thể dùng được trước `:` (cho gợi ý). */
+        dialect.variantList = () => {
+            activate()
+            const list = Object.entries(ORDER_ROOTS).filter(([, [kind]]) => kind === 's').map(([name]) => name)
+            for (const key of RESPONSIVE) list.push(`max-${key}`)
+            for (const size of CONTAINER_SIZES) list.push(`@${size}`, `@max-${size}`)
+            for (const state of ['hover', 'focus', 'focus-visible', 'focus-within', 'active', 'checked', 'disabled', 'invalid']) list.push(`group-${state}`, `peer-${state}`)
+            list.push('aria-checked', 'aria-disabled', 'aria-expanded', 'aria-invalid', 'aria-selected', 'has-checked', 'not-first', 'not-last')
+            return [...new Set(list)]
+        }
     }
     // CSS của dự án: mở rộng `@apply`, khai triển `--alpha()`/`--spacing()`/`--theme()`; biến theme mà CSS đó
     // đọc (`--border: var(--color-black)`) được khai báo ở `:root` trong layer thấp nhất, trước preflight và

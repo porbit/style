@@ -22,7 +22,7 @@ const CDN = {
 // đầu src/core.ts) để bundler loại bỏ chúng (52,1 -> 40,9 KB gzip). Chỉ áp cho bản ESM tự chứa; bản CJS
 // `dist/tailwind-auto.js` dùng chung chunk với entry khác nên chunk vẫn đủ (entry tự truyền `dictionaryImport: false`).
 const { 'tailwind-auto': TAILWIND_AUTO, ...CDN_FULL } = CDN
-const CDN_LITE_DEFINE = { __XCSS_CACHE__: 'false', __XCSS_DICTIONARY__: 'false' }
+const CDN_LITE_DEFINE = { __XCSS_CACHE__: 'false', __XCSS_DICTIONARY__: 'false', __XCSS_EDITOR__: 'false' }
 
 // index.mjs import thẳng từ CDN vẫn chạy (chunk là đường dẫn tương đối); tách riêng thì gói thêm ~100 KB.
 const LIBRARY = {
@@ -58,6 +58,7 @@ const common: Options = {
         // Cờ build của lõi (đầu src/core.ts): mặc định bật đủ; bản CDN Tailwind ghi đè bằng CDN_LITE_DEFINE.
         __XCSS_CACHE__: 'true',
         __XCSS_DICTIONARY__: 'true',
+        __XCSS_EDITOR__: 'true',
     },
 }
 

@@ -1,22 +1,22 @@
 {
   "hyperui": {
-    "converted": 611,
-    "classes": 607,
-    "combos": 673,
+    "converted": 619,
+    "classes": 619,
+    "combos": 766,
     "total": 619,
     "comboTotal": 766
   },
   "magicui": {
-    "converted": 572,
-    "classes": 573,
-    "combos": 237,
+    "converted": 586,
+    "classes": 586,
+    "combos": 245,
     "total": 586,
     "comboTotal": 245
   },
   "coss-ui": {
-    "converted": 1284,
-    "classes": 0,
-    "combos": 0,
+    "converted": 1331,
+    "classes": 1330,
+    "combos": 377,
     "total": 1331,
     "comboTotal": 379
   }
