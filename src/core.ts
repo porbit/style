@@ -2398,7 +2398,9 @@ export const xcss = (
          */
         const matches = (txtClass: string): boolean => shouldHashClass(txtClass)
 
-        return { clsx, observe, getCssString, destroy, matches }
+        // `apply`: dựng rule cho các class (một token mỗi phần tử) như clsx nhưng không đổi tên, không ghi nhớ chuỗi
+        // đầu ra — trích xuất tĩnh với `hashClassName: false` (đầu ra của clsx luôn trùng đầu vào).
+        return { clsx, observe, getCssString, destroy, matches, apply: applyObservedItems }
     }
 
 
@@ -2683,7 +2685,6 @@ export const xcss = (
                 className,
                 property: group.declarations.join(';'),
                 selector: selectorStr,
-                cssRules: `.${className}${selectorStr}{${group.declarations.join(';')}}`,
                 order,
             })
         }
@@ -2787,7 +2788,6 @@ export const xcss = (
                     className,
                     property: cssPropItems.join(';'),
                     selector: selectorStr,
-                    cssRules: `.${className}${selectorStr}{${cssPropItems.join(';')}}`,
                 }
             }
         }
@@ -2823,7 +2823,6 @@ export const xcss = (
             className,
             property: cssPropItems.join(';'),
             selector: selectorStr,
-            cssRules: `.${className}${selectorStr}{${cssPropItems.join(';')}}`,
         }
     }
 

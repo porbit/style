@@ -166,7 +166,9 @@ export const extractFromClasses = async (
     let matched = 0
 
     for (const candidate of candidates) {
-        const output = built.clsx(candidate)
+        // Không đổi tên: dựng rule thẳng, không qua clsx (đầu ra trùng đầu vào). Hỏi `matches` ngay sau khi dựng: kết
+        // quả giải class còn trong bộ nhớ đệm có giới hạn của engine.
+        const output = keepOriginalNames ? (built.apply([candidate]), candidate) : built.clsx(candidate)
         if (keepOriginalNames ? built.matches(candidate) : output !== candidate) {
             matched++
             matchedClasses.push(candidate)

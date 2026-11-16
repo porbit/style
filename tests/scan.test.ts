@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { extractCandidates } from '../src/extract'
-import { createScanner, scanCandidates, scanFiles, type CandidateCacheEntry } from '../src/scan'
+import { candidatesOfEntry, createScanner, scanCandidates, scanFiles, type CandidateCacheEntry } from '../src/scan'
 
 const FIXTURES = join(__dirname, '..', 'eval', 'fixtures')
 const SOURCE = /\.(html|tsx?|jsx?|mjs|md|mdx|vue|svelte)$/
@@ -129,7 +129,7 @@ describe('scanFiles', () => {
         expect(again.list).toEqual(sequential.list)
         for (const file of files.slice(0, 50)) {
             if (file === files[5]) continue
-            expect(parallel.cache.get(file)?.candidates).toEqual(sequential.cache.get(file)?.candidates)
+            expect(candidatesOfEntry(parallel.cache.get(file)!)).toEqual(candidatesOfEntry(sequential.cache.get(file)!))
         }
         // Mọi file đổi mtime (đổi nhánh git): đọc lại song song dù đã có bộ nhớ đệm.
         const later = new Date(Date.now() + 60_000)
