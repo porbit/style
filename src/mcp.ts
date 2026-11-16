@@ -18,7 +18,8 @@ import { findClassConflicts } from './class-tools'
 import { explainClass, fixClasses, generateCssFor, searchDictionary } from './analyze'
 import { SHORT_PROPERTIES, SPECIFIC_VALUES, COMMON_VALUES } from './dictionary'
 export { suggestClassFix } from './analyze'
-import { extractCandidates, extractFromClasses } from './extract'
+import { extractFromClasses } from './extract'
+import { scanCandidates } from './scan'
 import { convertTailwindClasses, tailwindFixFallback, type TailwindConversionMode } from './tailwind'
 import { setTailwindFallback } from './analyze'
 import { collectFiles, DEFAULT_EXTENSIONS } from './files'
@@ -233,7 +234,7 @@ export const TOOLS: ToolDefinition[] = [
         annotations: READ_ONLY,
         run: async (args, ctx) => {
             const candidates = new Set<string>()
-            if (typeof args.source === 'string') extractCandidates(args.source).forEach((c) => candidates.add(c))
+            if (typeof args.source === 'string') scanCandidates(args.source).forEach((c) => candidates.add(c))
 
             const files: string[] = []
             const extensions = Array.isArray(args.extensions) && args.extensions.length
@@ -247,7 +248,7 @@ export const TOOLS: ToolDefinition[] = [
             for (const file of files) {
                 const info = await stat(file).catch(() => null)
                 if (!info || info.size > MAX_FILE_BYTES) continue
-                extractCandidates(await readFile(file, 'utf8').catch(() => '')).forEach((c) => candidates.add(c))
+                scanCandidates(await readFile(file, 'utf8').catch(() => '')).forEach((c) => candidates.add(c))
             }
             if (!candidates.size && !(args.safelist || []).length) {
                 return { text: 'Không tìm thấy class nào. Truyền `source` hoặc `paths`.', isError: true }

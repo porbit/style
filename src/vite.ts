@@ -21,7 +21,8 @@ import { extname, isAbsolute, relative, resolve } from 'node:path'
 import { collectFiles, DEFAULT_EXTENSIONS } from './files'
 import { createShortClassNames, type ShortClassNames, type ShortClassNamesOptions } from './shorten'
 import { getComponentClasses } from './components'
-import { createPreloadManifest, extractCandidates, extractFromClasses, type ExtractOptions, type PreloadManifest } from './extract'
+import { createPreloadManifest, extractFromClasses, type ExtractOptions, type PreloadManifest } from './extract'
+import { scanCandidates } from './scan'
 import { buildMergeTable, type MergeTable } from './merge'
 
 export interface PresenceStyleViteOptions extends ExtractOptions {
@@ -89,7 +90,7 @@ export default function presenceStyle(options: PresenceStyleViteOptions = {}) {
     const scanFile = async (file: string) => {
         const source = await readFile(file, 'utf8').catch(() => null)
         if (source === null) fileCandidates.delete(file)
-        else fileCandidates.set(file, extractCandidates(source))
+        else fileCandidates.set(file, scanCandidates(source))
     }
 
     const cleanId = (id: string) => id.split('?')[0]

@@ -1,7 +1,7 @@
 /** Liệt kê file nguồn cho CLI và MCP server. */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname as dirnamePath, join, join as joinPath, resolve, resolve as resolvePath } from 'node:path'
+import { dirname as dirnamePath, join, join as joinPath, resolve, resolve as resolvePath, sep } from 'node:path'
 import { loadTailwindConfigFile, mergeTailwindConfigs, tailwindConfigToCss } from './tailwind-config'
 import { createTailwindPluginLoader, requireWithTailwindShims, type TailwindPluginLoader } from './tailwind-plugin-api'
 
@@ -25,16 +25,20 @@ export const collectFilesSync = (target: string, extensions: string[]): string[]
     if (!info.isDirectory()) return []
 
     const files: string[] = []
+    const wanted = new Set(extensions)
     const walk = (dir: string) => {
+        // Nối chuỗi thay cho path.join (join chuẩn hoá lại cả đường dẫn ở mỗi file; tên từ readdir không có dấu phân cách).
+        const prefix = dir.endsWith(sep) ? dir : dir + sep
         for (const entry of readdirSync(dir, { withFileTypes: true })) {
-            if (entry.name.startsWith('.')) continue
-            const full = join(dir, entry.name)
+            const name = entry.name
+            if (name.startsWith('.')) continue
+            const full = prefix + name
             if (entry.isDirectory()) {
-                if (!SKIP_DIRS.has(entry.name)) walk(full)
+                if (!SKIP_DIRS.has(name)) walk(full)
                 continue
             }
-            const dot = entry.name.lastIndexOf('.')
-            if (dot !== -1 && extensions.includes(entry.name.slice(dot + 1).toLowerCase())) files.push(full)
+            const dot = name.lastIndexOf('.')
+            if (dot !== -1 && wanted.has(name.slice(dot + 1).toLowerCase())) files.push(full)
         }
     }
     walk(absolute)
@@ -42,15 +46,6 @@ export const collectFilesSync = (target: string, extensions: string[]): string[]
 }
 
 export const collectFiles = async (target: string, extensions: string[]): Promise<string[]> => collectFilesSync(target, extensions)
-
-/** Đọc file UTF-8, trả chuỗi rỗng nếu lỗi. */
-export const readTextSync = (file: string): string => {
-    try {
-        return readFileSync(file, 'utf8')
-    } catch (_error) {
-        return ''
-    }
-}
 
 /**
  * Đọc stylesheet cho `resolveConfigFile({ tailwindCss })`: đường dẫn tương đối với `baseDir`,

@@ -78,3 +78,20 @@ Thêm dự án: tạo `fixtures/<tên>/` với file CSS, thư mục nguồn và 
 `dark` tuỳ chọn: thuộc tính đặt trên `<html>` ở lượt tối thay cho `class="dark"`). Plugin JS chưa đóng gói sẵn
 (`@plugin "daisyui"`) chạy qua API giả lập ở cả hai chế độ.
 Kết quả tổng hợp: [REAL-PROJECTS.md](./REAL-PROJECTS.md).
+
+## Thời Gian Build Tĩnh
+
+`build-bench.mjs` đo plugin PostCSS (`compileTailwindCss`) so với Tailwind CLI v4 (`@tailwindcss/node` `compile()` +
+`@tailwindcss/oxide` `Scanner` + Lightning CSS `optimize()`, đúng như `@tailwindcss/cli --minify`) trên ~6.000 file
+nhân bản từ `fixtures/{hyperui,coss-ui,magicui,shadcn-v4}`. cold: mỗi lượt một tiến trình mới; warm: cùng tiến trình,
+mọi file đổi mtime trước mỗi lượt. Hai phía chạy xen kẽ, báo trung vị; kèm thời gian từng pha (liệt kê file, đọc +
+trích ứng viên, sinh CSS) và kiểm CSS của các bản build ta trùng byte. Gói Tailwind không có trong `devDependencies`:
+cài riêng (`npm i @tailwindcss/cli` vào một thư mục) rồi trỏ `--tw=`.
+
+```bash
+npm run build
+node eval/build-bench.mjs --tw=/thư/mục/có/node_modules                    # -> build-bench.json
+node eval/build-bench.mjs --tw=... --ours=dist,trước=/đường/dẫn/dist-cũ --single-thread
+```
+
+Máy bận (tải 1 phút ghi trong JSON) làm số đo dao động mạnh: chỉ so các phía trong cùng một lần chạy.

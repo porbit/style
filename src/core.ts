@@ -2166,6 +2166,31 @@ export const xcss = (
 
         emitter.on('observeDom' as any, processObservedItems)
 
+        // Class có sinh được CSS không (quyết định có hash tên class). Ở ngoài clsx: không dựng lại closure
+        // mỗi lần gọi, và `matches` dùng lại cho trích xuất tĩnh.
+        const shouldHashClass = (txtClass: string): boolean => {
+            if (!shouldProcessClass(txtClass)) return false
+
+            if (dictionaryReady) {
+                return !!classToProp(txtClass)
+            }
+
+            const parseTarget = prefix ? txtClass.slice(prefix.length) : txtClass
+            const parsed = parseClassName(parseTarget)
+            if (!parsed) return false
+            if (!isValidMediaKey(parsed.mq)) return false
+
+            const selectorStr = (parsed.selector || '').replace(/(';|;)/g, (v: string) => (v == "';" ? ';' : ' '))
+            if (selectorStr && !isLikelyValidSelectorFallback(selectorStr)) return false
+
+            if (parsed.prop.startsWith('[')) {
+                return !!propsValueExt(parsed.prop + parsed.val)
+            }
+            if (!isKnownPropertyKey(parsed.prop)) return false
+            if (parsed.prop === '&') return parsed.val.length > 0
+            return parsed.val.length > 0
+        }
+
         // Memo cho trường hợp phổ biến nhất: clsx('chuỗi class tĩnh') gọi lặp ở mỗi render.
         // Chỉ dùng khi dictionary đã sẵn sàng (kết quả hash phụ thuộc dictionary).
         const clsxStringCache = new Map<string, string>()
@@ -2220,29 +2245,6 @@ export const xcss = (
                         tokenStart = -1
                     }
                 }
-            }
-
-            const shouldHashClass = (txtClass: string): boolean => {
-                if (!shouldProcessClass(txtClass)) return false
-
-                if (dictionaryReady) {
-                    return !!classToProp(txtClass)
-                }
-
-                const parseTarget = prefix ? txtClass.slice(prefix.length) : txtClass
-                const parsed = parseClassName(parseTarget)
-                if (!parsed) return false
-                if (!isValidMediaKey(parsed.mq)) return false
-
-                const selectorStr = (parsed.selector || '').replace(/(';|;)/g, (v: string) => (v == "';" ? ';' : ' '))
-                if (selectorStr && !isLikelyValidSelectorFallback(selectorStr)) return false
-
-                if (parsed.prop.startsWith('[')) {
-                    return !!propsValueExt(parsed.prop + parsed.val)
-                }
-                if (!isKnownPropertyKey(parsed.prop)) return false
-                if (parsed.prop === '&') return parsed.val.length > 0
-                return parsed.val.length > 0
             }
 
             const lsClassNew: string[] = []
@@ -2347,7 +2349,13 @@ export const xcss = (
             cssSupportsCache.clear()
         }
 
-        return { clsx, observe, getCssString, destroy }
+        /**
+         * Class (một token) có sinh được CSS không — đúng điều kiện clsx dùng để hash tên class. Trích xuất tĩnh
+         * với `hashClassName: false` dùng hàm này để đếm class khớp thay vì dựng thêm một engine bật hash.
+         */
+        const matches = (txtClass: string): boolean => shouldHashClass(txtClass)
+
+        return { clsx, observe, getCssString, destroy, matches }
     }
 
 

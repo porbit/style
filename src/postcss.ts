@@ -10,9 +10,10 @@
  * `@source inline("...")`, `@import "tailwindcss" source("../src")` / `source(none)`.
  * Không phụ thuộc gói `postcss` (dùng `postcss` do trình chạy truyền vào).
  */
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { extractCandidates, extractFromClasses, type ExtractOptions } from './extract'
+import { extractFromClasses, type ExtractOptions } from './extract'
+import { scanFiles, type CandidateCacheEntry } from './scan'
 import { collectFilesSync, createConfigLoader, createStylesheetReader } from './files'
 import { resolveTailwindPlugin } from './tailwind-plugins'
 import { TAILWIND_PLUGIN_CSS } from './tailwind-plugins-generated'
@@ -42,11 +43,12 @@ const TAILWIND_ENTRY = /@import\s+["']tailwindcss(?:\/[\w./-]+)?["']|@tailwind\s
 /** Mở rộng `{a,b}` và `{100..900..100}` như `@source inline()` của Tailwind (dùng chung với `@source not inline()`). */
 export { expandBraces }
 
-/** Đọc .gitignore gốc: tên thư mục/file và mẫu `*` đơn giản. */
-const gitignoreMatcher = (baseDir: string): ((rel: string) => boolean) => {
+/** Đọc .gitignore gốc: tên thư mục/file và mẫu `*` đơn giản. Không có mẫu nào thì trả null (khỏi tính đường dẫn tương đối). */
+const gitignoreMatcher = (baseDir: string): ((rel: string) => boolean) | null => {
     const file = join(baseDir, '.gitignore')
-    if (!existsSync(file)) return () => false
+    if (!existsSync(file)) return null
     const patterns = readFileSync(file, 'utf8').split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('#') && !line.startsWith('!'))
+    if (!patterns.length) return null
     const regexes = patterns.map((p) => {
         const anchored = p.startsWith('/')
         const body = p.replace(/^\//, '').replace(/\/$/, '').replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*')
@@ -56,25 +58,7 @@ const gitignoreMatcher = (baseDir: string): ((rel: string) => boolean) => {
 }
 
 // Bộ nhớ đệm theo mtime: chế độ watch chỉ đọc lại file đã đổi.
-const candidateCache = new Map<string, { mtime: number; candidates: string[] }>()
-const candidatesOf = (file: string): string[] => {
-    let mtime = 0
-    try {
-        mtime = statSync(file).mtimeMs
-    } catch (_error) {
-        return []
-    }
-    const cached = candidateCache.get(file)
-    if (cached && cached.mtime === mtime) return cached.candidates
-    let candidates: string[] = []
-    try {
-        candidates = extractCandidates(readFileSync(file, 'utf8'))
-    } catch (_error) {
-        candidates = []
-    }
-    candidateCache.set(file, { mtime, candidates })
-    return candidates
-}
+const candidateCache = new Map<string, CandidateCacheEntry>()
 
 export interface CompiledTailwindCss {
     css: string
@@ -83,11 +67,14 @@ export interface CompiledTailwindCss {
     /** File CSS đã đọc qua `@import`. */
     imports: string[]
     candidates: number
+    /** Thời gian từng pha (ms): đọc CSS/plugin, liệt kê file, đọc + trích ứng viên, sinh CSS; số luồng phụ đã dùng để trích. */
+    timings: { setup: number; scan: number; extract: number; generate: number; workers: number }
 }
 
 /** Biên dịch một file CSS kiểu Tailwind v4 (dùng chung cho plugin PostCSS và công cụ khác). */
 export const compileTailwindCss = async (css: string, options: PresenceStylePostcssOptions & { from?: string } = {}): Promise<CompiledTailwindCss> => {
     const { base = process.cwd(), extensions = POSTCSS_EXTENSIONS, optimize = true, from, safelist = [], mergeTable, ...rest } = options
+    const t0 = performance.now()
     const cssDir = from ? dirname(from) : base
     const imports: string[] = []
     const reader = createStylesheetReader(cssDir)
@@ -136,17 +123,25 @@ export const compileTailwindCss = async (css: string, options: PresenceStylePost
         const target = resolve(cssDir, m[5].replace(/\/\*\*.*$/, '').replace(/\/\*.*$/, ''))
         ;(negated ? excluded : roots).push(target)
     }
+    const t1 = performance.now()
     const files = new Set<string>()
     for (const dir of roots) {
         const ignored = gitignoreMatcher(dir)
+        // File liệt kê từ `dir` luôn bắt đầu bằng `dir` + dấu phân cách: cắt chuỗi thay cho path.relative (chậm).
+        const prefix = dir.endsWith(sep) ? dir : dir + sep
         for (const file of collectFilesSync(dir, extensions)) {
-            const rel = relative(dir, file).split(sep).join('/')
-            if (ignored(rel) || excluded.some((ex) => file === ex || file.startsWith(ex + sep))) continue
+            if (ignored) {
+                const rel = file.startsWith(prefix) ? file.slice(prefix.length) : relative(dir, file)
+                if (ignored(sep === '/' ? rel : rel.split(sep).join('/'))) continue
+            }
+            if (excluded.length && excluded.some((ex) => file === ex || file.startsWith(ex + sep))) continue
             files.add(file)
         }
     }
+    const t2 = performance.now()
     const candidates = new Set<string>(inline)
-    for (const file of files) for (const candidate of candidatesOf(file)) candidates.add(candidate)
+    const { workers } = await scanFiles([...files], candidateCache, candidates)
+    const t3 = performance.now()
 
     const preflight = /@import\s+["']tailwindcss(?:\/preflight(?:\.css)?)?["']|@tailwind\s+base\b/.test(css)
     const dialect = tailwindV4Dialect({ preflight, theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, css: sheet.css, prefix: sheet.prefix, important: sheet.important, blocklist: sheet.blocklist })
@@ -163,7 +158,9 @@ export const compileTailwindCss = async (css: string, options: PresenceStylePost
         // Chỉ ghi khi đổi: tránh vòng lặp watch.
         if (previous !== json) writeFileSync(target, json)
     }
-    return { css: result.css, directories: roots, imports, candidates: candidates.size }
+    const t4 = performance.now()
+    const timings = { setup: t1 - t0, scan: t2 - t1, extract: t3 - t2, generate: t4 - t3, workers }
+    return { css: result.css, directories: roots, imports, candidates: candidates.size, timings }
 }
 
 interface MinimalRoot {

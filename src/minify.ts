@@ -8,29 +8,55 @@
 
 type Block = { head: string; body: string } | { text: string }
 
+// Nhảy tới ký tự đáng chú ý kế tiếp bằng regex (tìm kiếm gốc) thay cho duyệt từng ký tự trong JS: nhanh hơn hẳn
+// khi chưa được JIT (build tĩnh chỉ chạy một lần).
+const NON_SPACE = /\S/g
+const HEAD_STOP = /["'(){;]/g
+const BODY_STOP = /["'{}]/g
+const DOUBLE_STOP = /[\\"]/g
+const SINGLE_STOP = /[\\']/g
+const find = (re: RegExp, css: string, from: number): number => {
+    re.lastIndex = from
+    return re.exec(css) ? re.lastIndex - 1 : css.length
+}
+/**
+ * Vị trí ngay sau chuỗi trích dẫn mở tại `i` (`\` bỏ qua ký tự kế tiếp). Chuỗi không đóng: vị trí cuối như vòng
+ * lặp từng ký tự trước đây (vượt độ dài 1 khi `\` là ký tự cuối).
+ */
+const skipQuote = (css: string, i: number): number => {
+    const re = css[i] === '"' ? DOUBLE_STOP : SINGLE_STOP
+    let j = i + 1
+    for (;;) {
+        if (j >= css.length) return j
+        j = find(re, css, j)
+        if (j >= css.length) return j
+        if (css[j] !== '\\') return j + 1
+        j += 2
+    }
+}
+
 /** Tách CSS thành các khối cấp cao nhất (`head{body}` hoặc câu lệnh `...;`). */
 const splitBlocks = (css: string): Block[] => {
     const blocks: Block[] = []
+    const length = css.length
     let i = 0
-    while (i < css.length) {
-        while (i < css.length && /\s/.test(css[i])) i++
-        if (i >= css.length) break
+    while ((i = find(NON_SPACE, css, i)) < length) {
         let j = i
-        let quote = ''
         let parens = 0
         // Đọc phần đầu tới `{` hoặc `;` ở cấp ngoài cùng.
-        while (j < css.length) {
+        while (j < length) {
+            if ((j = find(HEAD_STOP, css, j)) >= length) break
             const ch = css[j]
-            if (quote) {
-                if (ch === '\\') j++
-                else if (ch === quote) quote = ''
-            } else if (ch === '"' || ch === "'") quote = ch
-            else if (ch === '(') parens++
+            if (ch === '"' || ch === "'") {
+                j = skipQuote(css, j)
+                continue
+            }
+            if (ch === '(') parens++
             else if (ch === ')') parens--
-            else if (parens === 0 && (ch === '{' || ch === ';')) break
+            else if (parens === 0) break
             j++
         }
-        if (j >= css.length || css[j] === ';') {
+        if (j >= length || css[j] === ';') {
             blocks.push({ text: css.slice(i, j + 1).trim() })
             i = j + 1
             continue
@@ -38,16 +64,14 @@ const splitBlocks = (css: string): Block[] => {
         const head = css.slice(i, j).trim()
         let depth = 1
         let k = j + 1
-        quote = ''
-        while (k < css.length && depth > 0) {
+        while (depth > 0 && k < length) {
+            if ((k = find(BODY_STOP, css, k)) >= length) break
             const ch = css[k]
-            if (quote) {
-                if (ch === '\\') k++
-                else if (ch === quote) quote = ''
-            } else if (ch === '"' || ch === "'") quote = ch
-            else if (ch === '{') depth++
-            else if (ch === '}') depth--
-            k++
+            if (ch === '"' || ch === "'") k = skipQuote(css, k)
+            else {
+                depth += ch === '{' ? 1 : -1
+                k++
+            }
         }
         blocks.push({ head, body: css.slice(j + 1, k - 1) })
         i = k
@@ -58,7 +82,9 @@ const splitBlocks = (css: string): Block[] => {
 const LAYER_HEAD = /^@layer\s+(l\d+)$/
 const NESTING_HEAD = /^@(media|supports|layer|container|scope)\b/
 
-const serialize = (blocks: Block[], prune: (head: string) => boolean): string => {
+// `nested`: kết quả serialize của thân khối lồng nhau theo nội dung — hai lượt của minifyCss gặp lại gần như mọi thân
+// khối (chỉ khối chứa preflight đổi), và `prune` cho cùng kết quả ở cả hai lượt.
+const serialize = (blocks: Block[], prune: (head: string) => boolean, nested: Map<string, string>): string => {
     let out = ''
     let openLayer = ''
     let layerBody = ''
@@ -75,7 +101,12 @@ const serialize = (blocks: Block[], prune: (head: string) => boolean): string =>
         }
         if (prune(block.head)) continue
         const layer = block.head.match(LAYER_HEAD)
-        const body = NESTING_HEAD.test(block.head) ? serialize(splitBlocks(block.body), prune) : block.body.trim()
+        let body: string
+        if (NESTING_HEAD.test(block.head)) {
+            const cached = nested.get(block.body)
+            body = cached ?? serialize(splitBlocks(block.body), prune, nested)
+            if (cached === undefined) nested.set(block.body, body)
+        } else body = block.body.trim()
         if (layer) {
             if (openLayer !== layer[1]) {
                 flushLayer()
@@ -108,10 +139,22 @@ export const minifyCss = (css: string): string => {
     const isFallbackDecl = (decl: string) => /^--[\w-]+:/.test(decl.trim())
     // Biến được dùng nếu xuất hiện ngoài khai báo dự phòng của chính nó.
     const usageWithoutFallback = usage.replace(/\*,\s*::before,\s*::after,\s*::backdrop\{[^}]*\}/g, '')
-    const usedVar = (name: string) => new RegExp(name.replace(/[-]/g, '\\-') + '(?![\\w-])').test(usageWithoutFallback)
+    // Biến `--x` được dùng nếu là đuôi của một dãy ký tự [\w-] liền nhau (như regex `--x(?![\w-])`): gom mọi đuôi
+    // bắt đầu bằng `--` của các dãy đó một lần, thay cho dựng và chạy một regex trên toàn bộ CSS cho từng @property.
+    const varSuffixes = new Set<string>()
+    for (const run of usageWithoutFallback.match(/[\w-]+/g) || []) {
+        for (let i = run.indexOf('--'); i !== -1; i = run.indexOf('--', i + 1)) varSuffixes.add(run.slice(i))
+    }
+    const usedVar = (name: string) => varSuffixes.has(name)
 
     const prunedVars = new Set<string>()
+    const pruneCache = new Map<string, boolean>()
     const prune = (head: string): boolean => {
+        let result = pruneCache.get(head)
+        if (result === undefined) pruneCache.set(head, (result = pruneHead(head)))
+        return result
+    }
+    const pruneHead = (head: string): boolean => {
         const property = head.match(/^@property\s+(--[\w-]+)$/)
         if (property && !usedVar(property[1])) {
             prunedVars.add(property[1])
@@ -122,10 +165,11 @@ export const minifyCss = (css: string): string => {
         return false
     }
     // Lượt 1 để biết biến nào bị bỏ; lượt 2 bỏ luôn khai báo dự phòng tương ứng.
-    serialize(blocks, prune)
+    const nested = new Map<string, string>()
+    serialize(blocks, prune, nested)
     const cleaned = css.replace(/(\*,\s*::before,\s*::after,\s*::backdrop\{)([^}]*)\}/g, (_m, open: string, decls: string) => {
         const kept = decls.split(';').filter((d) => d.trim() && (!isFallbackDecl(d) || !prunedVars.has(d.trim().split(':')[0])))
         return `${open}${kept.join(';')}}`
     })
-    return serialize(splitBlocks(cleaned), prune)
+    return serialize(splitBlocks(cleaned), prune, nested)
 }

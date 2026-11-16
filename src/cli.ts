@@ -6,9 +6,11 @@
  *   npx presence-style extract index.html --out out.css --config presence-style.config.json
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
-import { collectFiles, createConfigLoader, createStylesheetReader, DEFAULT_EXTENSIONS, readTextSync } from './files'
-import { createPreloadManifest, extractFromClasses, extractCandidates, type ExtractOptions } from './extract'
+import { collectFiles, createConfigLoader, createStylesheetReader, DEFAULT_EXTENSIONS } from './files'
+import { createPreloadManifest, extractFromClasses, type ExtractOptions } from './extract'
+import { scanFiles } from './scan'
 import { startMcpServer } from './mcp'
 import { startLanguageServer } from './lsp'
 import { runInit } from './init'
@@ -164,7 +166,7 @@ const runShortenCommand = async (argv: string[]): Promise<number> => {
     }
     const files: string[] = []
     for (const input of inputs) files.push(...(await collectFiles(input, extensions)))
-    const sources = Object.fromEntries(files.map((file) => [file, readTextSync(file)]))
+    const sources = Object.fromEntries(files.map((file) => [file, readFileSync(file, 'utf8')]))
     const exclude = (values.exclude || '').split(',').map((x) => x.trim()).filter(Boolean).map((x) => {
         const re = /^\/(.+)\/([a-z]*)$/.exec(x)
         return re ? new RegExp(re[1], re[2]) : x
@@ -403,10 +405,9 @@ export const runCli = async (argv: string[]): Promise<number> => {
         return 1
     }
 
+    // Đọc + quét (nhiều file thì thêm luồng phụ), thứ tự ứng viên như quét tuần tự từng file.
     const candidates = new Set<string>()
-    for (const file of files) {
-        for (const candidate of extractCandidates(readTextSync(file))) candidates.add(candidate)
-    }
+    await scanFiles(files, new Map(), candidates)
 
     // Bảng gộp class cho `createMerge({ table })` (@porbit/style/merge/lite).
     if (command === 'merge-table') {
