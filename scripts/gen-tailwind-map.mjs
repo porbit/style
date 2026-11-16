@@ -38,6 +38,23 @@ const classList = ds.getClassList().map(([name]) => name)
     const css = ds.candidatesToCss(legacy)
     legacy.forEach((name, i) => css[i] && !known.has(name) && classList.push(name))
 }
+// Utility mà Tailwind vẫn sinh với giá trị trần nhưng getClassList không liệt kê giá trị số (`start-4`,
+// `end-0.5`, `aspect-3/7`...): thêm vài class dò (số, phân số) cho mỗi gốc utility của Tailwind để họ đó có
+// mẫu; class dò chỉ dùng dựng mẫu, không lưu thành class tường minh (xem `probeOnly`).
+const FUNCTIONAL_ROOTS = [...ds.utilities.keys('functional')]
+const probeOnly = new Set()
+{
+    const known = new Set(classList)
+    const extra = []
+    for (const r of FUNCTIONAL_ROOTS) for (const sign of ['', '-']) for (const v of ['4', '37', '1/2', '3/7']) extra.push(`${sign}${r}-${v}`)
+    const css = ds.candidatesToCss(extra)
+    extra.forEach((name, i) => {
+        if (!css[i] || known.has(name)) return
+        known.add(name)
+        classList.push(name)
+        probeOnly.add(name)
+    })
+}
 
 // ---------------------------------------------------------------------------
 // Phân tích CSS của một class
@@ -127,7 +144,7 @@ const parseClassCss = (name, css) => {
         if (index === -1) decls.push([prop, value])
         else decls[index] = [prop, value]
     }
-    if (approximate) approximateClasses.add(name)
+    if (approximate && !probeOnly.has(name)) approximateClasses.add(name)
     return { sel, decls, approximate }
 }
 
@@ -143,7 +160,7 @@ const unsupported = []
 classList.forEach((name, index) => {
     const rule = cssList[index] && parseClassCss(name, cssList[index])
     if (rule) parsed.set(name, rule)
-    else unsupported.push(name)
+    else if (!probeOnly.has(name)) unsupported.push(name)
 })
 
 const splitsOf = (name) => {
@@ -212,7 +229,7 @@ for (const group of groups) {
 const usedGroups = new Set(assigned.values())
 const explicit = {}
 for (const [name, rule] of parsed) {
-    if (!assigned.has(name)) explicit[name] = ruleKey(rule)
+    if (!assigned.has(name) && !probeOnly.has(name)) explicit[name] = ruleKey(rule)
 }
 
 // Bảng mẫu và tập giá trị dùng chung (chống lặp: bảng màu xuất hiện ở hàng chục họ).
@@ -236,33 +253,105 @@ const internValues = (values) => {
     return valueSetIndex.get(key)
 }
 const SPACING_TEMPLATE = /var\(--spacing\) \* \{v\}/
+// Giá trị trần ngoài bảng liệt kê: dò từng mẫu họ bằng chính Tailwind với giá trị lạ. Họ nhận được ghi dấu
+// trong bộ giá trị (`#int 0 10 ... auto`: mọi số nguyên không âm, kèm giá trị liệt kê), như Tailwind kiểm `--value(integer)`...
+//   #int  số nguyên không âm (`z-1`, `scale-84`, `duration-450`),
+//   #pint số nguyên dương (`grid-cols-37`; `grid-cols-0` không hợp lệ),
+//   #q    bội của 0.25 (`opacity-64`, `opacity-7.5`),
+//   #num  số không âm bất kỳ,
+//   #frac phân số a/b (`aspect-3/7`, `w-3/7`).
+// Số viết chuẩn như Tailwind (`String(Number(v)) === v`: không nhận `01`, `1.50`). Họ spacing nhận bội 0.25
+// vẫn lưu -1 như trước.
+const BARE_PROBES = [['#int', '37'], ['#q', '13.25'], ['#num', '0.3'], ['#frac', '3/7'], ['#zero', '0']]
+// So sau khi bỏ khoảng trắng quanh `/`: Tailwind viết phân số liệt kê `1/2` nhưng phân số trần `3 / 7`
+// (cùng giá trị tính).
+const sameBare = (template, value, key) => normalizeKey(instantiate(template, value)).replace(/ \/ /g, '/') === normalizeKey(key).replace(/ \/ /g, '/')
+const bareKinds = new Map() // group -> ['#int', ...]
+{
+    const list = [...usedGroups]
+    const names = list.flatMap((group) => BARE_PROBES.map(([, v]) => `${group.root}-${v}`))
+    const out = ds.candidatesToCss(names)
+    list.forEach((group, g) => {
+        const ok = BARE_PROBES.filter(([, v], p) => {
+            const css = out[g * BARE_PROBES.length + p]
+            const rule = css && parseClassCss(`${group.root}-${v}`, css)
+            return !!rule && sameBare(group.template, v, ruleKey(rule))
+        }).map(([kind]) => kind)
+        // `grid-cols-0` không hợp lệ (Tailwind: số nguyên dương) dù `grid-cols-37` hợp lệ.
+        let numberKind = ['#num', '#q', '#int'].find((kind) => ok.includes(kind))
+        if (numberKind === '#int' && !ok.includes('#zero') && !group.values.includes('0')) numberKind = '#pint'
+        bareKinds.set(group, [numberKind, ok.includes('#frac') ? '#frac' : null].filter(Boolean))
+    })
+}
 const families = {} // root -> [[templateIdx, valueSetIdx | -1 (số bất kỳ bội 0.25)]]
 for (const group of usedGroups) {
     const members = group.names.filter((n) => assigned.get(n) === group)
-    const values = members.map((n) => group.values[group.names.indexOf(n)])
-    const numeric = SPACING_TEMPLATE.test(group.template) && values.every((v) => /^\d+(\.\d+)?$/.test(v))
-    ;(families[group.root] ||= []).push([internTemplate(group.template), numeric ? -1 : internValues(values)])
+    // Class dò chỉ dùng để dựng mẫu: không thành giá trị liệt kê.
+    const values = members.filter((n) => !probeOnly.has(n)).map((n) => group.values[group.names.indexOf(n)])
+    const kinds = bareKinds.get(group)
+    const numeric = SPACING_TEMPLATE.test(group.template) && kinds.includes('#q') && values.every((v) => /^\d+(\.\d+)?$/.test(v))
+    if (numeric) {
+        ;(families[group.root] ||= []).push([internTemplate(group.template), -1])
+        continue
+    }
+    // Giá trị liệt kê vẫn giữ (gợi ý của editor dựng từ đây) cạnh dấu loại.
+    if (!values.length && !kinds.length) continue
+    ;(families[group.root] ||= []).push([internTemplate(group.template), internValues([...kinds, ...values])])
 }
 
 // ---------------------------------------------------------------------------
 // Giá trị tuỳ ý: thăm dò từng họ với giá trị mẫu theo kiểu
 // ---------------------------------------------------------------------------
 
-const PROBES = { length: '3px', color: '#123456', number: '7', any: 'probe' }
-const roots = new Set([...Object.keys(families), ...classList.map((n) => splitsOf(n)[0]?.[0]).filter(Boolean)])
+// Loại suy từ giá trị (bộ giải mã đoán loại theo cùng thứ tự): `image` (url()/gradient, cả danh sách nhiều lớp),
+// `position` (`left 3px`), `size` (`3px auto`) — cần cho `bg-[...]`, nơi Tailwind chọn background-image/
+// -position/-size theo loại thay vì màu.
+// `var`: giá trị bắt đầu bằng `var(` (cả cú pháp `bg-(--x)`) — Tailwind không đoán loại, dùng nhánh mặc định của họ
+// (`font-(--x)` -> font-weight trong khi `font-[probe]` -> font-family).
+const PROBES = { length: '3px', color: '#123456', number: '7', any: 'probe', image: 'url(probe)', position: 'left_3px', size: '3px_auto', var: 'var(--probe)' }
+// Gợi ý kiểu (`bg-[length:200%]`, `border-(length:--x)`): Tailwind dùng thẳng loại được gợi ý.
+const HINT_PROBES = { color: '#123456', length: '3px', percentage: '3%', number: '7', integer: '7', url: 'url(probe)', image: 'url(probe)', position: '3px', 'bg-size': '3px', size: '3px', 'line-width': '3px', 'family-name': 'probe', 'absolute-size': 'probe', 'relative-size': 'probe', angle: '7deg' }
+// Loại mà bộ giải mã dùng khi gặp gợi ý (khớp `arbitraryKind` trong src/tailwind-v4.ts); mẫu gợi ý chỉ lưu khi khác.
+const HINT_KIND = { color: 'color', number: 'number', integer: 'number', length: 'length', percentage: 'length', 'line-width': 'length', url: 'image', image: 'image', position: 'position', 'bg-size': 'size', size: 'size' }
+// Gốc utility chỉ nhận giá trị tuỳ ý (`bg-size-[...]`, `filter-[...]`, `mask-size-(--x)`) không có trong getClassList.
+const roots = new Set([...Object.keys(families), ...classList.map((n) => splitsOf(n)[0]?.[0]).filter(Boolean), ...FUNCTIONAL_ROOTS])
 const arbitrary = {} // root -> { kind: templateIdx }
+const hints = {} // root -> { hint: templateIdx }
+const templateOfProbe = (name, css, shown) => {
+    if (!css) return undefined
+    const rule = parseClassCss(name, css)
+    if (!rule) return undefined
+    const key = ruleKey(rule)
+    return key.includes(shown) ? internTemplate(key.split(shown).join('{a}')) : undefined
+}
 const probeCandidates = []
 for (const rootName of roots) for (const [kind, value] of Object.entries(PROBES)) probeCandidates.push([rootName, kind, value])
 const probeCss = ds.candidatesToCss(probeCandidates.map(([r, , v]) => `${r}-[${v}]`))
 probeCandidates.forEach(([rootName, kind, value], index) => {
-    const css = probeCss[index]
-    if (!css) return
-    const rule = parseClassCss(`${rootName}-[${value}]`, css)
-    if (!rule) return
-    const key = ruleKey(rule)
-    if (!key.includes(value)) return
-    ;(arbitrary[rootName] ||= {})[kind] = internTemplate(key.split(value).join('{a}'))
+    const t = templateOfProbe(`${rootName}-[${value}]`, probeCss[index], value.replace(/_/g, ' '))
+    if (t !== undefined) (arbitrary[rootName] ||= {})[kind] = t
 })
+for (const kinds of Object.values(arbitrary)) {
+    if (kinds.var === kinds.any) delete kinds.var
+    // Loại mới chỉ giữ khi mẫu đặt giá trị vào thuộc tính ảnh/vị trí/kích thước (`bg-*`, `mask-*`) và khác `any`:
+    // nơi khác (`font-[3px_auto]` -> font-weight) Tailwind đoán theo loại riêng của họ, bộ giải mã không mô phỏng.
+    for (const kind of ['image', 'position', 'size']) {
+        const text = kinds[kind] === undefined ? '' : JSON.parse(templates[kinds[kind]])[1].filter(([, v]) => v.includes('{a}')).map(([p]) => p).join(' ')
+        if (kinds[kind] === kinds.any || !/(image|position|size)\b/.test(text)) delete kinds[kind]
+    }
+}
+{
+    const list = []
+    for (const rootName of Object.keys(arbitrary)) for (const [hint, value] of Object.entries(HINT_PROBES)) list.push([rootName, hint, value])
+    const css = ds.candidatesToCss(list.map(([r, h, v]) => `${r}-[${h}:${v}]`))
+    list.forEach(([rootName, hint, value], index) => {
+        const t = templateOfProbe(`${rootName}-[${hint}:${value}]`, css[index], value)
+        if (t === undefined) return
+        const kinds = arbitrary[rootName]
+        const kind = HINT_KIND[hint] ?? 'any'
+        if ((kinds[kind] ?? kinds.any ?? kinds.length) !== t) (hints[rootName] ||= {})[hint] = t
+    })
+}
 
 // ---------------------------------------------------------------------------
 // Theme, @property, keyframes, preflight
@@ -348,6 +437,7 @@ const STRUCTURE = {
         const unique = [...new Set(Object.values(kinds))]
         return [name, unique.length === 1 ? unique[0] : kinds]
     })),
+    hints,
 }
 const stats = {
     classList: classList.length,
@@ -390,6 +480,7 @@ const sameSort = (a, b) => a.count === b.count && a.order.length === b.order.len
 const bySignature = new Map()
 const classSort = {}
 for (const [name, rule] of parsed) {
+    if (probeOnly.has(name)) continue
     const candidate = ds.parseCandidate(name)[0]
     const node = candidate && ds.compileAstNodes(candidate)[0]
     if (!node) continue
@@ -426,7 +517,7 @@ console.log(`  thứ tự: ${Object.keys(sortOverrides).length} chữ ký, ${Obj
 //    là chuỗi `full=100%|px=1px` dùng chung giữa các họ. Mẫu giá trị tuỳ ý dựng cùng cách ([j, x, chỉ số giá trị]).
 // 3. Mọi thứ theo gốc gộp vào `roots[gốc] = [arbitrary, derived, ...mẫu của họ]`; mẫu họ là [bộ giá trị, ...rule gọn].
 // 4. Bộ giá trị trùng khoá một namespace của theme mặc định (bảng màu) lưu thành `@--color-`.
-const ARBITRARY_KINDS = ['length', 'color', 'number', 'any']
+const ARBITRARY_KINDS = ['length', 'color', 'number', 'any', 'image', 'position', 'size', 'var']
 const compactData = () => {
     const S = STRUCTURE
     const ruleOf = (packed) => ({ sel: packed[0], decls: packed.slice(1).map((i) => S.decls[i]) })
@@ -495,8 +586,13 @@ const compactData = () => {
     const arbitrarySpecs = Object.fromEntries(Object.entries(S.arbitrary).map(([r, spec]) => {
         if (typeof spec === 'number') return [r, specOf(r, spec)]
         for (const kind of Object.keys(spec)) if (!ARBITRARY_KINDS.includes(kind)) throw new Error(`Loại giá trị tuỳ ý lạ: ${kind}`)
-        return [r, ARBITRARY_KINDS.map((kind) => (spec[kind] === undefined ? null : specOf(r, spec[kind])))]
+        const list = ARBITRARY_KINDS.map((kind) => (spec[kind] === undefined ? null : specOf(r, spec[kind])))
+        // Bỏ null cuối nhưng giữ tối thiểu 4 phần tử (mảng 3 phần tử là mẫu dựng [j, x, giá trị]).
+        while (list.length > 4 && list.at(-1) === null) list.pop()
+        return [r, list]
     }))
+    // Mẫu theo gợi ý kiểu: { gốc: { gợi ý: spec } }.
+    const hintSpecs = Object.fromEntries(Object.entries(S.hints).map(([r, map]) => [r, Object.fromEntries(Object.entries(map).map(([hint, t]) => [hint, specOf(r, t)]))]))
     for (const rule of rules) for (const d of rule.decls) count(d.slice(d.indexOf(':') + 1))
     // Giá trị hay gặp có chỉ số nhỏ.
     const vals = [...valCount].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([v]) => v)
@@ -518,6 +614,7 @@ const compactData = () => {
         const spec = arbitrarySpecs[r]
         roots[r] = [spec === undefined ? null : Array.isArray(spec) ? spec.map(packSpec) : packSpec(spec), derived[r] ?? 0, ...(familyRules[r] || []).map(({ s, rule }) => [s, ...pack(rule)])]
     }
+    const hintsOut = Object.fromEntries(Object.entries(hintSpecs).map(([r, map]) => [r, Object.fromEntries(Object.entries(map).map(([hint, spec]) => [hint, packSpec(spec)]))]))
     // Khoá theme mặc định (kể cả bảng màu) theo namespace, như bộ giải mã tính.
     const nsKeys = (ns) => Object.keys(theme).filter((k) => k.startsWith(ns) && !k.slice(ns.length).includes('--')).map((k) => k.slice(ns.length)).sort().join(' ')
     const namespaces = new Set(Object.keys(theme).flatMap((k) => k.slice(2).split('-').slice(0, -1).map((_, i, parts) => `--${parts.slice(0, i + 1).join('-')}-`)))
@@ -535,6 +632,7 @@ const compactData = () => {
         lits,
         valueSets: sets,
         roots,
+        hints: hintsOut,
         explicit: Object.fromEntries(Object.entries(explicitRules).map(([name, rule]) => [name, pack(rule)])),
         tpl: tplRules.map(pack),
         properties: propertyList,
@@ -571,7 +669,7 @@ export const TW_PREFLIGHT_CSS = ${JSON.stringify('@layer l0{' + preflightCss + '
 export const TW_ORDER = ${JSON.stringify(DIST_ORDER)} as const
 
 /** Class chuyển gần đúng (bỏ @media lồng của Tailwind). */
-export const TW_APPROXIMATE: readonly string[] = ${JSON.stringify([...approximateClasses].sort())}
+export const TW_APPROXIMATE: readonly string[] = ${JSON.stringify([...approximateClasses].filter((n) => parsed.has(n) && !probeOnly.has(n)).sort())}
 
 /** Class Tailwind chưa có dạng chuyển được (nhiều rule, @media lồng). */
 export const TW_UNSUPPORTED: readonly string[] = ${JSON.stringify(unsupported)}

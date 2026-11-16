@@ -3,8 +3,8 @@
     "version": "1.0.7",
     "classes": {
       "cases": 456,
-      "matched": 455,
-      "percent": 99.78
+      "matched": 456,
+      "percent": 100
     },
     "variants": {
       "cases": 0,
@@ -16,14 +16,7 @@
       "-slide-in-from-left-2"
     ],
     "notes": [],
-    "failedClasses": [
-      {
-        "class": "duration-0",
-        "diff": [
-          "#0 --tw-duration: tw=0ms | ours=undefined"
-        ]
-      }
-    ],
+    "failedClasses": [],
     "failedVariants": [],
     "failedVariantDetails": []
   },
@@ -31,8 +24,8 @@
     "version": "4.0.2",
     "classes": {
       "cases": 294,
-      "matched": 292,
-      "percent": 99.32
+      "matched": 294,
+      "percent": 100
     },
     "variants": {
       "cases": 5,
@@ -42,24 +35,7 @@
     "unsupported": [],
     "tailwindRejected": [],
     "notes": [],
-    "failedClasses": [
-      {
-        "class": "scrollbar-thumb-red-500/50",
-        "diff": [
-          "#0 --tw-scrollbar-thumb: tw=oklab(0.637 0.214213 0.1014 / 0.5) | ours=rgba(0, 0, 0, 0)",
-          "#0 scrollbar-color: tw=oklab(0.637 0.214213 0.1014 / 0.5) rgba(0, 0, 0, 0) | ours=auto",
-          "#1 scrollbar-color: tw=oklab(0.637 0.214213 0.1014 / 0.5) rgba(0, 0, 0, 0) | ours=auto"
-        ]
-      },
-      {
-        "class": "scrollbar-thumb-[rgb(1,2,3)]/25",
-        "diff": [
-          "#0 --tw-scrollbar-thumb: tw=oklab(0.0823081 -0.00392239 -0.00700903 / 0.25) | ours=rgba(0, 0, 0, 0)",
-          "#0 scrollbar-color: tw=oklab(0.0823081 -0.00392239 -0.00700903 / 0.25) rgba(0, 0, 0, 0) | ours=auto",
-          "#1 scrollbar-color: tw=oklab(0.0823081 -0.00392239 -0.00700903 / 0.25) rgba(0, 0, 0, 0) | ours=auto"
-        ]
-      }
-    ],
+    "failedClasses": [],
     "failedVariants": [],
     "failedVariantDetails": []
   },

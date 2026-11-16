@@ -85,8 +85,11 @@ biến theme mà CSS đó (sau `@apply`) đọc qua `var(--…)`.
 
 Đo chẩn đoán (không commit): khai triển `--alpha()` và thêm tay khối `:root` khai báo 25 biến màu đó thì coss ui
 đạt 1288/1331 (96,8%) ở lượt mặc định, 1285–1291 ở các lượt khác, tổ hợp 287/379 (mở: 274/379); phần còn lại thuộc các nhóm dưới.
+Cùng phép đo sau luồng H (giá trị utility, mục 2–11): 1331/1331 ở mọi lượt trừ "đóng" 1330 (`not-[[class^='h-']]:` — biến thể), tổ hợp 379/379 (đóng: 377).
 
 ### 2. Class phương ngữ không nhận rơi xuống cú pháp x-css gốc và sinh CSS sai (nguy hiểm)
+
+**Đã sửa (luồng H):** `XCSSDialect.owns(class)`; phương ngữ Tailwind giữ class có gốc là họ/utility Tailwind (hoặc của dự án) và giá trị viết kiểu Tailwind, engine không thử x-css nữa (`z-01` không sinh gì như Tailwind; `m-10px`, `dF`, `cRed@:hover` vẫn là x-css).
 
 `z-1` → `z-index:-1`, `z-2` → `z-index:-2` (Magic UI, coss ui): phần tử bị đẩy ra sau thay vì lên trước.
 `opacity-64` → `opacity:-64` (hiển thị như 0). Tailwind v4 nhận mọi số nguyên trần cho các họ này; phương ngữ dựng từ
@@ -96,17 +99,23 @@ biến theme mà CSS đó (sau `@apply`) đọc qua `var(--…)`.
 
 ### 3. Giá trị trần ngoài bảng `getClassList()`
 
+**Đã sửa (luồng H):** bộ sinh dò từng mẫu họ bằng Tailwind (`37`, `13.25`, `0.3`, `3/7`, `0`) và ghi dấu `#int`/`#pint`/`#q`/`#num`/`#frac` vào bộ giá trị; số phải viết chuẩn như Tailwind (`z-01`, `p-.5` không hợp lệ).
+
 `z-1`, `z-2`, `opacity-64`, `scale-84`, `scale-98`, `scale-120`, `rotate-10`, `duration-450`, `duration-0`, `delay-0`
 (coss ui, Magic UI; cả dạng có biến thể `data-disabled:opacity-64`, `sm:data-ending-style:scale-98`...). Tailwind nhận mọi số
 (`z-<integer>`, `opacity-<number>`, `scale-<number>`, `rotate-<number>`, `duration-<number>`).
 
 ### 4. `start-*` / `end-*` (inset-inline-start/end)
 
+**Đã sửa (luồng H):** bộ sinh thêm class dò (`4`, `37`, `1/2`, `3/7`) cho mọi gốc trong `ds.utilities.keys("functional")` để họ vắng giá trị số trong getClassList có mẫu.
+
 HyperUI: `start-0`, `start-3`, `end-0`, `peer-checked:start-6/8`, `group-open:start-0` — chỉ 8 class nhưng nằm trong
 **62 tổ hợp** (dropdown, ô nhập có icon, toggle). coss ui: `end-0`, `end-0.5`, `end-2`, `after:start-1/2`.
 Tailwind 4.3.5 vẫn sinh (không còn trong `getClassList()` vì đã có `inset-s-*`/`inset-e-*`).
 
 ### 5. `--spacing()` / `--theme()` trong giá trị tuỳ ý
+
+**Đã sửa (luồng H):** khai triển `--spacing()`, `--theme(--x[/a][, dự phòng])`, `--alpha()` trong giá trị tuỳ ý và thuộc tính tuỳ ý như Tailwind; tách `+`/`-` sau số có đơn vị chữ (`1lh+…`).
 
 coss ui (~25 class): `px-[calc(--spacing(3)-1px)]`, `py-[max(--spacing(4),4vh)]`, `w-[calc(100%-(--spacing(12)))]`,
 `pb-[calc(env(safe-area-inset-bottom,0px)+--spacing(4))]`, `inset-shadow-[0_1px_--theme(--color-black/4%)]`,
@@ -115,10 +124,14 @@ Tailwind thay bằng `calc(var(--spacing) * 3)` và `color-mix(...)`.
 
 ### 6. Modifier line-height của `text-*`
 
+**Đã sửa (luồng H):** `/none` (=1), `/tight` (`--leading-*`), bội 0.25, `/[x]`, `/(--x)`; cỡ chữ tuỳ ý được thêm `line-height`.
+
 `text-sm/none`, `text-xs/none` (HyperUI, không chuyển → cỡ chữ 16px), `text-[10px]/6` (modifier bị bỏ, chỉ còn
 `font-size:10px`), `sm:text-xs/(--text-xs--line-height)`, `text-[calc(...)]/none` (coss ui).
 
 ### 7. Bóng tuỳ ý không có màu: `shadow-[4px_4px_0_0]`
+
+**Đã sửa (luồng H):** mô phỏng `replaceShadowColors` của Tailwind 4.3 (cả inset-/drop-/text-shadow, nhiều lớp).
 
 HyperUI neobrutalism (5 class, 30 tổ hợp với `shadow-black`/`dark:shadow-white`): Tailwind chèn
 `var(--tw-shadow-color, currentcolor)` vào từng lớp bóng (`--tw-shadow: 4px 4px 0 0 var(--tw-shadow-color, currentcolor)`)
@@ -126,10 +139,14 @@ nên `shadow-black` đổi được màu; phương ngữ giữ `--tw-shadow: 4px
 
 ### 8. Modifier độ mờ của bóng: `shadow-xs/5`, `shadow-sm/5`, `shadow-lg/5`
 
+**Đã sửa (luồng H):** `--tw-*-shadow-alpha` + `oklab(from … l a b / 5%)` (currentcolor: color-mix) như Tailwind.
+
 coss ui (cả `data-checked:shadow-sm/5`, `in-data-[variant=card]:shadow-xs/5`...): không chuyển. Tailwind đặt
 `--tw-shadow-alpha: 5%` và màu `oklab(from … l a b / 5%)`.
 
 ### 9. Giá trị tuỳ ý của nền
+
+**Đã sửa (luồng H):** mẫu theo gợi ý kiểu (dò `bg-[length:…]`…), loại `image`/`position`/`size`/`var` dò từ Tailwind; `bg-size-[…]`, `bg-position-[…]`, `filter-[…]`, `mask-size-(…)` có mẫu (gốc lấy từ `ds.utilities`).
 
 - `bg-[length:200%]` → `background-position:200%`: bỏ qua gợi ý kiểu `length:` (phải là `background-size`). Magic UI.
 - `bg-[linear-gradient(a),linear-gradient(b),linear-gradient(c)]` (nhiều lớp) và
@@ -139,12 +156,16 @@ coss ui (cả `data-checked:shadow-sm/5`, `in-data-[variant=card]:shadow-xs/5`..
 
 ### 10. Cú pháp khác chưa chuyển
 
+**Đã sửa phần giá trị (luồng H):** `(kiểu:--x)`, `filter-[…]`, `mask-*-(--x)`. Còn `not-[&:hover]:` (biến thể, ngoài phạm vi luồng H).
+
 `border-(length:--border-beam-width)` và `text-(color:--shiki-dark)!` (gợi ý kiểu trong cú pháp biến `(kiểu:--x)`),
 `filter-[url(#threshold)_blur(0.6px)]` (`filter-[…]` tuỳ ý), `mask-position-(--x)`/`mask-size-(--x)` (coss ui). Magic UI.
 **Đã sửa:** `not-[&:hover]:duration-1000` (`not-[…]`/`has-[…]`/`in-[…]`/`group-[…]` với selector có `&`, `[>img]`,
 `[@media…]`); Magic UI 575 → 576/586 ở lượt mặc định, tổ hợp 237 → 238/245.
 
 ### 11. `@utility container` trùng tên utility có sẵn
+
+**Đã sửa (luồng H):** `@apply` trong `@utility` (phần có biến thể/media thành rule riêng của utility) — trước đây bị bỏ nên phần của dự án mất; utility của dự án/plugin trùng gốc sẵn có giữ cả phần sẵn có khi có modifier (`scrollbar-thumb-red-500/50`).
 
 Magic UI: `@utility container { @apply 3xl:max-w-screen-2xl mx-auto max-w-[1400px] px-4 lg:px-8 }`. Tailwind gộp với
 `container` có sẵn và phần của dự án thắng (`max-width:1400px` ở 1280 px); @porbit/style cho `1280px` (container có sẵn

@@ -159,6 +159,142 @@ describe('phương ngữ Tailwind v4 (sinh từ chính Tailwind)', () => {
     })
 })
 
+// Kết quả mong đợi lấy từ Tailwind 4.3.5 thật (candidatesToCss), xem eval/REAL-PROJECTS.md mục "Phân Tích Lệch".
+describe('phương ngữ Tailwind v4: giá trị như Tailwind trên dự án thật', () => {
+    it('class dạng Tailwind không nhận thì không rơi xuống x-css; x-css thật vẫn chạy', () => {
+        const d = tailwindV4Dialect()
+        expect(d.owns!('z-01')).toBe(true)
+        expect(d.owns!('hover:opacity-0.3')).toBe(true)
+        expect(d.owns!('not-[&:hover]:duration-1000')).toBe(true)
+        expect(d.owns!('m-10px')).toBe(false)
+        expect(d.owns!('dF')).toBe(false)
+        expect(d.owns!('z-1@:hover')).toBe(false)
+        const out = css('z-01 opacity-0.3 m-10px')
+        expect(out).not.toContain('.z-01')
+        expect(out).not.toContain('.opacity-0')
+        expect(out).toContain('.m-10px{margin:-10px}')
+        // Có tiền tố: class không tiền tố không thuộc phương ngữ.
+        expect(tailwindV4Dialect({ prefix: 'tw' }).owns!('z-01')).toBe(false)
+        expect(tailwindV4Dialect({ prefix: 'tw' }).owns!('tw:z-01')).toBe(true)
+    })
+
+    it('giá trị trần ngoài getClassList (số nguyên, bội 0.25, phân số)', () => {
+        const d = tailwindV4Dialect()
+        expect(d('z-1')).toEqual(['z-index[1]'])
+        expect(d('-z-13')).toEqual(['z-index[calc(13_*_-1)]'])
+        expect(d('opacity-64')).toEqual(['opacity[64%]'])
+        expect(d('opacity-7.5')).toEqual(['opacity[7.5%]'])
+        expect(d('scale-98')![0]).toBe('--tw-scale-x[98%]')
+        expect(d('rotate-10')).toEqual(['rotate[10deg]'])
+        expect(d('duration-450')).toEqual(['--tw-duration[450ms]', 'transition-duration[450ms]'])
+        expect(d('duration-0')).toEqual(['--tw-duration[0ms]', 'transition-duration[0ms]'])
+        expect(d('delay-0')).toEqual(['transition-delay[0ms]'])
+        expect(d('aspect-3/7')).toEqual(['aspect-ratio[3/7]'])
+        expect(css('sm:data-ending-style:scale-98')).toContain('--tw-scale-x:98%')
+        // Giá trị liệt kê giữ dạng của Tailwind (`0deg`), số trần theo mẫu trần (`calc(1deg * 37)`).
+        expect(d('mask-linear-0')).toContain('--tw-mask-linear-position[0deg]')
+        expect(d('mask-linear-37')).toContain('--tw-mask-linear-position[calc(1deg_*_37)]')
+        expect(d('grid-cols-37')).toEqual(['grid-template-columns[repeat(37,_minmax(0,_1fr))]'])
+        expect(d('grid-cols-0')).toBeNull()
+        // Tailwind không nhận: số không chuẩn, không phải bội 0.25, số nguyên mà họ chỉ nhận số nguyên.
+        for (const c of ['z-01', 'z-1.5', 'opacity-0.3', 'scale-13.25', 'p-13.3', 'p-.5', 'bg-red-500/0.3']) expect(d(c), c).toBeNull()
+    })
+
+    it('start-*/end-* (inset-inline-start/end) như Tailwind 4.3', () => {
+        const d = tailwindV4Dialect()
+        expect(d('start-0')).toEqual(['inset-inline-start[0px]'])
+        expect(d('end-0.5')).toEqual(['inset-inline-end[calc(var(--spacing,_0.25rem)_*_0.5)]'])
+        expect(d('-start-4')).toEqual(['inset-inline-start[calc(var(--spacing,_0.25rem)_*_-4)]'])
+        expect(d('after:start-1/2')).toEqual(['content[var(--tw-content)]@::after', 'inset-inline-start[calc(1/2_*_100%)]@::after'])
+        expect(d('peer-checked:start-6')).not.toBeNull()
+    })
+
+    it('--spacing(), --theme(), --alpha() trong giá trị tuỳ ý', () => {
+        const d = tailwindV4Dialect()
+        expect(d('px-[calc(--spacing(3)-1px)]')).toEqual(['padding-inline[calc(calc(var(--spacing,_0.25rem)_*_3)_-_1px)]'])
+        expect(d('pb-[calc(env(safe-area-inset-bottom,0px)+--spacing(4))]')).toEqual(['padding-bottom[calc(env(safe-area-inset-bottom,0px)_+_calc(var(--spacing,_0.25rem)_*_4))]'])
+        expect(d('w-[calc(100%-(--spacing(12)))]')).toEqual(['width[calc(100%_-_(calc(var(--spacing,_0.25rem)_*_12)))]'])
+        // Toán tử sau số có đơn vị chữ (`1lh`) cũng được tách như Tailwind; tên và số mũ thì không.
+        expect(d('min-h-[calc(var(--rows,1)*1lh+--spacing(2))]')).toEqual(['min-height[calc(var(--rows,1)*1lh_+_calc(var(--spacing,_0.25rem)_*_2))]'])
+        expect(d('w-[calc(1lh-2px)]')).toEqual(['width[calc(1lh_-_2px)]'])
+        expect(d('w-[calc(1e+3px)]')).toEqual(['width[calc(1e+3px)]'])
+        expect(d('[--composer-padding:--spacing(2)]')).toEqual(['--composer-padding[calc(var(--spacing,_0.25rem)_*_2)]'])
+        expect(d('m-[--spacing(1)]')).toEqual(['margin[var(--spacing,_0.25rem)]'])
+        expect(d('bg-[--alpha(red/0.5)]')).toEqual(['background-color[color-mix(in_oklab,_red_50%,_transparent)]'])
+        expect(d('bg-[--theme(--color-red-500/50%)]')![0]).toContain('color-mix(in_oklab,_var(--color-red-500')
+        expect(d('m-[--theme(--khong-co,3px)]')).toEqual(['margin[3px]'])
+        expect(d('m-[--theme(--khong-co)]')).toBeNull()
+        expect(d('inset-shadow-[0_1px_--theme(--color-black/4%)]')![0]).toBe('--tw-inset-shadow[inset_0_1px_var(--tw-inset-shadow-color,_color-mix(in_oklab,_var(--color-black,_#000)_4%,_transparent))]')
+    })
+
+    it('modifier line-height của text-*: /none, /tight, /6 (cả cỡ tuỳ ý), /(--x), /[x]', () => {
+        const d = tailwindV4Dialect()
+        expect(d('text-sm/none')).toEqual(['font-size[var(--text-sm,_0.875rem)]', 'line-height[1]'])
+        expect(d('text-sm/tight')).toEqual(['font-size[var(--text-sm,_0.875rem)]', 'line-height[var(--leading-tight,_1.25)]'])
+        expect(d('text-[10px]/6')).toEqual(['font-size[10px]', 'line-height[calc(var(--spacing,_0.25rem)_*_6)]'])
+        expect(d('text-xs/(--x)')).toEqual(['font-size[var(--text-xs,_0.75rem)]', 'line-height[var(--x)]'])
+        expect(d('text-sm/[1.5]')).toEqual(['font-size[var(--text-sm,_0.875rem)]', 'line-height[1.5]'])
+        expect(d('text-(length:--x)/6')).toEqual(['font-size[var(--x)]', 'line-height[calc(var(--spacing,_0.25rem)_*_6)]'])
+        expect(d('text-sm/foo')).toBeNull()
+    })
+
+    it('bóng: màu trong bóng tuỳ ý theo `--tw-shadow-color`, modifier độ mờ của bóng', () => {
+        const d = tailwindV4Dialect()
+        expect(d('shadow-[4px_4px_0_0]')![0]).toBe('--tw-shadow[4px_4px_0_0_var(--tw-shadow-color,_currentcolor)]')
+        expect(d('shadow-[0_1px_red,inset_0_2px_var(--x)]')![0]).toBe('--tw-shadow[0_1px_var(--tw-shadow-color,_red),_inset_0_2px_var(--tw-shadow-color,_var(--x))]')
+        expect(d('shadow-[var(--x)]')![0]).toBe('--tw-shadow[var(--x)]')
+        expect(d('inset-shadow-[0_1px_red,0_2px_blue]')![0]).toBe('--tw-inset-shadow[inset_0_1px_var(--tw-inset-shadow-color,_red),_inset_0_2px_var(--tw-inset-shadow-color,_blue)]')
+        expect(d('drop-shadow-[0_1px_red,0_2px_blue]')![0]).toBe('--tw-drop-shadow-size[drop-shadow(0_1px_var(--tw-drop-shadow-color,_red))_drop-shadow(0_2px_var(--tw-drop-shadow-color,_blue))]')
+        expect(d('shadow-xs/5')!.slice(0, 2)).toEqual(['--tw-shadow-alpha[5%]', '--tw-shadow[0_1px_2px_0_var(--tw-shadow-color,_oklab(from_rgb(0_0_0_/_0.05)_l_a_b_/_5%))]'])
+        expect(d('shadow-[0_1px_2px]/50')!.slice(0, 2)).toEqual(['--tw-shadow-alpha[50%]', '--tw-shadow[0_1px_2px_var(--tw-shadow-color,_color-mix(in_oklab,_currentcolor_50%,_transparent))]'])
+        expect(d('data-checked:shadow-sm/5')).not.toBeNull()
+        // `shadow-black` đổi được màu của bóng tuỳ ý.
+        const out = css('shadow-[4px_4px_0_0] shadow-black')
+        expect(out).toContain('--tw-shadow-color:color-mix(in oklab, var(--color-black, #000) var(--tw-shadow-alpha), transparent)')
+        expect(out).toContain('--tw-shadow:4px 4px 0 0 var(--tw-shadow-color, currentcolor)')
+    })
+
+    it('nền tuỳ ý: gợi ý kiểu, ảnh nhiều lớp, vị trí/kích thước; bg-size-[], bg-position-[]', () => {
+        const d = tailwindV4Dialect()
+        expect(d('bg-[length:200%]')).toEqual(['background-size[200%]'])
+        expect(d('bg-[200%]')).toEqual(['background-position[200%]'])
+        expect(d('bg-[200px_auto]')).toEqual(['background-size[200px_auto]'])
+        expect(d('bg-[center_top]')).toEqual(['background-position[center_top]'])
+        expect(d('bg-[url(a.png)]')).toEqual(['background-image[url(a.png)]'])
+        expect(d('bg-[linear-gradient(red,blue),linear-gradient(red,blue)]')).toEqual(['background-image[linear-gradient(red,blue),linear-gradient(red,blue)]'])
+        expect(d('bg-[repeating-linear-gradient(45deg,red_0,blue_10px)]')).toEqual(['background-image[repeating-linear-gradient(45deg,red_0,blue_10px)]'])
+        expect(d('bg-[red]/50')).toEqual(['background-color[color-mix(in_oklab,_red_50%,_transparent)]'])
+        expect(d('bg-size-[200%_auto]')).toEqual(['background-size[200%_auto]'])
+        expect(d('bg-position-[0_0]')).toEqual(['background-position[0_0]'])
+    })
+
+    it('cú pháp biến có gợi ý kiểu, filter-[], mask-size-(--x)', () => {
+        const d = tailwindV4Dialect()
+        expect(d('border-(length:--w)')).toEqual(['border-style[var(--tw-border-style)]', 'border-width[var(--w)]'])
+        expect(d('text-(color:--shiki-dark)!')).toEqual(['color![var(--shiki-dark)]'])
+        expect(d('filter-[url(#threshold)_blur(0.6px)]')).toEqual(['filter[url(#threshold)_blur(0.6px)]'])
+        expect(d('mask-size-(--x)')).toEqual(['mask-size[var(--x)]'])
+        expect(d('mask-position-(--x)')).toEqual(['mask-position[var(--x)]'])
+    })
+
+    it('@utility trùng tên utility sẵn có: container (có @apply), utility có modifier', () => {
+        const sheet = parseTailwindStylesheet(`
+            @utility container { @apply mx-auto max-w-[1400px] px-4 lg:px-8; }
+            @utility scrollbar-thumb-* { --x-thumb: --value(--color-*); opacity: --modifier(integer); }`)
+        const d = tailwindV4Dialect({ utilities: sheet.utilities })
+        const out = css('container', { utilities: sheet.utilities })
+        // Phần của dự án đứng sau container sẵn có nên `max-width:1400px` thắng (như Tailwind).
+        expect(out.indexOf('max-width:80rem')).toBeLessThan(out.indexOf('max-width:1400px'))
+        expect(out).toContain('.container{margin-inline:auto;max-width:1400px;padding-inline:calc(var(--spacing, 0.25rem) * 4)}')
+        expect(out).toMatch(/@media \(width >= 64rem\)\{\.container\{padding-inline:calc\(var\(--spacing, 0\.25rem\) \* 8\)\}/)
+        // `scrollbar-thumb-*` có sẵn trong Tailwind 4.3 + của dự án: giữ cả phần có sẵn khi có modifier.
+        const tokens = d('scrollbar-thumb-red-500/50')!
+        expect(tokens).toContain('scrollbar-color[var(--tw-scrollbar-thumb)_var(--tw-scrollbar-track)]')
+        expect(tokens[0]).toContain('color-mix(in_oklab,_var(--color-red-500')
+        expect(tokens).toContain('opacity[50]')
+    })
+})
+
 describe('minify CSS tĩnh', () => {
     it('bỏ @property/@keyframes không dùng, gộp @layer, giữ thứ tự rule', async () => {
         const { css: full } = await extractFromClasses(['p-4', 'shadow-md', 'sm:p-2'], { hashClassName: false, dialects: [tailwindV4Dialect()] })
