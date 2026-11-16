@@ -47,6 +47,11 @@ export interface TailwindV4DialectOptions {
      * trong phần tử đó (`#app .p-2`, cùng độ ưu tiên như Tailwind). `@apply` không bị ảnh hưởng (như Tailwind).
      */
     important?: boolean | string
+    /**
+     * Class không sinh CSS (như `@source not inline("...")` / `blocklist` của cấu hình v3): so khớp đúng cả chuỗi
+     * class (kể cả tiền tố, biến thể), như Tailwind v4.
+     */
+    blocklist?: string[]
 }
 
 /** Chuẩn hoá tiền tố như Tailwind v4: bỏ một `-` cuối (kiểu v3 `tw-`), chỉ nhận chữ thường a-z. */
@@ -700,6 +705,27 @@ const registeredKeys = new Set<string>()
 const MEDIA_QUERY = new Map<string, string>()
 /** Biến thể tự định nghĩa của dialect đang hoạt động. */
 let CUSTOM_VARIANTS: Record<string, string[][]> = {}
+/** Chỗ giữ giá trị/modifier trong thân biến thể hàm `name-*` (`matchVariant` của plugin JS, xem tailwind-plugin-api). */
+const VARIANT_VALUE_PLACEHOLDER = '__porbit_variant_value__'
+const VARIANT_MODIFIER_PLACEHOLDER = '__porbit_variant_modifier__'
+/** Biến thể hàm của dialect đang hoạt động: [gốc, thân không modifier, thân có modifier (null: không nhận modifier)], gốc dài trước. */
+let FUNCTIONAL_VARIANTS: Array<[string, string, string | null]> = []
+/**
+ * Biến thể tự định nghĩa theo tên, kể cả biến thể hàm với giá trị tuỳ ý (`tab-[2]`, `tab-[2]/x` của `matchVariant`):
+ * thay giá trị (đã đổi `_` thành khoảng trắng như Tailwind) vào thân rồi dịch như `@custom-variant` (lưu lại theo tên).
+ */
+const customVariant = (name: string): string[][] | undefined => {
+    if (CUSTOM_VARIANTS[name]) return CUSTOM_VARIANTS[name]
+    for (const [root, body, withModifier] of FUNCTIONAL_VARIANTS) {
+        if (!name.startsWith(root + '-[')) continue
+        const [head, modifier] = splitModifier(name.slice(root.length + 1))
+        const template = modifier === null ? body : withModifier
+        if (!/^\[.+\]$/.test(head) || template === null) return
+        const mod = modifier === null ? '' : arbitraryInner(modifier.replace(/^\[(.+)\]$/, '$1'))
+        const compiled = compileCustomVariant(template.split(VARIANT_VALUE_PLACEHOLDER).join(arbitraryInner(head.slice(1, -1))).split(VARIANT_MODIFIER_PLACEHOLDER).join(mod))
+        return compiled ? (CUSTOM_VARIANTS[name] = compiled) : undefined
+    }
+}
 /** Tiền tố class đã escape cho selector (`tw\:`) của dialect đang hoạt động: `group`/`peer` thành `.tw\:group`. */
 let MARKER_PREFIX = ''
 const buildBreakpoints = (darkMode: 'media' | 'class') => {
@@ -759,7 +785,7 @@ const negateAtRule = (rule: string): string | null => {
  * `not-` của biến thể có at-rule thành hai phương án (selector phủ định HOẶC at-rule phủ định).
  */
 const stateAlternatives = (state: string): StateAlt[] | null => {
-    const custom = CUSTOM_VARIANTS[state]
+    const custom = customVariant(state)
     if (custom) {
         const alts: StateAlt[] = []
         for (const steps of custom) {
@@ -846,6 +872,9 @@ const inlineAtRule = (variant: string): string | null => {
     if (named && theme[`--container-${named[2]}`]) {
         return encode(`@container ${named[3]} (width ${named[1] === 'max-' ? '<' : '>='} ${theme[`--container-${named[2]}`]})`)
     }
+    // `@[300px]`, `@min-[30rem]`, `@max-[300px]/main`: container query giá trị tuỳ ý (có thể kèm tên).
+    const arbitrary = variant.match(/^@(min-|max-)?\[([^\]]+)\](?:\/([\w-]+))?$/)
+    if (arbitrary) return encode(`@container ${arbitrary[3] ? arbitrary[3] + ' ' : ''}(width ${arbitrary[1] === 'max-' ? '<' : '>='} ${arbitraryInner(arbitrary[2])})`)
     return null
 }
 
@@ -1353,6 +1382,13 @@ const parseOrderVariant = (variant: string): OrderVariant | null => {
         result = { kind: 'arbitrary', key: variant, selector: inner.startsWith('@') || inner.includes('&') ? inner : `&:is(${inner})` }
     }
     else if (ORDER_ROOTS[variant] && ORDER_ROOTS[variant][0] === 's') result = { kind: 'static', key: variant, root: variant }
+    // Biến thể hàm của plugin (`tab-[2]`): nhóm riêng `tab-*` xếp sau các giá trị có tên, như `matchVariant` của Tailwind.
+    for (const [root] of result ? [] : FUNCTIONAL_VARIANTS) {
+        if (!variant.startsWith(root + '-[')) continue
+        const [rest, modifier] = splitModifier(variant.slice(root.length + 1))
+        if (/^\[.+\]$/.test(rest)) result = { kind: 'functional', key: variant, root: `${root}-*`, value: { kind: 'arbitrary', value: rest.slice(1, -1) }, modifier }
+        break
+    }
     if (!result) {
         for (const root of COMPOUND_ROOTS) {
             if (!variant.startsWith(root + '-')) continue
@@ -1510,6 +1546,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     // `important: true` -> mọi khai báo `!important`; `important: '#app'` -> `&` thành `:is(#app &)`.
     const importantAll = options.important === true
     const importantSelector = typeof options.important === 'string' && options.important.trim() ? options.important.trim() : ''
+    const blocklist = new Set(options.blocklist ?? [])
     // `--color-*: initial` (hoặc `--*: initial`): bỏ cả namespace mặc định như `@theme` của Tailwind.
     const resetNamespaces = Object.entries(options.theme || {}).filter(([k, v]) => k.endsWith('*') && v.trim() === 'initial').map(([k]) => k.slice(0, -1))
     // `--x: initial` (không `*`): bỏ đúng biến đó như `@theme` của Tailwind (dùng khi `prefix` đến từ `@config`).
@@ -1521,20 +1558,31 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         ].filter(([k]) => !removedKeys.has(k)))
         : defaultTheme
     const ownVariants: Record<string, string[][]> = {}
-    for (const [name, body] of Object.entries(options.variants || {})) {
-        const compiled = compileCustomVariant(body)
-        if (compiled) ownVariants[name] = compiled
-    }
+    // `name-*` (thân có chỗ giữ giá trị) và `name-*/*` (có modifier): biến thể hàm của `matchVariant`.
+    const functionalVariants: typeof FUNCTIONAL_VARIANTS = []
     // Biến thể tự định nghĩa: tên mới xếp sau mọi biến thể sẵn có (như `@custom-variant` của Tailwind),
     // tên trùng (`dark`) giữ thứ tự cũ.
     const ownRoots: Record<string, readonly [string, number]> = { ...TW_ORDER.variants }
     let lastOrder = Math.max(...Object.values(ownRoots).map(([, order]) => order))
-    for (const name of Object.keys(ownVariants)) if (!ownRoots[name]) ownRoots[name] = ['s', ++lastOrder]
+    for (const [name, body] of Object.entries(options.variants || {})) {
+        if (name.endsWith('-*/*')) continue
+        if (name.endsWith('-*')) {
+            functionalVariants.push([name.slice(0, -2), body, options.variants?.[`${name}/*`] ?? null])
+            if (!ownRoots[name]) ownRoots[name] = ['f', ++lastOrder]
+            continue
+        }
+        const compiled = compileCustomVariant(body)
+        if (!compiled) continue
+        ownVariants[name] = compiled
+        if (!ownRoots[name]) ownRoots[name] = ['s', ++lastOrder]
+    }
+    functionalVariants.sort((a, b) => b[0].length - a[0].length)
     const ghostBreakpoints: Record<string, string> = resetNamespaces.includes('--breakpoint-')
         ? Object.fromEntries(Object.entries(defaultTheme).filter(([k]) => k.startsWith('--breakpoint-') && ownTheme[k] === undefined).map(([k, v]) => [k.slice(13), v]))
         : {}
     const activate = () => {
         CUSTOM_VARIANTS = ownVariants
+        FUNCTIONAL_VARIANTS = functionalVariants
         RESET_NAMESPACES = resetNamespaces
         MARKER_PREFIX = markerPrefix
         if (ORDER_ROOTS !== ownRoots) {
@@ -1617,6 +1665,12 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     /** Utility sẵn có, kể cả modifier (`text-sm/none`, `shadow-xs/5`, `bg-[red]/50`). */
     const resolveBuiltin = (name: string): Rule | null => {
         if (name === 'container') return containerRule()
+        // `@container/main`, `@container-normal/[x]`, `@container-size`: `container-type` (+ `container-name`) như Tailwind.
+        const query = name.match(/^@container(?:-(normal|size))?(?:\/(?:\[(.+)\]|([\w-]+)))?$/)
+        if (query && (query[1] === 'size' || query[2] || query[3])) {
+            const label = query[2] ? arbitraryInner(query[2]) : query[3]
+            return { sel: '', decls: [['container-type', query[1] ?? 'inline-size'], ...(label ? [['container-name', label] as [string, string]] : [])] }
+        }
         const direct = resolveBase(name)
         if (direct) return direct
         const [head, modifier] = splitModifier(name)
@@ -1642,7 +1696,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         for (const variant of parts) {
             // Trạng thái ghép nhiều phương án: `not-hover`, `not-group-hover`... = `:not(...)` HOẶC
             // `@media not (hover: hover)`; `group-x`/`has-x` với biến thể tự định nghĩa nhiều phương án khác at-rule.
-            let alternatives = ownVariants[variant]
+            let alternatives = customVariant(variant)
             if (!alternatives && /^(group|peer|in|has|not)-/.test(variant)) {
                 const alts = stateAlternatives(variant)
                 if (alts && alts.length > 1) alternatives = alts.map(({ at, sel }) => [...at.map(encodeArbitrary), encodeArbitrary(sel)])
@@ -1788,6 +1842,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     const layerBaseCss = (text: string) => text.replace(/@layer\s+(base|components|theme)\s*\{/g, '@layer l0{')
 
     const dialect = ((className: string): string[] | null => {
+        if (blocklist.has(className)) return null
         const result = place(className)
         if (!result) return null
         if (lastPlaced.size > 200) lastPlaced.clear()
@@ -1815,6 +1870,8 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     const TAILWIND_VALUE = /^(\[.+\]|\((?:[a-z-]+:)?--[\w-]+\)|\d+(\.\d+)?(\/\d+)?|[a-z][a-z0-9.-]*|\d+x[sl]|\d+xl)$/
     dialect.owns = (fullName: string): boolean => {
         activate()
+        // Class bị chặn vẫn là class Tailwind: engine không thử cú pháp x-css.
+        if (blocklist.has(fullName)) return true
         if (prefix && !fullName.startsWith(prefix + ':')) return false
         let base = splitVariants(prefix ? fullName.slice(prefix.length + 1) : fullName).pop() as string
         if (base.endsWith('!')) base = base.slice(0, -1)
@@ -1953,6 +2010,8 @@ export interface TailwindStylesheet {
      * `tailwindV4Dialect({ important })`.
      */
     important?: boolean | string
+    /** Class bị chặn (`@source not inline("...")`, `blocklist` của `@config`): truyền vào `tailwindV4Dialect({ blocklist })`. */
+    blocklist?: string[]
 }
 
 export interface ParseTailwindOptions {
@@ -1965,16 +2024,32 @@ export interface ParseTailwindOptions {
     loadConfig?: (id: string) => string | null
 }
 
+/** Mở rộng ngoặc nhọn như `@source inline()` của Tailwind: `{a,b}`, dãy `{1..3}`, `{0..100..25}`. */
+export const expandBraces = (pattern: string): string[] => {
+    const match = pattern.match(/^(.*?)\{([^{}]*)\}(.*)$/s)
+    if (!match) return [pattern]
+    const [, before, body, after] = match
+    let options: string[]
+    const range = body.match(/^(-?\d+)\.\.(-?\d+)(?:\.\.(\d+))?$/)
+    if (range) {
+        const [from, to, step] = [Number(range[1]), Number(range[2]), Number(range[3]) || 1]
+        options = []
+        for (let v = from; from <= to ? v <= to : v >= to; v += from <= to ? step : -step) options.push(String(v))
+    } else options = body.split(',')
+    return options.flatMap((option) => expandBraces(before + option + after))
+}
+
 /**
  * Đọc stylesheet viết theo Tailwind v4 (`<style type="text/tailwindcss">`, `app.css`):
  *   - `@theme { --color-brand: #0a64e8; @keyframes wiggle {...} }` -> theme + keyframes,
  *   - `@utility name {...}`, `@utility name-* { x: --value(...) }` -> utilities,
  *   - `@custom-variant name (&:is(.dark *));` hoặc dạng khối có `@slot` -> variants,
  *   - `@import "tailwindcss" prefix(tw) important` -> `prefix`, `important`; `#app { @tailwind utilities; }` -> `important: '#app'`,
+ *   - `@source not inline("p-4 {m,p}-2")` -> `blocklist` (class không sinh CSS),
  *   - CSS còn lại giữ nguyên (`@apply` được dialect mở rộng); `@import "tailwindcss"`, `@source`, `@config` bị bỏ qua,
  *   - `--alpha()`/`--spacing()`/`--theme()`/`theme()` trong CSS và trong giá trị `@theme` được khai triển; biến của
  *     `@theme static` thành khối `@layer theme{:root,:host{...}}` đầu `css` (biến theme mà CSS đọc do dialect phát).
- * Truyền kết quả cho dialect: `tailwindV4Dialect({ theme, css, utilities, variants, prefix, important })`.
+ * Truyền kết quả cho dialect: `tailwindV4Dialect({ theme, css, utilities, variants, prefix, important, blocklist })`.
  */
 export const parseTailwindStylesheet = (source: string, options: ParseTailwindOptions = {}): TailwindStylesheet => {
     const sheet: TailwindStylesheet = { theme: {}, css: '', utilities: {}, variants: {}, unresolved: [] }
@@ -2018,6 +2093,12 @@ export const parseTailwindStylesheet = (source: string, options: ParseTailwindOp
                     const converted = options.loadConfig?.(configFile[1])
                     if (converted !== null && converted !== undefined) read(converted, true)
                     else sheet.unresolved.push(configFile[1])
+                    continue
+                }
+                // `@source not inline("p-4 {m,p}-2")`: class bị chặn (ngoặc nhọn mở rộng như Tailwind).
+                const blocked = item.at.match(/^@source\s+not\s+inline\(\s*(["'])([\s\S]*)\1\s*\)$/)
+                if (blocked) {
+                    for (const part of blocked[2].trim().split(/\s+/).filter(Boolean)) (sheet.blocklist ??= []).push(...expandBraces(part))
                     continue
                 }
                 const variant = item.at.match(/^@custom-variant\s+([\w-]+)\s+([\s\S]+)$/)

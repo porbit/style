@@ -35,7 +35,7 @@ const PACKAGE_BUDGET = 1500 * 1000
 const V3_FIXTURES = [
     ['v3-extend', 'eval/fixtures/v3-config/app.css', 'eval/fixtures/v3-config/src'],
     ['v3-replace', 'eval/fixtures/v3-config/replace/app.css', 'eval/fixtures/v3-config/replace'],
-    ...['prefix', 'important', 'important-selector', 'core-plugins', 'ts', 'css-flags'].map((name) => [`v3-${name}`, `eval/fixtures/v3-config/${name}/app.css`, `eval/fixtures/v3-config/${name}`]),
+    ...['prefix', 'important', 'important-selector', 'core-plugins', 'ts', 'css-flags', 'presets', 'plugins'].map((name) => [`v3-${name}`, `eval/fixtures/v3-config/${name}/app.css`, `eval/fixtures/v3-config/${name}`]),
 ]
 // Dự án mã nguồn mở khác: chưa khớp 100% nên dùng "bánh cóc" — không được tụt dưới mốc đã ghi.
 const PROJECT_FIXTURES = ['hyperui', 'magicui', 'coss-ui']

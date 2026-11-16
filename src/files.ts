@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname as dirnamePath, join, join as joinPath, resolve, resolve as resolvePath } from 'node:path'
-import { loadTailwindConfigFile, tailwindConfigToCss } from './tailwind-config'
+import { loadTailwindConfigFile, mergeTailwindConfigs, tailwindConfigToCss } from './tailwind-config'
 import { createTailwindPluginLoader, requireWithTailwindShims, type TailwindPluginLoader } from './tailwind-plugin-api'
 
 export const DEFAULT_EXTENSIONS = ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'vue', 'svelte', 'astro', 'mdx']
@@ -93,9 +93,12 @@ export const createStylesheetReader = (baseDir: string) => (id: string): string 
     }
 }
 
-// Plugin v3 hay gặp: gói có bản đóng gói sẵn, hoặc đã có sẵn trong Tailwind v4 (không cần dòng @plugin).
-const KNOWN_PLUGINS = ['@tailwindcss/forms', '@tailwindcss/typography', 'tailwindcss-animate', '@tailwindcss/aspect-ratio', '@tailwindcss/container-queries']
-const BUILTIN_IN_V4 = new Set(['@tailwindcss/aspect-ratio', '@tailwindcss/container-queries'])
+// Plugin v3 hay gặp: gói có bản đóng gói sẵn, hoặc đã có sẵn trong Tailwind v4 (không cần dòng @plugin: biến thể
+// `@md`, `@[300px]`, `@sm/main` và utility `@container/main` của Tailwind v4 cho cùng kết quả với plugin v3).
+// `@tailwindcss/aspect-ratio` KHÔNG thuộc nhóm này: Tailwind v4 vẫn chạy plugin (sinh `aspect-w-*`/`aspect-h-*` và thay
+// `theme.aspectRatio` nên `aspect-video` mất), nên chạy qua API giả lập như plugin khác.
+const KNOWN_PLUGINS = ['@tailwindcss/forms', '@tailwindcss/typography', 'tailwindcss-animate', '@tailwindcss/container-queries']
+const BUILTIN_IN_V4 = new Set(['@tailwindcss/container-queries'])
 
 /**
  * Nạp `@config "./tailwind.config.js"` (Node): `require` file cấu hình (CJS hoặc ESM) rồi đổi sang CSS v4.
@@ -123,8 +126,9 @@ export const createConfigLoader = (baseDir: string, plugins: TailwindPluginLoade
         const lines = css.split('\n').filter((line) => !BUILTIN_IN_V4.has(line.match(/^@plugin "([^"]+)";$/)?.[1] || ''))
         // Plugin không có bản đóng gói: chạy hàm plugin với theme/cấu hình của dự án.
         const known = Object.values(knownPlugins)
-        const cfg = config?.default ?? config
-        for (const plugin of cfg?.plugins || []) {
+        // `presets`: plugin của preset chạy trước, theme/darkMode... gộp như Tailwind.
+        const cfg = mergeTailwindConfigs(config)
+        for (const plugin of cfg.plugins || []) {
             if (known.some((value) => value === plugin || (value as { default?: unknown })?.default === plugin)) continue
             lines.push(plugins.run(plugin, cfg, id))
         }

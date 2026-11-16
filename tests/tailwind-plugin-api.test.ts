@@ -122,7 +122,7 @@ describe('tailwind-plugin-api: addBase, addVariant, matchVariant', () => {
         })
         const { css, output } = await cssOf(plugin, ['optional:flex', 'hocus:flex', 'supports-grid:flex', 'can-hover:flex', 'inverted:flex', 'nth-3:flex'])
         expect(output.css).toMatch(/@layer base \{ h1 \{ font-size: 2rem; \} :root \{ --brand: #0a64e8; \} \}/)
-        expect(Object.keys(output.variants)).toEqual(['optional', 'hocus', 'supports-grid', 'can-hover', 'inverted', 'nth-1', 'nth-3', 'nth-odd'])
+        expect(Object.keys(output.variants)).toEqual(['optional', 'hocus', 'supports-grid', 'can-hover', 'inverted', 'nth-1', 'nth-3', 'nth-odd', 'nth-*', 'nth-*/*'])
         expect(css).toContain('.optional\\:flex:optional{display:flex}')
         expect(css).toContain('.hocus\\:flex:hover{display:flex}')
         expect(css).toContain('.hocus\\:flex:focus{display:flex}')
@@ -130,7 +130,49 @@ describe('tailwind-plugin-api: addBase, addVariant, matchVariant', () => {
         expect(css).toMatch(/@media \(hover: ?hover\)\{\.can-hover\\:flex:hover\{display:flex\}/)
         expect(css).toMatch(/@media \(inverted-colors: ?inverted\)\{\.inverted\\:flex:not\(\.x\)\{display:flex\}/)
         expect(css).toContain('.nth-3\\:flex:nth-child(3){display:flex}')
-        expect(output.unsupported).toContain('nth-[…]: matchVariant với giá trị tuỳ ý')
+        // Giá trị tuỳ ý: biến thể hàm `nth-*` (mẫu dựng từ giá trị giả).
+        expect(output.variants['nth-*']).toBe('{ &:nth-child(__porbit_variant_value__) { @slot; } }')
+        expect(output.unsupported).toEqual([])
+    })
+
+    // Hành vi đo trên Tailwind 4.3.5 (`@config` với plugin dùng `matchVariant`), xem eval/fixtures/v3-config/plugins.
+    it('matchVariant: giá trị tuỳ ý `name-[x]:` (`_` là khoảng trắng), modifier `/x`, ghép group-, sort cho giá trị có tên', async () => {
+        const plugin = createPlugin(({ matchVariant }) => {
+            matchVariant('nth', (value) => `&:nth-child(${value})`, { values: { odd: 'odd' } })
+            matchVariant('state', (value, { modifier }) => (modifier ? `.${modifier}[data-state="${value}"] &` : `[data-state="${value}"] &`), { values: { on: 'on' } })
+            matchVariant('mq', (value) => `@media (min-width: ${value})`, { values: { big: '1200px', small: '600px' }, sort: (a, b) => parseInt(a.value) - parseInt(b.value) })
+            // Giá trị dùng để rẽ nhánh (không là mẫu): chỉ giá trị có tên.
+            matchVariant('pick', (value) => (value === 'a' ? '&:first-child' : '&:last-child'), { values: { a: 'a', b: 'b' } })
+        })
+        const { css, output, dialect } = await cssOf(plugin, ['nth-[2n_+_1]:flex', 'state-[open]:flex', 'state-[open]/menu:flex', 'mq-[900px]:flex', 'group-nth-[3]:flex', 'hover:nth-[2]:flex'])
+        expect(css).toContain('.nth-\\[2n_\\+_1\\]\\:flex:nth-child(2n + 1){display:flex}')
+        expect(css).toContain('[data-state="open"] .state-\\[open\\]\\:flex{display:flex}')
+        expect(css).toContain('.menu[data-state="open"] .state-\\[open\\]\\/menu\\:flex{display:flex}')
+        expect(css).toMatch(/@media \(min-width: ?900px\)\{\.mq-\\\[900px\\\]\\:flex\{display:flex\}/)
+        expect(css).toContain('.group-nth-\\[3\\]\\:flex:is(:where(.group):nth-child(3) *){display:flex}')
+        expect(dialect('hover:nth-[2]:flex')).not.toBeNull()
+        // `sort`: giá trị có tên đăng ký theo thứ tự của `sort` (small trước big), giá trị tuỳ ý xếp sau.
+        expect(Object.keys(output.variants).filter((name) => name.startsWith('mq'))).toEqual(['mq-small', 'mq-big', 'mq-*', 'mq-*/*'])
+        expect(['mq-[900px]:flex', 'mq-big:flex', 'mq-small:flex'].sort(dialect.compare!)).toEqual(['mq-small:flex', 'mq-big:flex', 'mq-[900px]:flex'])
+        expect(dialect('pick-a:flex')).not.toBeNull()
+        expect(dialect('pick-[a]:flex')).toBeNull()
+        expect(output.unsupported).toEqual(['pick-[…]: matchVariant với giá trị tuỳ ý'])
+    })
+
+    it('`@apply` trong CSS-in-JS của addComponents/addUtilities/addBase như Tailwind', async () => {
+        const plugin = createPlugin(({ addComponents, addUtilities, addBase }) => {
+            addBase({ h6: { '@apply font-bold': {} } })
+            addComponents({ '.btn': { '@apply px-4 rounded': {}, color: 'red', '&:hover': { '@apply underline': {} } }, '.card': { '@apply p-6 md:p-10': {} } })
+            addUtilities({ '.stack': { '@apply flex flex-col': {} } })
+        })
+        const { css, output } = await cssOf(plugin, ['btn', 'card', 'stack', 'hover:btn'])
+        expect(output.utilities.btn).toBe('@apply px-4 rounded; color: red; &:hover { @apply underline; }')
+        expect(output.css).toContain('@layer base { h6 { @apply font-bold; } }')
+        expect(output.unsupported).toEqual([])
+        expect(css).toContain('.btn{padding-inline:calc(var(--spacing, 0.25rem) * 4);border-radius:0.25rem;color:red}')
+        expect(css).toContain('.btn:hover{text-decoration-line:underline}')
+        expect(css).toMatch(/@media \(width >= 48rem\)\{\.card\{padding:calc\(var\(--spacing, 0\.25rem\) \* 10\)\}/)
+        expect(css).toContain('.stack{display:flex;flex-direction:column}')
     })
 })
 

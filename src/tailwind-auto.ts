@@ -76,6 +76,7 @@ const start = async () => {
     // `@import "tailwindcss" prefix(tw) important`: lấy giá trị cuối cùng có khai báo trong các thẻ <style>.
     let prefix: string | undefined
     let important: boolean | string | undefined
+    const blocklist: string[] = []
     let css = ''
     for (const text of sources) {
         const parsed = parseTailwindStylesheet(text, { resolve: plugins?.resolveTailwindPlugin })
@@ -84,6 +85,7 @@ const start = async () => {
         Object.assign(variants, parsed.variants)
         if (parsed.prefix !== undefined) prefix = parsed.prefix
         if (parsed.important !== undefined) important = parsed.important
+        if (parsed.blocklist) blocklist.push(...parsed.blocklist)
         css += parsed.css + '\n'
         parsed.unresolved.forEach((id) => console.warn(`[presence-style] Không tìm thấy "${id}" (plugin chưa đóng gói sẵn).`))
     }
@@ -103,6 +105,7 @@ const start = async () => {
             variants,
             prefix,
             important,
+            blocklist,
             css: hybrid ? '' : css.trim(),
         })],
     })

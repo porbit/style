@@ -17,7 +17,7 @@ import { collectFilesSync, createConfigLoader, createStylesheetReader } from './
 import { resolveTailwindPlugin } from './tailwind-plugins'
 import { TAILWIND_PLUGIN_CSS } from './tailwind-plugins-generated'
 import { createTailwindPluginLoader, parsePluginOptions } from './tailwind-plugin-api'
-import { parseTailwindStylesheet, tailwindV4Dialect } from './tailwind-v4'
+import { expandBraces, parseTailwindStylesheet, tailwindV4Dialect } from './tailwind-v4'
 import { buildMergeTable } from './merge'
 import { writeFileSync } from 'node:fs'
 
@@ -39,20 +39,8 @@ export const POSTCSS_EXTENSIONS = ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'mjs
 const PLUGIN_NAME = '@porbit/style/postcss'
 const TAILWIND_ENTRY = /@import\s+["']tailwindcss(?:\/[\w./-]+)?["']|@tailwind\s+(?:base|components|utilities)\b|@config\s+["']/
 
-/** Mở rộng `{a,b}` và `{100..900..100}` như `@source inline()` của Tailwind. */
-export const expandBraces = (pattern: string): string[] => {
-    const match = pattern.match(/^(.*?)\{([^{}]*)\}(.*)$/s)
-    if (!match) return [pattern]
-    const [, before, body, after] = match
-    let options: string[]
-    const range = body.match(/^(-?\d+)\.\.(-?\d+)(?:\.\.(\d+))?$/)
-    if (range) {
-        const [from, to, step] = [Number(range[1]), Number(range[2]), Number(range[3] || 1)]
-        options = []
-        for (let v = from; from <= to ? v <= to : v >= to; v += from <= to ? step : -step) options.push(String(v))
-    } else options = body.split(',')
-    return options.flatMap((option) => expandBraces(before + option + after))
-}
+/** Mở rộng `{a,b}` và `{100..900..100}` như `@source inline()` của Tailwind (dùng chung với `@source not inline()`). */
+export { expandBraces }
 
 /** Đọc .gitignore gốc: tên thư mục/file và mẫu `*` đơn giản. */
 const gitignoreMatcher = (baseDir: string): ((rel: string) => boolean) => {
@@ -161,7 +149,7 @@ export const compileTailwindCss = async (css: string, options: PresenceStylePost
     for (const file of files) for (const candidate of candidatesOf(file)) candidates.add(candidate)
 
     const preflight = /@import\s+["']tailwindcss(?:\/preflight(?:\.css)?)?["']|@tailwind\s+base\b/.test(css)
-    const dialect = tailwindV4Dialect({ preflight, theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, css: sheet.css, prefix: sheet.prefix, important: sheet.important })
+    const dialect = tailwindV4Dialect({ preflight, theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, css: sheet.css, prefix: sheet.prefix, important: sheet.important, blocklist: sheet.blocklist })
     const result = await extractFromClasses([...candidates], { ...rest, safelist, hashClassName: false, silent: true, minify: optimize, dialects: [dialect] })
     if (mergeTable) {
         const target = resolve(base, mergeTable)
