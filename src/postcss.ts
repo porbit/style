@@ -16,7 +16,7 @@ import { extractFromClasses, type ExtractOptions } from './extract'
 import { scanFiles, type CandidateCacheEntry } from './scan'
 import { collectFilesSync, createConfigLoader, createStylesheetReader } from './files'
 import { resolveTailwindPlugin } from './tailwind-plugins'
-import { TAILWIND_PLUGIN_CSS } from './tailwind-plugins-generated'
+import { TAILWIND_PLUGIN_CSS_PACKED } from './tailwind-plugins-generated'
 import { createTailwindPluginLoader, parsePluginOptions } from './tailwind-plugin-api'
 import { expandBraces, parseTailwindStylesheet, tailwindV4Dialect } from './tailwind-v4'
 import { buildMergeTable } from './merge'
@@ -97,7 +97,7 @@ export const compileTailwindCss = async (css: string, options: PresenceStylePost
         resolve: (id) => {
             // `@plugin "./plugin.js"` (file JS không đọc như CSS) và plugin có tuỳ chọn: luôn chạy bản JS.
             if (/\.[cm]?[jt]s$/.test(id) || pluginOptions.has(id)) return jsPlugins.resolve(id, pluginOptions.get(id))
-            const css = read(id) ?? (Object.hasOwn(TAILWIND_PLUGIN_CSS, id) ? TAILWIND_PLUGIN_CSS[id] : null)
+            const css = read(id) ?? (Object.hasOwn(TAILWIND_PLUGIN_CSS_PACKED, id) ? resolveTailwindPlugin(id) : null)
             if (css != null || id.endsWith('.css')) return css ?? null
             // Bí danh (`tailwindcss-animate` -> tw-animate-css, khác giá trị): bản JS của dự án nếu có cài, rồi mới bản đóng gói.
             return jsPlugins.resolve(id) ?? resolveTailwindPlugin(id)

@@ -27,7 +27,7 @@
  */
 import Module, { createRequire } from 'node:module'
 import { isAbsolute, join, resolve as resolvePath } from 'node:path'
-import { STANDARD_CSS_PROPERTIES, isOpenPropertyName } from './css-properties'
+import { isOpenPropertyName, standardCssProperties } from './css-properties'
 import { flattenTailwindPresets, mergeTailwindConfigs, tailwindConfigToCss } from './tailwind-config'
 import { TW_DATA } from './tailwind-generated'
 
@@ -669,7 +669,7 @@ const walkNodes = (nodes: CssNode[], fn: (node: CssNode) => void) => {
 // Selector của addUtilities: tìm `.class` (bỏ qua bên trong :not/:nth-child/:nth-last-child)
 // ---------------------------------------------------------------------------
 
-const STANDARD_PROPERTIES = new Set(STANDARD_CSS_PROPERTIES)
+const STANDARD_PROPERTIES = new Set(standardCssProperties())
 const VALID_UTILITY = /^[a-z@][a-zA-Z0-9/%._-]*$/
 const VALID_VARIANT = /^@?[a-z0-9][a-zA-Z0-9_-]*(?<![_-])$/
 

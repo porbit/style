@@ -1,5 +1,5 @@
 import { mitt } from './events'
-import { STANDARD_CSS_PROPERTIES, isOpenPropertyName } from './css-properties'
+import { isOpenPropertyName, standardCssProperties } from './css-properties'
 import { parseClassName } from './parser'
 import {
     SHORT_PROPERTIES as BUILTIN_SHORT_PROPERTIES,
@@ -1262,7 +1262,7 @@ export const xcss = (
     const shouldEnforceKnownProperties = DICTIONARY_BUILD && dictionaryImport !== false
     const compositePropertyKeys = new Set(['mx', 'my', 'px', 'py', 'bdx', 'bdy'])
     let knownFullPropertyNames = new Set<string>()
-    const standardPropertyNames = new Set<string>(DICTIONARY_BUILD ? STANDARD_CSS_PROPERTIES : [])
+    const standardPropertyNames = new Set<string>(DICTIONARY_BUILD ? standardCssProperties() : [])
     const isKnownPropertyKey = (prop: string): boolean => {
         if (!prop) return false
         if (!shouldEnforceKnownProperties) return true
@@ -1699,7 +1699,8 @@ export const xcss = (
         }
 
         // Cache Key & Logic
-        let currentConfigHash = hashConfig(modules)
+        // Chỉ cache dùng (so cấu hình của cache đã lưu): bản build không cache bỏ cả hàm băm.
+        let currentConfigHash = CACHE_BUILD ? hashConfig(modules) : ''
         let debounceTimer: any = null
         let latestSaveTicket = 0
         let cacheLoaded = false
