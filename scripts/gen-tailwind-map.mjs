@@ -278,11 +278,23 @@ const fallbackDecls = [...propertyBlocks].map(([name, block]) => {
     return `${name}:${initial ? initial[1].trim() : 'initial'}`
 })
 // @property + dự phòng cho trình duyệt chưa hỗ trợ @property (giống `@layer properties` của Tailwind).
+const FALLBACK_WRAP = ['@layer l0{@supports ((-webkit-hyphens: none) and (not (margin-trim: block))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))){*,::before,::after,::backdrop{', '}}}']
 const propertiesCss = [
     ...propertyBlocks.values(),
-    `@layer l0{@supports ((-webkit-hyphens: none) and (not (margin-trim: block))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))){*,::before,::after,::backdrop{${fallbackDecls.join(';')}}}}`,
+    FALLBACK_WRAP[0] + fallbackDecls.join(';') + FALLBACK_WRAP[1],
     ...keyframes,
 ].join('\n')
+// Dạng gọn của @property: `x` (syntax "*", không initial-value), [x, initial] hoặc [x, initial, chỉ số syntax]
+// với tên `--tw-x`; bộ giải mã dựng lại đúng chuỗi trên (kiểm ở cuối file).
+const propertySyntaxes = ['*']
+const propertyList = [...propertyBlocks].map(([name, block]) => {
+    const m = block.match(/^@property --tw-([\w-]+) \{ syntax: "([^"]*)"; inherits: false;(?: initial-value: ([^;]*);)? \}$/)
+    if (!m || `--tw-${m[1]}` !== name) throw new Error(`@property chưa nén được: ${block}`)
+    if (!propertySyntaxes.includes(m[2])) propertySyntaxes.push(m[2])
+    const syntax = propertySyntaxes.indexOf(m[2])
+    if (m[3] === undefined && syntax) throw new Error(`@property có syntax nhưng không có initial-value: ${block}`)
+    return m[3] === undefined ? m[1] : syntax ? [m[1], m[3], syntax] : [m[1], m[3]]
+})
 
 const preflightCss = readTw('preflight.css')
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -292,8 +304,8 @@ const preflightCss = readTw('preflight.css')
     .replace(/--theme\(\s*/g, 'var(')
     .trim()
 
-// Nén: mỗi mẫu/rule là [chỉ số selector, ...chỉ số khai báo] trỏ vào bảng dùng chung
-// (`box-shadow: var(--tw-inset-shadow), ...` lặp ở hàng trăm mẫu chỉ lưu một lần).
+// Dạng trung gian: mỗi mẫu/rule là [chỉ số selector, ...chỉ số khai báo `prop:value`] trỏ vào bảng dùng
+// chung. Bước nén cho bản phân phối (cuối file) đổi tiếp sang dạng gọn hơn.
 const sels = []
 const selIndex = new Map()
 const decls = []
@@ -309,12 +321,13 @@ const packRule = (json) => {
     const [sel, list] = JSON.parse(json)
     return [internIn(sels, selIndex, sel), ...list.map(([prop, value]) => internIn(decls, declIndex, prop + ':' + value))]
 }
-// Bảng màu: họ đủ 11 sắc độ dạng `oklch(L% C H)` nén thành chuỗi `red:L C H,...|blue:...` (nhẹ hơn ~0,9 KB gzip).
+// Bảng màu: họ đủ 11 sắc độ dạng `oklch(L% C H)` (H có thể là `none`: zinc, neutral...) nén thành chuỗi
+// `red:L C H,...|blue:...` (nhẹ hơn ~1 KB gzip).
 const SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
 const paletteTheme = { ...theme }
 const palette = []
 for (const family of new Set(Object.keys(theme).map((k) => k.match(/^--color-([a-z]+)-\d+$/)?.[1]).filter(Boolean))) {
-    const values = SHADES.map((shade) => theme[`--color-${family}-${shade}`]?.match(/^oklch\(([\d.]+)% ([\d.]+) ([\d.]+)\)$/))
+    const values = SHADES.map((shade) => theme[`--color-${family}-${shade}`]?.match(/^oklch\(([\d.]+)% ([\d.]+) ([\d.]+|none)\)$/))
     const familyKeys = Object.keys(theme).filter((k) => k.startsWith(`--color-${family}-`))
     if (values.some((m) => !m) || familyKeys.length !== SHADES.length) continue
     palette.push(`${family}:${values.map((m) => `${m[1]} ${m[2]} ${m[3]}`).join(',')}`)
@@ -402,18 +415,160 @@ for (const name of Object.keys(classSort)) {
 const ORDER = { properties: propertyOrder, variants: variantRoots, groups: groupDirection, signatures: sortOverrides, classes: classSort }
 console.log(`  thứ tự: ${Object.keys(sortOverrides).length} chữ ký, ${Object.keys(classSort).length} class riêng`)
 
+// ---------------------------------------------------------------------------
+// Nén cho bản phân phối (bộ giải mã ở đầu src/tailwind-v4.ts dựng lại đúng các bảng trên)
+// ---------------------------------------------------------------------------
+// 1. Khai báo tách thành [chỉ số thuộc tính, chỉ số giá trị] và nằm thẳng trong rule: rule gọn là
+//    [selector?, prop, value, prop, value...] (độ dài lẻ thì phần tử đầu là selector, vắng là selector 0).
+//    Bảng thuộc tính bắt đầu bằng bảng thứ tự của Tailwind (TW_ORDER.properties chỉ còn là số phần tử).
+// 2. Class tường minh dựng được từ mẫu của họ bằng cách thay một biểu thức `xs[x]` bằng hằng
+//    (`h-full`: `height:calc(var(--spacing) * {v})` -> `height:100%`) lưu thành [j, x, chỉ số lits] với lits
+//    là chuỗi `full=100%|px=1px` dùng chung giữa các họ. Mẫu giá trị tuỳ ý dựng cùng cách ([j, x, chỉ số giá trị]).
+// 3. Mọi thứ theo gốc gộp vào `roots[gốc] = [arbitrary, derived, ...mẫu của họ]`; mẫu họ là [bộ giá trị, ...rule gọn].
+// 4. Bộ giá trị trùng khoá một namespace của theme mặc định (bảng màu) lưu thành `@--color-`.
+const ARBITRARY_KINDS = ['length', 'color', 'number', 'any']
+const compactData = () => {
+    const S = STRUCTURE
+    const ruleOf = (packed) => ({ sel: packed[0], decls: packed.slice(1).map((i) => S.decls[i]) })
+    const textOf = (rule) => rule.sel + '\n' + rule.decls.join('\n')
+    const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    // L sao cho `target` = mẫu với mọi `x` thay bằng L (null nếu không có).
+    const solve = (templateText, x, target) => {
+        if (!templateText.includes(x)) return null
+        const parts = templateText.split(x)
+        const m = target.match(new RegExp('^' + parts.map(escapeRe).join('([^]*?)') + '$'))
+        if (!m || m.slice(2).some((l) => l !== m[1])) return null
+        return parts.join(m[1]) === target ? m[1] : null
+    }
+    const xsSet = new Set(['calc(var(--spacing) * {v})', 'calc(var(--spacing) * -{v})', 'var(--color-{v})', 'calc({f} * 100%)'])
+    for (const t of S.templates) for (const i of t.slice(1)) for (const m of S.decls[i].matchAll(/var\(--[\w-]*?\{v\}\)/g)) xsSet.add(m[0])
+    xsSet.add('{v}')
+    const xs = [...xsSet]
+    const rules = []
+    const use = (rule) => (rules.push(rule), rule)
+    const derive = (rootName, rule) => {
+        const entries = S.families[rootName]
+        if (!entries) return null
+        const target = textOf(rule)
+        for (let j = 0; j < entries.length; j++) {
+            const t = ruleOf(S.templates[entries[j][0]])
+            if (t.sel !== rule.sel || t.decls.length !== rule.decls.length) continue
+            for (let x = 0; x < xs.length; x++) {
+                const l = solve(textOf(t), xs[x], target)
+                if (l !== null && !/[|=\n]/.test(l)) return [j, x, l]
+            }
+        }
+        return null
+    }
+    const familyRules = Object.fromEntries(Object.entries(S.families).map(([r, entries]) => [r, entries.map(([t, s]) => ({ s, rule: use(ruleOf(S.templates[t])) }))]))
+    const derivedGroups = {}
+    const explicitRules = {}
+    for (const [name, packed] of Object.entries(S.explicit)) {
+        const rule = ruleOf(packed)
+        const split = splitsOf(name).reverse().find(([r, suffix]) => !/[|=]/.test(suffix) && derive(r, rule))
+        if (!split) {
+            explicitRules[name] = use(rule)
+            continue
+        }
+        const [j, x, l] = derive(split[0], rule)
+        const groups = (derivedGroups[split[0]] ||= new Map())
+        if (!groups.has(`${j},${x}`)) groups.set(`${j},${x}`, [])
+        groups.get(`${j},${x}`).push(`${split[1]}=${l}`)
+    }
+    const lits = []
+    const derived = Object.fromEntries(Object.entries(derivedGroups).map(([r, groups]) => [r, [...groups].map(([key, pairs]) => {
+        const text = pairs.sort().join('|')
+        if (!lits.includes(text)) lits.push(text)
+        return [...key.split(',').map(Number), lits.indexOf(text)]
+    })]))
+    const valCount = new Map()
+    const count = (v) => valCount.set(v, (valCount.get(v) || 0) + 1)
+    const tplRules = []
+    const tplIndex = new Map()
+    const specOf = (r, t) => {
+        const rule = ruleOf(S.templates[t])
+        const d = derive(r, rule)
+        if (d) return count(d[2]), { d }
+        if (!tplIndex.has(t)) tplIndex.set(t, tplRules.push(use(rule)) - 1)
+        return tplIndex.get(t)
+    }
+    const arbitrarySpecs = Object.fromEntries(Object.entries(S.arbitrary).map(([r, spec]) => {
+        if (typeof spec === 'number') return [r, specOf(r, spec)]
+        for (const kind of Object.keys(spec)) if (!ARBITRARY_KINDS.includes(kind)) throw new Error(`Loại giá trị tuỳ ý lạ: ${kind}`)
+        return [r, ARBITRARY_KINDS.map((kind) => (spec[kind] === undefined ? null : specOf(r, spec[kind])))]
+    }))
+    for (const rule of rules) for (const d of rule.decls) count(d.slice(d.indexOf(':') + 1))
+    // Giá trị hay gặp có chỉ số nhỏ.
+    const vals = [...valCount].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([v]) => v)
+    const valIndex = new Map(vals.map((v, i) => [v, i]))
+    const props = [...propertyOrder]
+    const pack = (rule) => {
+        const out = rule.sel ? [rule.sel] : []
+        for (const d of rule.decls) {
+            const colon = d.indexOf(':')
+            const prop = d.slice(0, colon)
+            if (!props.includes(prop)) props.push(prop)
+            out.push(props.indexOf(prop), valIndex.get(d.slice(colon + 1)))
+        }
+        return out
+    }
+    const packSpec = (s) => (s === null || typeof s === 'number' ? s : [s.d[0], s.d[1], valIndex.get(s.d[2])])
+    const roots = {}
+    for (const r of new Set([...Object.keys(S.families), ...Object.keys(S.arbitrary)])) {
+        const spec = arbitrarySpecs[r]
+        roots[r] = [spec === undefined ? null : Array.isArray(spec) ? spec.map(packSpec) : packSpec(spec), derived[r] ?? 0, ...(familyRules[r] || []).map(({ s, rule }) => [s, ...pack(rule)])]
+    }
+    // Khoá theme mặc định (kể cả bảng màu) theo namespace, như bộ giải mã tính.
+    const nsKeys = (ns) => Object.keys(theme).filter((k) => k.startsWith(ns) && !k.slice(ns.length).includes('--')).map((k) => k.slice(ns.length)).sort().join(' ')
+    const namespaces = new Set(Object.keys(theme).flatMap((k) => k.slice(2).split('-').slice(0, -1).map((_, i, parts) => `--${parts.slice(0, i + 1).join('-')}-`)))
+    const sets = S.valueSets.map((set) => [...namespaces].map((ns) => '@' + ns).find((ns) => nsKeys(ns.slice(1)) === set) ?? set)
+    stats.explicitStored = Object.keys(explicitRules).length
+    stats.derived = Object.keys(S.explicit).length - stats.explicitStored
+    return {
+        version: S.version,
+        theme: S.theme,
+        palette: S.palette,
+        props,
+        vals,
+        sels: S.sels,
+        xs,
+        lits,
+        valueSets: sets,
+        roots,
+        explicit: Object.fromEntries(Object.entries(explicitRules).map(([name, rule]) => [name, pack(rule)])),
+        tpl: tplRules.map(pack),
+        properties: propertyList,
+        syntaxes: propertySyntaxes,
+        fallback: FALLBACK_WRAP,
+        keyframes,
+    }
+}
+const DIST = compactData()
+// Bộ giải mã dựng lại CSS @property từ dạng gọn: kiểm khớp từng ký tự.
+{
+    const list = DIST.properties.map((e) => (typeof e === 'string' ? [e] : e))
+    const rebuilt = [
+        ...list.map(([n, init, syntax]) => `@property --tw-${n} { syntax: "${DIST.syntaxes[syntax || 0]}"; inherits: false;${init === undefined ? '' : ` initial-value: ${init};`} }`),
+        DIST.fallback[0] + list.map(([n, init]) => `--tw-${n}:${init ?? 'initial'}`).join(';') + DIST.fallback[1],
+        ...DIST.keyframes,
+    ].join('\n')
+    if (rebuilt !== propertiesCss) throw new Error('Dạng gọn của @property không dựng lại đúng CSS gốc')
+}
+const DIST_ORDER = { ...ORDER, properties: propertyOrder.length }
+
 const header = `// @generated bởi scripts/gen-tailwind-map.mjs từ tailwindcss@${twVersion} — KHÔNG sửa tay.\n// ${JSON.stringify(stats)}\n`
 const body = `${header}
-export const TW_DATA = ${JSON.stringify(STRUCTURE)} as const
-
-/** @property, dự phòng và keyframes Tailwind cần (đặt vào base CSS của phương ngữ). */
-export const TW_PROPERTIES_CSS = ${JSON.stringify(propertiesCss)}
+/** Dữ liệu phương ngữ dạng nén; giải mã ở đầu src/tailwind-v4.ts (định dạng: xem bước nén trong script sinh). */
+export const TW_DATA = ${JSON.stringify(DIST)} as const
 
 /** Preflight (reset) của Tailwind, bọc trong layer thấp nhất \`l0\`. */
 export const TW_PREFLIGHT_CSS = ${JSON.stringify('@layer l0{' + preflightCss + '}')}
 
-/** Thứ tự class của Tailwind: bảng thuộc tính, [loại, thứ tự] của gốc biến thể, chiều so sánh của nhóm breakpoint/container. */
-export const TW_ORDER = ${JSON.stringify(ORDER)} as const
+/**
+ * Thứ tự class của Tailwind: số thuộc tính đầu của TW_DATA.props là bảng thứ tự thuộc tính, [loại, thứ tự]
+ * của gốc biến thể, chiều so sánh của nhóm breakpoint/container.
+ */
+export const TW_ORDER = ${JSON.stringify(DIST_ORDER)} as const
 
 /** Class chuyển gần đúng (bỏ @media lồng của Tailwind). */
 export const TW_APPROXIMATE: readonly string[] = ${JSON.stringify([...approximateClasses].sort())}

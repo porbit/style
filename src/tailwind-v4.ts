@@ -7,7 +7,7 @@
  *   xcss.cssObserve(document, { dialects: [tailwindV4Dialect({ preflight: true })] })
  */
 import type { XCSSDialect } from './core'
-import { TW_DATA, TW_ORDER, TW_PREFLIGHT_CSS, TW_PROPERTIES_CSS } from './tailwind-generated'
+import { TW_DATA, TW_ORDER, TW_PREFLIGHT_CSS } from './tailwind-generated'
 
 /** Một rule: selector (`&` là phần tử), khai báo; `query` là điều kiện media riêng (`container`); `more` là rule kèm theo. */
 type Rule = { sel: string; decls: Array<[string, string]>; query?: string; more?: Rule[] }
@@ -71,15 +71,103 @@ const templatePrefixes = (templateIndex: number): string[] => {
 }
 /** Namespace theme bị thay hẳn trong dialect đang hoạt động. */
 let RESET_NAMESPACES: string[] = []
-const families = TW_DATA.families as unknown as Record<string, Array<[number, number]>>
-const explicit = TW_DATA.explicit as unknown as Record<string, readonly number[]>
-const arbitraryTemplates = TW_DATA.arbitrary as unknown as Record<string, number | Record<string, number>>
-const templates = TW_DATA.templates as unknown as readonly number[][]
-const sels = TW_DATA.sels as readonly string[]
-const declTable = TW_DATA.decls as readonly string[]
+
+// ---------------------------------------------------------------------------
+// Giải mã dữ liệu nén (định dạng: bước nén cuối scripts/gen-tailwind-map.mjs)
+// ---------------------------------------------------------------------------
+
+/** Rule gọn: [selector?, prop, value, prop, value...]; độ dài lẻ thì phần tử đầu là selector. */
+type CompactRule = readonly number[]
+/** Mẫu giá trị tuỳ ý: chỉ số trong `tpl`, hoặc [mẫu thứ j của họ, biểu thức xs[x], chỉ số giá trị thay vào]. */
+type ArbitrarySpec = number | readonly [number, number, number]
+const DATA = TW_DATA as unknown as {
+    props: readonly string[]
+    vals: readonly string[]
+    sels: readonly string[]
+    xs: readonly string[]
+    lits: readonly string[]
+    valueSets: readonly string[]
+    /** gốc -> [giá trị tuỳ ý (spec hoặc [length, color, number, any]), class dựng từ mẫu [j, x, chỉ số lits] | 0, ...[bộ giá trị, ...rule gọn]] */
+    roots: Record<string, readonly unknown[]>
+    explicit: Record<string, CompactRule>
+    tpl: readonly CompactRule[]
+    properties: ReadonlyArray<string | readonly [string, string, number?]>
+    syntaxes: readonly string[]
+    fallback: readonly [string, string]
+    keyframes: readonly string[]
+}
+const sels = DATA.sels
+/** Bảng khai báo `prop:value` dùng chung; rule giải mã là [chỉ số selector, ...chỉ số khai báo]. */
+const declTable: string[] = []
+const declIndex = new Map<string, number>()
+const internDecl = (text: string): number => {
+    let index = declIndex.get(text)
+    if (index === undefined) declIndex.set(text, (index = declTable.push(text) - 1))
+    return index
+}
+const decodeRule = (rule: CompactRule, from = 0): number[] => {
+    const odd = (rule.length - from) & 1
+    const out = [odd ? rule[from] : 0]
+    for (let i = from + odd; i < rule.length; i += 2) out.push(internDecl(DATA.props[rule[i]] + ':' + DATA.vals[rule[i + 1]]))
+    return out
+}
+/** Rule dựng từ mẫu: thay mọi biểu thức `xs[x]` bằng `literal` (`height:calc(var(--spacing) * {v})` -> `height:100%`). */
+const deriveRule = (template: number[], x: number, literal: string): number[] =>
+    [template[0], ...template.slice(1).map((index) => internDecl(declTable[index].split(DATA.xs[x]).join(literal)))]
+const templates: number[][] = []
+const families: Record<string, Array<[number, number]>> = {}
+const explicit: Record<string, number[]> = {}
+const arbitraryTemplates: Record<string, number | Record<string, number>> = {}
+for (const root in DATA.roots) {
+    const entries = DATA.roots[root].slice(2) as CompactRule[]
+    if (entries.length) families[root] = entries.map((entry) => [templates.push(decodeRule(entry, 1)) - 1, entry[0]])
+}
+const tplBase = templates.length
+for (const rule of DATA.tpl) templates.push(decodeRule(rule))
+const ARBITRARY_KINDS = ['length', 'color', 'number', 'any']
+for (const root in DATA.roots) {
+    const [arbitrary, derived] = DATA.roots[root] as [ArbitrarySpec | ReadonlyArray<ArbitrarySpec | null> | null, ReadonlyArray<readonly [number, number, number]> | 0]
+    const familyTemplate = (j: number) => templates[families[root][j][0]]
+    if (derived) {
+        for (const [j, x, lit] of derived) {
+            for (const pair of DATA.lits[lit].split('|')) {
+                const eq = pair.indexOf('=')
+                explicit[`${root}-${pair.slice(0, eq)}`] = deriveRule(familyTemplate(j), x, pair.slice(eq + 1))
+            }
+        }
+    }
+    if (arbitrary === null) continue
+    const one = (spec: ArbitrarySpec): number =>
+        typeof spec === 'number' ? tplBase + spec : templates.push(deriveRule(familyTemplate(spec[0]), spec[1], DATA.vals[spec[2]])) - 1
+    if (typeof arbitrary === 'number' || arbitrary.length === 3) arbitraryTemplates[root] = one(arbitrary as ArbitrarySpec)
+    else {
+        const kinds: Record<string, number> = {}
+        arbitrary.forEach((spec, i) => {
+            if (spec !== null) kinds[ARBITRARY_KINDS[i]] = one(spec as ArbitrarySpec)
+        })
+        arbitraryTemplates[root] = kinds
+    }
+}
+for (const name in DATA.explicit) explicit[name] = decodeRule(DATA.explicit[name])
 const valueSetCache: Array<Set<string> | undefined> = []
-const valueSet = (index: number): Set<string> =>
-    (valueSetCache[index] ||= new Set((TW_DATA.valueSets as readonly string[])[index].split(' ')))
+/** Bộ giá trị `a b c`; `@--color-` là mọi khoá của namespace đó trong theme mặc định. */
+const valueSet = (index: number): Set<string> => {
+    const text = DATA.valueSets[index]
+    if (text[0] !== '@') return (valueSetCache[index] ||= new Set(text.split(' ')))
+    const ns = text.slice(1)
+    return (valueSetCache[index] ||= new Set(Object.keys(defaultTheme).filter((k) => k.startsWith(ns) && !k.slice(ns.length).includes('--')).map((k) => k.slice(ns.length))))
+}
+/** Bảng thứ tự thuộc tính của Tailwind (getClassOrder). */
+const ORDER_PROPERTIES = DATA.props.slice(0, TW_ORDER.properties)
+/** @property, dự phòng (trình duyệt chưa hỗ trợ @property) và keyframes Tailwind cần (base CSS của phương ngữ). */
+const PROPERTIES_CSS = (() => {
+    const list = DATA.properties.map((entry) => (typeof entry === 'string' ? [entry] : entry)) as Array<readonly [string, string?, number?]>
+    return [
+        ...list.map(([name, initial, syntax]) => `@property --tw-${name} { syntax: "${DATA.syntaxes[syntax || 0]}"; inherits: false;${initial === undefined ? '' : ` initial-value: ${initial};`} }`),
+        DATA.fallback[0] + list.map(([name, initial]) => `--tw-${name}:${initial ?? 'initial'}`).join(';') + DATA.fallback[1],
+        ...DATA.keyframes,
+    ].join('\n')
+})()
 
 // ---------------------------------------------------------------------------
 // Tra rule của phần gốc (không biến thể)
@@ -900,7 +988,7 @@ type OrderVariant =
     | { kind: 'functional'; key: string; root: string; value: { kind: 'named' | 'arbitrary'; value: string } | null; modifier: string | null }
     | { kind: 'compound'; key: string; root: string; variant: OrderVariant; modifier: string | null }
 
-const PROPERTY_INDEX = new Map<string, number>(TW_ORDER.properties.map((p, i) => [p, i]))
+const PROPERTY_INDEX = new Map<string, number>(ORDER_PROPERTIES.map((p, i) => [p, i]))
 /** Gốc biến thể của dialect đang hoạt động: [loại, thứ tự]; biến thể tự định nghĩa nối sau. */
 let ORDER_ROOTS: Record<string, readonly [string, number]> = TW_ORDER.variants
 const FUNCTIONAL_ROOTS = Object.keys(TW_ORDER.variants).filter((k) => TW_ORDER.variants[k as keyof typeof TW_ORDER.variants][0] === 'f').sort((a, b) => b.length - a.length)
@@ -1369,7 +1457,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         return [...new Set(list)]
     }
     dialect.baseCss = [
-        TW_PROPERTIES_CSS,
+        PROPERTIES_CSS,
         options.preflight ? themedPreflight() : '',
         options.css ? layerBaseCss(options.css.includes('@apply') ? expandApply(options.css) : options.css) : '',
     ].filter(Boolean).join('\n')

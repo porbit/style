@@ -25,7 +25,7 @@ const BUDGET = {
     'dist/index-auto.mjs': 24 * 1024, // bản CDN (+chèn rule có thứ tự)
     'dist/index.mjs': 36 * 1024,
     'dist/components.mjs': 8 * 1024,
-    'dist/tailwind-auto.mjs': 63 * 1024, // thay @tailwindcss/browser (75 KB); +thứ tự cascade như Tailwind
+    'dist/tailwind-auto.mjs': 53 * 1024, // thay @tailwindcss/browser (75 KB); dữ liệu nén giải mã lúc nạp
 }
 const EVAL_MIN = { xcssValidAfterFix: 99, tailwindValid: 98, holdout: 85 }
 
