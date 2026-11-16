@@ -62,6 +62,11 @@ const signatures = async (css, html, skip) => {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
     await page.setContent(`<!doctype html><html><head><style>${css}</style></head><body>${html}</body></html>`)
     const result = await page.evaluate((skipSource) => {
+        // Dừng animation ở thời điểm 0 (cả hai phía): accordion/collapsible đổi block-size theo thời gian.
+        for (const animation of document.getAnimations()) {
+            animation.pause()
+            animation.currentTime = 0
+        }
         const skip = skipSource ? new RegExp(skipSource) : null
         const props = [...getComputedStyle(document.body)].filter((p) => !p.startsWith('--') || p.startsWith('--tw-')).sort()
         const sig = (el) => {
