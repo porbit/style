@@ -50,7 +50,7 @@ Server tự chọn (ví dụ bản đang phát triển):
 
 ## Phát hành lên Zed Extensions
 
-1. Thêm file giấy phép (`LICENSE`, MIT/Apache-2.0...) vào thư mục `editors/zed` — registry của Zed yêu cầu.
+1. Thư mục `editors/zed` đã có `LICENSE` (Apache-2.0, chép từ gốc repo) — registry của Zed yêu cầu.
 2. Fork `zed-industries/extensions`, thêm repo này làm submodule `extensions/presence-style`, và mục trong `extensions.toml`:
 
    ```toml

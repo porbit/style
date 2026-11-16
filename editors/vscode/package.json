@@ -4,7 +4,7 @@
   "description": "Language server của @porbit/style: gợi ý class Tailwind v4/x-css kèm ô màu, hover hiện CSS thật, gạch lỗi và quick fix, sắp xếp class.",
   "version": "0.2.0",
   "publisher": "porbit",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "Apache-2.0",
   "icon": "images/icon.png",
   "homepage": "https://github.com/porbit/style/blob/main/docs/guides/editors.md",
   "repository": {

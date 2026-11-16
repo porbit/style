@@ -1117,4 +1117,4 @@ Chi tiết: [docs/operations/README.md](./docs/operations/README.md) mục 4.1.
 
 ## License
 
-Licensed under MIT. See [LICENSE](./LICENSE).
+Giấy phép Apache-2.0. Xem [LICENSE](./LICENSE).

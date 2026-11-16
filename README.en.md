@@ -146,4 +146,4 @@ The full evaluation (Vietnamese) is in [docs/strategy/danh-gia-va-dinh-huong.md]
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+Apache-2.0. See [LICENSE](./LICENSE).

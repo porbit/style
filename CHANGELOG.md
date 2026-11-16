@@ -2,6 +2,9 @@
 
 ## Chưa phát hành
 
+**Giấy phép**
+- Thống nhất giấy phép Apache-2.0 (file `LICENSE` vốn là Apache-2.0; `package.json`, README, crate Rust và extension từng ghi MIT).
+
 **Sửa**
 - Bản 1.0.0 trên npm đóng gói CSS của `@tailwindcss/typography` 0.5.4 (sinh từ `node_modules` cũ) thay vì 0.5.20 đã khai báo. Plugin đóng gói giờ được ghim đúng phiên bản trong `devDependencies`; `gen:tailwind-plugins` dừng nếu `node_modules` lệch với bản ghim.
 
