@@ -17,6 +17,8 @@ const CDN = {
     'tailwind-auto': 'src/tailwind-auto.ts',
     // tailwind-auto tự import động `./tailwind-plugins.mjs`: phải là một file tự chứa.
     'tailwind-plugins': 'src/tailwind-plugins.ts',
+    // Chế độ lai (`data-hybrid`) cũng nạp động `./tailwind-hybrid.mjs`: trang thường không tải phần này.
+    'tailwind-hybrid': 'src/hybrid.ts',
 }
 // Bản CDN Tailwind chỉ cần class Tailwind: tắt cache localStorage và từ điển x-css trong lõi (cờ build ở
 // đầu src/core.ts) để bundler loại bỏ chúng (52,1 -> 40,9 KB gzip). Chỉ áp cho bản ESM tự chứa; bản CJS

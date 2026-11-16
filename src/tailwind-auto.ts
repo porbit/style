@@ -13,7 +13,6 @@
  *   - Cache localStorage, đồng bộ khoá giữa tab, nạp CSS từ cache lúc khởi tạo (`cache.loadOnInit` không có tác dụng).
  */
 import presenceStyle from './core'
-import { readStaticCss, staticLayerBlock } from './hybrid'
 import { parseTailwindStylesheet, tailwindV4Dialect } from './tailwind-v4'
 
 // `document.currentScript` luôn là null với <script type="module">: tìm thẻ theo đường dẫn.
@@ -29,6 +28,10 @@ const attr = (name: string) => script?.getAttribute(name) ?? null
 type PluginModule = { resolveTailwindPlugin: (id: string) => string | null }
 const loadPlugins = (): Promise<PluginModule | null> =>
     import(/* @vite-ignore */ new URL('./tailwind-plugins.mjs', import.meta.url).href).catch(() => null)
+// Chế độ lai cũng ở file riêng (`./tailwind-hybrid.mjs`, từ src/hybrid.ts): chỉ trang có `data-hybrid` tải.
+type HybridModule = typeof import('./hybrid')
+const loadHybrid = (): Promise<HybridModule | null> =>
+    import(/* @vite-ignore */ new URL('./tailwind-hybrid.mjs', import.meta.url).href).catch(() => null)
 
 const start = async () => {
     // `<style type="text/tailwindcss">@theme { --color-brand: ... }</style>` như @tailwindcss/browser.
@@ -55,7 +58,8 @@ const start = async () => {
         parsed.unresolved.forEach((id) => console.warn(`[presence-style] Không tìm thấy "${id}" (plugin chưa đóng gói sẵn).`))
     }
     const hybrid = attr('data-hybrid') !== null
-    const existing = hybrid ? readStaticCss() : null
+    const hybridModule = hybrid ? await loadHybrid() : null
+    const existing = hybridModule ? hybridModule.readStaticCss() : null
     const dialect = tailwindV4Dialect({
         // Lai: CSS tĩnh đã có preflight và CSS nền của dự án.
         preflight: !hybrid && attr('data-preflight') !== 'false',
@@ -73,7 +77,7 @@ const start = async () => {
         // Bản build này không có từ điển x-css (xem đầu file).
         dictionaryImport: false,
         // Lai: rule sinh lúc chạy chèn vào khối @layer của CSS tĩnh, đúng thứ tự Tailwind (staticLayerBlock).
-        preload: existing ? { classes: existing.classes, staticBlock: staticLayerBlock(dialect.compare!) } : undefined,
+        preload: existing && hybridModule ? { classes: existing.classes, staticBlock: hybridModule.staticLayerBlock(dialect.compare!) } : undefined,
         dialects: [dialect],
     })
 }
