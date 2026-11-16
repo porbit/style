@@ -97,6 +97,17 @@ const templatePrefixes = (templateIndex: number): string[] => {
 }
 /** Namespace theme bị thay hẳn trong dialect đang hoạt động. */
 let RESET_NAMESPACES: string[] = []
+// Namespace con không bị xoá theo namespace cha (`ignoredThemeKeyMap` của Tailwind): `--font-*: initial` giữ
+// `--font-weight-*` (TailAdmin: `font-medium` vẫn là 500).
+const KEPT_SUB_NAMESPACES: Record<string, string[]> = {
+    '--font-': ['--font-weight-', '--font-size-'],
+    '--inset-': ['--inset-shadow-', '--inset-ring-'],
+    '--text-': ['--text-color-', '--text-decoration-color-', '--text-decoration-thickness-', '--text-indent-', '--text-shadow-', '--text-underline-offset-'],
+    '--grid-column-': ['--grid-column-start-', '--grid-column-end-'],
+    '--grid-row-': ['--grid-row-start-', '--grid-row-end-'],
+}
+/** Biến theme `key` có bị `--ns-*: initial` (một trong `namespaces`) xoá không. */
+const clearedBy = (namespaces: string[], key: string) => namespaces.some((ns) => key.startsWith(ns) && !KEPT_SUB_NAMESPACES[ns]?.some((sub) => key.startsWith(sub)))
 
 // ---------------------------------------------------------------------------
 // Giải mã dữ liệu nén (định dạng: bước nén cuối scripts/gen-tailwind-map.mjs)
@@ -526,7 +537,7 @@ const resolveBase = (name: string, modifier: string | null = null): Rule | null 
             // Namespace bị thay (`--color-*: initial`): giá trị mặc định không còn (`bg-red-500`).
             if (accepted && RESET_NAMESPACES.length) {
                 const prefixes = templatePrefixes(templateIndex)
-                if (prefixes.some((prefix) => RESET_NAMESPACES.some((ns) => prefix.startsWith(ns)) && theme[prefix + value] === undefined)) accepted = false
+                if (prefixes.some((prefix) => clearedBy(RESET_NAMESPACES, prefix) && theme[prefix + value] === undefined)) accepted = false
             }
             if (accepted) return done(unpack(templates[templateIndex], (t) => fill(t, value)))
         }
@@ -1527,7 +1538,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     const removedKeys = new Set(Object.entries(options.theme || {}).filter(([k, v]) => !k.endsWith('*') && v.trim() === 'initial').map(([k]) => k))
     const ownTheme = options.theme && Object.keys(options.theme).length
         ? Object.fromEntries([
-            ...Object.entries(defaultTheme).filter(([k]) => !resetNamespaces.some((ns) => k.startsWith(ns))),
+            ...Object.entries(defaultTheme).filter(([k]) => !clearedBy(resetNamespaces, k)),
             ...Object.entries(options.theme).filter(([k]) => !k.endsWith('*')),
         ].filter(([k]) => !removedKeys.has(k)))
         : defaultTheme

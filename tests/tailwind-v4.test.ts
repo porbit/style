@@ -316,6 +316,12 @@ describe('phương ngữ Tailwind v4: giá trị như Tailwind trên dự án th
         const base = tailwindV4Dialect({ theme: { '--color-primary': 'var(--color-primary)' }, css: 'body { color: var(--color-primary); }' }).baseCss as string
         expect(base).not.toContain('--color-primary:var(--color-primary)')
     })
+
+    it('`--font-*: initial` giữ `--font-weight-*` như Tailwind (TailAdmin)', () => {
+        const theme = { '--font-*': 'initial', '--font-outfit': 'Outfit, sans-serif' }
+        expect(css('font-medium font-outfit', { theme })).toContain('font-weight:var(--font-weight-medium, 500)')
+        expect(tailwindV4Dialect({ theme })('font-sans')).toBeNull()
+    })
 })
 
 describe('minify CSS tĩnh', () => {
