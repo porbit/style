@@ -46,7 +46,7 @@ Any CSS property works by its full name: `view-transition-name[hero]`, `-webkit-
 
 The v4 dialect is generated from Tailwind's own compiler. Measured in Chromium against tailwindcss 4.3.5: **23,286/23,286 classes**, **956/956** variant combinations (403/403 variants), the tw-animate-css/forms/typography plugins 528/528, and a real project — **shadcn/ui v4: 769/769 classes** in 4 states — render identically. `@theme`, functional `@utility`, `@custom-variant` and `@apply` with variants are supported.
 
-No build step (replaces `@tailwindcss/browser`: 58.0 KB vs 75.3 KB gzip, ~25% faster to first styled frame):
+No build step (replaces `@tailwindcss/browser`: 62.9 KB vs 75.3 KB gzip, ~20% faster to first styled frame):
 
 ```html
 <script type="module" src="https://unpkg.com/@porbit/style/dist/tailwind-auto.mjs"></script>
@@ -58,7 +58,24 @@ No build step (replaces `@tailwindcss/browser`: 58.0 KB vs 75.3 KB gzip, ~25% fa
 <div class="flex items-center gap-4 p-4 rounded-lg bg-brand/90 hover:bg-brand md:grid-cols-3">…</div>
 ```
 
-With Vite (zero runtime JS, like Tailwind): `presenceStyle({ dialects: [tailwindV4Dialect({ preflight: true })] })`, or `"tailwindCss": "src/app.css"` in `presence-style.config.json` for the CLI. Details and limits: [docs/guides/tailwind.md](./docs/guides/tailwind.md) (Vietnamese).
+With a build step (zero runtime JS, like Tailwind), change one line in `postcss.config.mjs` (Next.js, Remix, Astro, Vite...):
+
+```js
+export default { plugins: { '@porbit/style/postcss': {} } }   // instead of '@tailwindcss/postcss'
+```
+
+A real Next.js 15 app renders with 0 differences versus `@tailwindcss/postcss` and ships 3.67 KB instead of 3.97 KB of CSS (gzip). v3 projects using `@config "./tailwind.config.js"` keep working.
+
+The tools around Tailwind are covered too:
+
+| Instead of | Use | Measured |
+| :--- | :--- | :--- |
+| `tailwind-merge` | `@porbit/style/merge` (`cn`) | 100% correct; with project theme/`@utility` 38/38 vs 25/38 for tailwind-merge; lite build 1.5 KB + table |
+| `prettier-plugin-tailwindcss` | `@porbit/style/prettier` | 46/46 shadcn/ui files byte-identical |
+| Tailwind IntelliSense | `presence-style lsp` | class completion (project theme included), color swatches, hover CSS |
+| Safelisting dynamic classes | `tailwind-auto.mjs data-hybrid` | 300/300 runtime-only classes styled after 2.4 ms (Tailwind build: 9/300) |
+
+Details and measurements: [docs/guides/tailwind.md](./docs/guides/tailwind.md) (Vietnamese).
 
 ## Static-First and Vite
 
@@ -110,6 +127,7 @@ Tools: `fix_classes`, `explain_class`, `generate_css`, `extract_css`, `lookup_di
 | `presence-style init [--agents] [--mcp]` | Create config, agent rules and `.mcp.json` |
 | `presence-style mcp` / `mcp-config [client]` | Run the MCP server / print client setup |
 | `presence-style lsp` | Run the language server (stdio) for editors |
+| `presence-style merge-table <paths> --out <file>` | Build the class-merge table for `@porbit/style/merge/lite` |
 
 ## Editor
 

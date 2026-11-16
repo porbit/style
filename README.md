@@ -250,7 +250,7 @@ export function Button({ primary, children }) {
 
 Phương ngữ v4 được sinh từ chính compiler của Tailwind; đo trên Chromium so với Tailwind 4.3.5: khớp **23.286/23.286 class**, **956/956** tổ hợp biến thể (403/403 biến thể), plugin tw-animate-css/forms/typography 528/528, và dự án thật **shadcn/ui v4: 769/769 class** ở 4 trạng thái. Hỗ trợ `@theme`, `@utility` dạng hàm, `@custom-variant`, `@apply` kèm biến thể.
 
-Không build (thay `@tailwindcss/browser`: 58,0 KB so với 75,3 KB gzip, tới khi có style nhanh hơn ~25%):
+Không build (thay `@tailwindcss/browser`: 62,9 KB so với 75,3 KB gzip, tới khi có style nhanh hơn ~20%):
 
 ```html
 <script type="module" src="https://unpkg.com/@porbit/style/dist/tailwind-auto.mjs"></script>
@@ -262,7 +262,24 @@ Không build (thay `@tailwindcss/browser`: 58,0 KB so với 75,3 KB gzip, tới 
 <div class="flex items-center gap-4 p-4 rounded-lg bg-brand/90 hover:bg-brand md:grid-cols-3">…</div>
 ```
 
-Có build (0 KB JavaScript như Tailwind): `presenceStyle({ dialects: [tailwindV4Dialect({ preflight: true })] })` trong Vite, hoặc `"tailwindCss": "src/app.css"` trong `presence-style.config.json` cho CLI. Chi tiết và số đo: [docs/guides/tailwind.md](./docs/guides/tailwind.md).
+Có build (0 KB JavaScript như Tailwind) — đổi một dòng trong `postcss.config.mjs` (Next.js, Remix, Astro, Vite...):
+
+```js
+export default { plugins: { '@porbit/style/postcss': {} } }   // thay '@tailwindcss/postcss'
+```
+
+Next.js 15 thật: 0 khác biệt hiển thị so với `@tailwindcss/postcss`, CSS 3,67 KB so với 3,97 KB gzip. Dự án v3 dùng `@config "./tailwind.config.js"` vẫn chạy.
+
+Thay luôn công cụ quanh Tailwind:
+
+| Thay | Bằng | Đo được |
+| :--- | :--- | :--- |
+| `tailwind-merge` | `@porbit/style/merge` (`cn`) | 100% đúng; với theme/`@utility` của dự án 38/38 so với 25/38 của tailwind-merge; bản lite 1,5 KB + bảng |
+| `prettier-plugin-tailwindcss` | `@porbit/style/prettier` | 46/46 file shadcn/ui giống hệt |
+| Tailwind IntelliSense | `presence-style lsp` | gợi ý class (cả theme dự án), ô màu, hover CSS |
+| Safelist cho class động | `tailwind-auto.mjs data-hybrid` | 300/300 class sinh lúc chạy có style sau 2,4 ms (Tailwind build: 9/300) |
+
+Chi tiết và số đo: [docs/guides/tailwind.md](./docs/guides/tailwind.md).
 
 ## Static-First Và Vite
 

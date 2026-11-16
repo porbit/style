@@ -1,5 +1,27 @@
 # Lịch Sử Thay Đổi
 
+## 0.10.0
+
+Thay Tailwind và các công cụ quanh nó bằng một dòng cấu hình, có số đo cho từng phần (`npm run check:tailwind`).
+
+**Sửa lỗi quan trọng**
+- Thứ tự rule (cascade) phụ thuộc thứ tự gặp class: hai class cùng phần tử đụng nhau (`p-2 pr-2.5`) có thể hiển thị khác Tailwind tuỳ thứ tự quét file. Nay `tailwindV4Dialect().compare` mô phỏng `getClassOrder` của Tailwind (khớp 100%) và engine chèn rule đúng vị trí; điều kiện media/container của Tailwind thành at-rule nội tuyến trong sheet mặc định.
+
+**Thêm mới**
+- `@porbit/style/postcss`: thay `@tailwindcss/postcss` (Next.js, Remix, Astro, Vite...). `@source`, `@source not`, `@source inline()`, `source(...)`, `.gitignore`, watch, `mergeTable`. Next.js 15: 0 khác biệt hiển thị, CSS nhỏ hơn 7,5%.
+- `@porbit/style/merge` (`cn`, `twMerge`, `createMerge`, `buildMergeTable`) và `@porbit/style/merge/lite`; `virtual:presence-style-merge`; lệnh `presence-style merge-table`.
+- `@porbit/style/prettier`: sắp class như prettier-plugin-tailwindcss (`tailwindStylesheet`, `tailwindFunctions`, `tailwindPreserveDuplicates`, `tailwindPreserveWhitespace`). `presence-style sort` và LSP dùng cùng thứ tự; `findClassStrings` đọc chuỗi trong `cn()`/`cva()`/biểu thức `className`.
+- LSP: gợi ý class Tailwind (`dialect.classList()`, cả theme/`@utility` của dự án), biến thể, ô màu (oklch → hex), CSS khi chọn mục.
+- `@config "./tailwind.config.js"` (v3): `tailwindConfigToCss`, `createConfigLoader`; theme/extend, reset namespace, `darkMode`, plugin quen thuộc.
+- `tailwind-auto.mjs data-hybrid`: trang có CSS tĩnh, runtime chỉ sinh CSS cho class mới (đọc class và theme từ CSSOM).
+- Theme: `--color-*: initial`; giá trị đặt tên `--spacing-*` (`p-gutter`); `letter-spacing`/`font-weight` của `--text-*`; class gốc đứng một mình (`rounded`).
+- Bộ đo: `eval/tailwind-order.mjs`, `eval/prettier-sort.mjs`, `eval/merge-accuracy.mjs`, `eval/dynamic-classes.mjs`, `eval/next-parity.sh`; `real-project.mjs` thêm tổ hợp class thật, chế độ PostCSS và hai fixture v3.
+
+**Thay đổi cần biết**
+- Token của phương ngữ Tailwind dùng at-rule nội tuyến (`[@media_(width_>=_48rem)]:...`) thay vì media key `tw-md`.
+- `@utility` giữ mọi khai báo trùng tên như Tailwind (khai báo sau thắng khi hợp lệ).
+- `tailwind-auto` 62,9 KB gzip (ngân sách 63 KB): +4,9 KB cho thứ tự cascade chính xác.
+
 ## 0.9.0
 
 Đóng các khoảng cách còn lại với Tailwind v4 và đo trên dự án thật. Đo trên Chromium so với tailwindcss 4.3.5 (`npm run check:tailwind`).

@@ -309,9 +309,21 @@ const packRule = (json) => {
     const [sel, list] = JSON.parse(json)
     return [internIn(sels, selIndex, sel), ...list.map(([prop, value]) => internIn(decls, declIndex, prop + ':' + value))]
 }
+// Bảng màu: họ đủ 11 sắc độ dạng `oklch(L% C H)` nén thành chuỗi `red:L C H,...|blue:...` (nhẹ hơn ~0,9 KB gzip).
+const SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
+const paletteTheme = { ...theme }
+const palette = []
+for (const family of new Set(Object.keys(theme).map((k) => k.match(/^--color-([a-z]+)-\d+$/)?.[1]).filter(Boolean))) {
+    const values = SHADES.map((shade) => theme[`--color-${family}-${shade}`]?.match(/^oklch\(([\d.]+)% ([\d.]+) ([\d.]+)\)$/))
+    const familyKeys = Object.keys(theme).filter((k) => k.startsWith(`--color-${family}-`))
+    if (values.some((m) => !m) || familyKeys.length !== SHADES.length) continue
+    palette.push(`${family}:${values.map((m) => `${m[1]} ${m[2]} ${m[3]}`).join(',')}`)
+    familyKeys.forEach((k) => delete paletteTheme[k])
+}
 const STRUCTURE = {
     version: twVersion,
-    theme,
+    theme: paletteTheme,
+    palette: palette.join('|'),
     sels,
     decls,
     templates: templates.map(packRule),

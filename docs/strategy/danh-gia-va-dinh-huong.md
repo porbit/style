@@ -326,3 +326,61 @@ Trong lúc đo phát hiện và sửa thêm: khi kiểm bằng `CSS.supports`, c
 | 2 | Cho phép sinh dữ liệu plugin JS bất kỳ ngay trong dự án người dùng (`presence-style tailwind-plugin <tên>`) thay vì chỉ bộ đóng gói sẵn |
 | 3 | Extension Zed và plugin Prettier dùng chung `@porbit/style/lsp`/`sortClasses` |
 | 4 | Engine Rust: gom nhiều rule cho một class như engine Node để bộ so Node/Rust phủ được phương ngữ |
+
+## 13. Vượt Trội Và Thay Thế Tailwind (0.10.0)
+
+### 13.1 Lỗi nghiêm trọng tìm ra trước khi làm
+
+Bộ đo dự án thật chỉ đặt **một class trên mỗi phần tử**, nên không thấy lỗi cascade: CSS của engine xếp rule theo thứ tự **gặp class lần đầu**, còn Tailwind xếp theo thứ tự cố định (`p-2` luôn trước `px-4`). Thêm lượt đo 260 chuỗi class thật của component shadcn/ui: khớp 260/260 với thứ tự quét hiện tại, nhưng **đảo thứ tự quét file thì 3 component hiển thị sai** (`p-2 pr-2.5`, `row-span-2 row-start-1`). Dự án lớn sẽ gặp lỗi này ngẫu nhiên.
+
+Đã sửa bằng cách mô phỏng đúng `getClassOrder` của Tailwind (bitmask biến thể theo thứ tự đăng ký và hàm so riêng của breakpoint/container, bảng thứ tự thuộc tính, `--tw-sort` ẩn, số khai báo, so tên tự nhiên) và cho engine **chèn rule đúng vị trí**. Khớp 100% trên 23.286 class gốc, 3.330 class một biến thể, 2.278 class hai biến thể và shadcn/ui; đảo thứ tự quét vẫn 260/260. Cùng thứ tự này dùng cho Prettier, `sort` và LSP.
+
+### 13.2 Đã làm (mục 1–4 của đề xuất)
+
+| # | Việc | Kết quả đo |
+| :--- | :--- | :--- |
+| 1a | Plugin PostCSS `@porbit/style/postcss` (thay `@tailwindcss/postcss`, đổi một dòng) | shadcn/ui 769/769 qua postcss thật; **Next.js 15 production: 0 khác biệt hiển thị**, CSS 3,67 KB so với 3,97 KB gzip |
+| 1b | Gộp class `@porbit/style/merge` (thay tailwind-merge) theo khai báo thật | Tailwind mặc định 1.326/1.326 (tailwind-merge cũng 100%); **cấu hình riêng của dự án 38/38 so với 25/38**; lite 1,5 KB + bảng 3,2 KB so với 8,3 KB; nhanh hơn 1,6 lần |
+| 2 | Thứ tự class như Tailwind; plugin Prettier; gợi ý class trong LSP | Thứ tự 100%; **Prettier 46/46 file giống hệt** prettier-plugin-tailwindcss; gợi ý class Tailwind có ô màu, theme dự án |
+| 3 | `@config "./tailwind.config.js"` (v3) | Hai fixture (extend, thay hẳn theme): 61/61 và 18/18 ở mọi trạng thái, mọi tổ hợp |
+| 4 | Class động trong chế độ build (`data-hybrid`) | **300/300** class sinh lúc chạy có style sau 2,4 ms; Tailwind build 9/300; `@tailwindcss/browser` 300/300 sau 29,9 ms |
+
+Dọc đường còn sửa: preflight/theme trên dự án có `@theme` riêng (`p-gutter`, `text-hero` không có `--line-height`, `letter-spacing` của `fontSize`), class gốc đứng một mình (`rounded`), breakpoint tự định nghĩa không có thứ tự, Tailwind giữ breakpoint mặc định khi `screens` bị thay.
+
+### 13.3 Không làm (có số đo) và vì sao
+
+- **CDN dưới 40 KB:** không đạt. Lõi 23 KB + dữ liệu Tailwind ~33 KB + mã dialect ~6 KB; nén bảng màu lấy lại 0,8 KB. Bản CDN hiện **62,9 KB** (Tailwind 75,3 KB, −16%), tăng 4,9 KB so với 0.9.0 vì thứ tự cascade chính xác — đáng giá hơn dung lượng.
+- **Đổi tên class ngắn lúc build:** đo được tiềm năng CSS −17,6%, mã component −20,3% (gzip, shadcn/ui), nhưng phải viết lại chuỗi class trong mã nguồn, dễ hỏng `querySelector`, test và chuỗi động. Để làm sau, dạng tuỳ chọn.
+- **CSS tách theo route:** rule ở các file CSS khác nhau tải theo thứ tự khác nhau sẽ phá thứ tự cascade vừa sửa; Tailwind cũng dùng một file. Không làm.
+
+### 13.4 So sánh tổng thể
+
+| Trục | Tailwind 4.3.5 + hệ sinh thái | @porbit/style 0.10.0 | Đánh giá |
+| :--- | :--- | :--- | :--- |
+| Hiển thị class, biến thể, cấu hình CSS | — | 100% mọi bộ đo, cả dự án thật và v3 | **Ngang** |
+| Tích hợp build | `@tailwindcss/postcss`, `/vite`, CLI | PostCSS, Vite, CLI; Next.js thật 0 khác biệt | **Ngang** |
+| CSS build ra | 3,97 KB (Next.js) | 3,67 KB | Vượt nhẹ |
+| Gộp class | tailwind-merge: cần cấu hình tay cho theme/`@utility` | Tự đúng theo CSS dự án, nhẹ hơn, nhanh hơn | **Vượt** |
+| Sắp class | prettier-plugin-tailwindcss (cần cài tailwindcss) | Giống hệt, không cần tailwindcss | Ngang |
+| IntelliSense | Extension chính thức (VS Code) | LSP cho mọi editor; ô màu, hover CSS | Ngang (VS Code), vượt (editor khác) |
+| Class động / HTML sinh lúc chạy | Không (trừ safelist) hoặc `@tailwindcss/browser` không dùng production | CSS tĩnh + runtime lai, đúng 100%, nhanh hơn 12 lần | **Vượt** |
+| Không build | 75,3 KB | 62,9 KB, có style sớm hơn ~20%; thêm 2.000 phần tử chậm hơn ~15% | Vượt về tải, kém nhẹ khi nhồi phần tử |
+| Plugin JS tuỳ ý | Có | Chỉ 3 plugin đóng gói sẵn | **Thua** |
+| `prefix`, `important`, `corePlugins` của v3 | Có | Chưa | **Thua** |
+| Cộng đồng, tài liệu | Rất lớn | Nhỏ | **Thua** |
+
+### 13.5 Kết luận
+
+- **Thay thế hoàn toàn được** cho dự án Tailwind v4 (và v3 qua `@config`) dùng utility, cấu hình CSS, shadcn/ui, tw-animate-css, forms, typography: đổi một dòng PostCSS, đổi `tailwind-merge` và plugin Prettier, không sửa class nào — với số đo chứng minh ở từng bước.
+- **Vượt trội rõ** ở hai chỗ Tailwind không có lời giải tốt: gộp class đúng theo cấu hình dự án mà không cấu hình tay, và class động trong chế độ build (CMS, ghép chuỗi, UI do AI sinh lúc chạy).
+- **Chưa nên chuyển** nếu dự án phụ thuộc plugin JS riêng, `prefix`/`important` của v3, hoặc cần cộng đồng lớn.
+
+### 13.6 Việc tiếp theo
+
+| Ưu tiên | Việc |
+| :--- | :--- |
+| 1 | Chạy plugin JS tuỳ ý: cài đặt hàm `addUtilities`/`matchUtilities`/`addVariant`/`theme()` thay vì chỉ sinh sẵn 3 plugin |
+| 2 | `prefix`/`important` của v3; `@config` với file `.ts` |
+| 3 | Thêm trạng thái hover/focus và nhiều dự án mã nguồn mở hơn vào bộ đo dự án thật |
+| 4 | Thêm 2.000 phần tử: gom nhiều rule một lần chèn để lấy lại ~15% so với Tailwind |
+| 5 | Đổi tên class ngắn lúc build (tuỳ chọn): −17,6% CSS, −20,3% mã component |

@@ -33,7 +33,16 @@ export interface TailwindV4DialectOptions {
     darkMode?: 'media' | 'class'
 }
 
-const defaultTheme = TW_DATA.theme as Record<string, string>
+// Bảng màu nén (`red:97.1 0.013 17.38,...|...`) -> `--color-red-50: oklch(97.1% 0.013 17.38)`.
+const defaultTheme: Record<string, string> = { ...(TW_DATA.theme as Record<string, string>) }
+const PALETTE_SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
+for (const entry of (TW_DATA.palette as string).split('|').filter(Boolean)) {
+    const [family, values] = entry.split(':')
+    values.split(',').forEach((value, i) => {
+        const [l, c, h] = value.split(' ')
+        defaultTheme[`--color-${family}-${PALETTE_SHADES[i]}`] = `oklch(${l}% ${c} ${h})`
+    })
+}
 // Theme của phiên bản phương ngữ đang chạy (mặc định + theme người dùng). JS chạy đơn luồng nên đặt
 // lại ở đầu mỗi lần gọi phương ngữ là đủ.
 let theme: Record<string, string> = defaultTheme
@@ -1213,10 +1222,13 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
 
     // Khoá thứ tự kiểu Tailwind cho từng class (null: không phải class của phương ngữ).
     const orderCache = new Map<string, TailwindOrderKey | null>()
+    const lastPlaced = new Map<string, ReturnType<typeof place>>()
     const orderKey = (className: string): TailwindOrderKey | null => {
         let key = orderCache.get(className)
         if (key !== undefined) return key
-        const result = place(className)
+        // Kết quả place() của lần dịch class (engine gọi dialect trước khi chèn rule) dùng lại, không tính lại.
+        const result = lastPlaced.get(className) ?? place(className)
+        lastPlaced.delete(className)
         if (!result) key = null
         else {
             const variants = result.variants.map((v) => parseOrderVariant(v) ?? ({ kind: 'arbitrary', key: v, selector: v } as OrderVariant))
@@ -1298,6 +1310,8 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     const dialect = ((className: string): string[] | null => {
         const result = place(className)
         if (!result) return null
+        if (lastPlaced.size > 200) lastPlaced.clear()
+        lastPlaced.set(className, result)
         // Utility người dùng trùng utility sẵn có cho cùng khai báo (`tab-4`): bỏ token lặp.
         const seen = new Set<string>()
         return result.placed.flatMap(({ media, sel: placedSel, decls }) => {
