@@ -58,7 +58,7 @@
           "tracking-wide tracking-loose -> tracking-wide tracking-loose",
           "leading-tight leading-snugger -> leading-tight leading-snugger",
           "tab-8 tab-2 -> tab-8 tab-2",
-          "content-hidden content-auto -> content-hidden content-auto",
+          "snap-x-strict snap-none-x -> snap-x-strict snap-none-x",
           "pointer-fine:text-hero pointer-fine:text-sm -> pointer-fine:text-hero pointer-fine:text-sm"
         ]
       },
@@ -77,7 +77,7 @@
           "gap-gutter gap-4 -> gap-gutter gap-4",
           "tracking-wide tracking-loose -> tracking-wide tracking-loose",
           "leading-tight leading-snugger -> leading-tight leading-snugger",
-          "content-hidden content-auto -> content-hidden content-auto",
+          "snap-x-strict snap-none-x -> snap-x-strict snap-none-x",
           "pointer-fine:text-hero pointer-fine:text-sm -> pointer-fine:text-hero pointer-fine:text-sm"
         ]
       },

@@ -112,13 +112,14 @@ report.tailwind = await evaluate('Tailwind mặc định (class của shadcn/ui 
     '@porbit/style/merge/lite + bảng': (s) => liteDefault(s),
 })
 
+// (Không dùng `content-visibility: hidden`: trình duyệt bỏ tính style của phần tử con nên phép đo dao động.)
 // Cấu hình riêng của dự án: tailwind-merge chỉ đúng khi cấu hình tay (extendTailwindMerge); @porbit/style đọc từ CSS.
 const PROJECT_CSS = `@import "tailwindcss";
 @import "tw-animate-css";
 @theme { --text-hero: 3.5rem; --text-tiny: 0.625rem; --color-brand: #0a64e8; --radius-blob: 2rem; --shadow-soft: 0 2px 8px rgb(0 0 0 / 0.08); --spacing-gutter: 1.5rem; --font-display: Georgia, serif; --tracking-loose: 0.08em; --leading-snugger: 1.2; }
 @utility tab-* { tab-size: --value(integer); }
-@utility content-auto { content-visibility: auto; }
-@utility content-hidden { content-visibility: hidden; }
+@utility snap-x-strict { scroll-snap-type: x mandatory; }
+@utility snap-none-x { scroll-snap-type: none; }
 @custom-variant pointer-fine (@media (pointer: fine));`
 const animatePath = path.join(root, 'node_modules/tw-animate-css/dist/tw-animate.css')
 const loadProject = async (id, base) => (id === 'tw-animate-css' ? { base, path: id, content: fs.readFileSync(animatePath, 'utf8') } : loadStylesheet(id, base))
@@ -134,7 +135,7 @@ const PROJECT_PAIRS = [
     'bg-brand bg-red-500', 'bg-red-500 bg-brand', 'border-brand border-red-500', 'rounded-md rounded-blob', 'rounded-blob rounded-t-none', 'rounded-blob rounded-lg',
     'shadow-md shadow-soft', 'shadow-soft shadow-none', 'shadow-soft shadow-red-500', 'p-4 p-gutter', 'px-gutter px-2', 'gap-gutter gap-4', 'm-gutter mx-0',
     'font-sans font-display', 'font-display font-bold', 'tracking-wide tracking-loose', 'leading-tight leading-snugger',
-    'tab-4 tab-8', 'tab-8 tab-2', 'content-auto content-hidden', 'content-hidden content-auto',
+    'tab-4 tab-8', 'tab-8 tab-2', 'snap-x-strict snap-none-x', 'snap-none-x snap-x-strict',
     'fade-in-0 fade-in-50', 'zoom-in-95 zoom-in-50', 'slide-in-from-top-2 slide-in-from-top-8', 'slide-in-from-left-2 slide-in-from-left-4', 'spin-in-45 spin-in-90',
     'duration-200 duration-500', 'delay-100 delay-300', 'repeat-1 repeat-infinite',
     'pointer-fine:p-2 pointer-fine:p-4', 'pointer-fine:bg-brand pointer-fine:bg-red-500', 'pointer-fine:text-hero pointer-fine:text-sm',
