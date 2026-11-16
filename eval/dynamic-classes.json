@@ -5,20 +5,20 @@
     "Tailwind build (CSS tĩnh)": {
       "correct": 9,
       "total": 300,
-      "msToStyle": 3.9,
+      "msToStyle": 3.4,
       "jsKbGzip": 0
     },
     "@tailwindcss/browser": {
       "correct": 300,
       "total": 300,
-      "msToStyle": 29.9,
+      "msToStyle": 38.2,
       "jsKbGzip": 73.9
     },
     "@porbit/style: CSS tĩnh + tailwind-auto data-hybrid": {
       "correct": 300,
       "total": 300,
-      "msToStyle": 2.4,
-      "jsKbGzip": 62.8
+      "msToStyle": 2.3,
+      "jsKbGzip": 44.1
     }
   }
 }

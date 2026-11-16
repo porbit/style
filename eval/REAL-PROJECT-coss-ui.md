@@ -4,16 +4,16 @@
 
 | Chế độ | Chuyển được | Khớp (mặc định) | Khớp (mở) | Khớp (đóng) | Khớp (.dark) | Khớp (:hover) | Khớp (:focus) | Khớp (:focus-visible) | Khớp (:active) | Khớp (375px) | Khớp (768px) | Khớp (1600px) |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| không build (parseTailwindStylesheet) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1330/1331 (99.9%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) |
+| không build (parseTailwindStylesheet) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) |
 
 Số class Tailwind đổi style so với lượt mặc định (biến thể được kiểm): mở 42, đóng 17, .dark 45, :hover 16, :focus 3, :focus-visible 11, :active 18, 375px 70, 768px 5, 1600px 5.
 
-Tổ hợp thật (379 chuỗi class của component, nhiều class trên một phần tử): mặc định 379/379 · mở 379/379 · đóng 377/379 · .dark 379/379 · :hover 379/379 · :focus 379/379 · :focus-visible 379/379 · :active 379/379 · 375px 379/379 · 768px 379/379 · 1600px 379/379.
-| plugin PostCSS (@porbit/style/postcss) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1330/1331 (99.9%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) |
+Tổ hợp thật (379 chuỗi class của component, nhiều class trên một phần tử): mặc định 379/379 · mở 379/379 · đóng 379/379 · .dark 379/379 · :hover 379/379 · :focus 379/379 · :focus-visible 379/379 · :active 379/379 · 375px 379/379 · 768px 379/379 · 1600px 379/379.
+| plugin PostCSS (@porbit/style/postcss) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) | 1331/1331 (100.0%) |
 
 Số class Tailwind đổi style so với lượt mặc định (biến thể được kiểm): mở 42, đóng 17, .dark 45, :hover 16, :focus 3, :focus-visible 11, :active 18, 375px 70, 768px 5, 1600px 5.
 
-Tổ hợp thật (379 chuỗi class của component, nhiều class trên một phần tử): mặc định 379/379 · mở 379/379 · đóng 377/379 · .dark 379/379 · :hover 379/379 · :focus 379/379 · :focus-visible 379/379 · :active 379/379 · 375px 379/379 · 768px 379/379 · 1600px 379/379.
+Tổ hợp thật (379 chuỗi class của component, nhiều class trên một phần tử): mặc định 379/379 · mở 379/379 · đóng 379/379 · .dark 379/379 · :hover 379/379 · :focus 379/379 · :focus-visible 379/379 · :active 379/379 · 375px 379/379 · 768px 379/379 · 1600px 379/379.
 
 ### không build (parseTailwindStylesheet) — mặc định: lệch 0
 
@@ -21,9 +21,8 @@ Tổ hợp thật (379 chuỗi class của component, nhiều class trên một 
 ### không build (parseTailwindStylesheet) — mở: lệch 0
 
 
-### không build (parseTailwindStylesheet) — đóng: lệch 1
+### không build (parseTailwindStylesheet) — đóng: lệch 0
 
-- `data-[orientation=vertical]:not-[[class^='h-']]:not-[[class*='_h-']]:self-stretch`: `align-self: tw=stretch | ours=auto`
 
 ### không build (parseTailwindStylesheet) — .dark: lệch 0
 
@@ -55,10 +54,8 @@ Tổ hợp thật (379 chuỗi class của component, nhiều class trên một 
 ### không build (parseTailwindStylesheet) — tổ hợp, mở: lệch 0
 
 
-### không build (parseTailwindStylesheet) — tổ hợp, đóng: lệch 2
+### không build (parseTailwindStylesheet) — tổ hợp, đóng: lệch 0
 
-- `shrink-0 bg-border data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:w-px data-[orientation=vertical]:not-[[class^='h-']]:not-[[class*='_h-']]:self-stretch`: `align-self: tw=stretch | ours=auto`
-- `shrink-0 bg-border data-[orientation=horizontal]:my-0.5 data-[orientation=vertical]:my-1.5 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:w-px data-[orientation=vertical]:not-[[class^='h-']]:not-[[class*='_h-']]:self-stretch`: `align-self: tw=stretch | ours=auto`
 
 ### không build (parseTailwindStylesheet) — tổ hợp, .dark: lệch 0
 
@@ -93,9 +90,8 @@ Tổ hợp thật (379 chuỗi class của component, nhiều class trên một 
 ### plugin PostCSS (@porbit/style/postcss) — mở: lệch 0
 
 
-### plugin PostCSS (@porbit/style/postcss) — đóng: lệch 1
+### plugin PostCSS (@porbit/style/postcss) — đóng: lệch 0
 
-- `data-[orientation=vertical]:not-[[class^='h-']]:not-[[class*='_h-']]:self-stretch`: `align-self: tw=stretch | ours=auto`
 
 ### plugin PostCSS (@porbit/style/postcss) — .dark: lệch 0
 
@@ -127,10 +123,8 @@ Tổ hợp thật (379 chuỗi class của component, nhiều class trên một 
 ### plugin PostCSS (@porbit/style/postcss) — tổ hợp, mở: lệch 0
 
 
-### plugin PostCSS (@porbit/style/postcss) — tổ hợp, đóng: lệch 2
+### plugin PostCSS (@porbit/style/postcss) — tổ hợp, đóng: lệch 0
 
-- `shrink-0 bg-border data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:w-px data-[orientation=vertical]:not-[[class^='h-']]:not-[[class*='_h-']]:self-stretch`: `align-self: tw=stretch | ours=auto`
-- `shrink-0 bg-border data-[orientation=horizontal]:my-0.5 data-[orientation=vertical]:my-1.5 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:w-px data-[orientation=vertical]:not-[[class^='h-']]:not-[[class*='_h-']]:self-stretch`: `align-self: tw=stretch | ours=auto`
 
 ### plugin PostCSS (@porbit/style/postcss) — tổ hợp, .dark: lệch 0
 

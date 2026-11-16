@@ -1796,7 +1796,8 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         const seen = new Set<string>()
         return result.placed.flatMap(({ media, sel: placedSel, decls }) => {
             const sel = placedSel === '&' ? '' : placedSel.startsWith('&') && placedSel.indexOf('&', 1) === -1 ? placedSel.slice(1) : placedSel
-            const suffix = sel ? '@' + sel.replace(/\s+/g, ';') : ''
+            // Khoảng trắng trong chuỗi có nháy (`[class*=' h-']`) viết `\20 `: engine đọc `';` là dấu `;` thật.
+            const suffix = sel ? '@' + sel.replace(/(["'])((?:(?!\1).)*)\1/g, (_m, q: string, inner: string) => q + inner.replace(/ /g, '\\20 ') + q).replace(/\s+/g, ';') : ''
             const prefix = media ? media + ':' : ''
             return decls.map(([prop, value]) => {
                 // `--tw-blur: ;` (rỗng) của Tailwind: dùng `initial`, cùng kết quả khi biến được đọc

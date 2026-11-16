@@ -44,9 +44,9 @@ Any CSS property works by its full name: `view-transition-name[hero]`, `-webkit-
 
 ## Run Tailwind v4 Classes, Rendered Like Tailwind
 
-The v4 dialect is generated from Tailwind's own compiler. Measured in Chromium against tailwindcss 4.3.5: **23,286/23,286 classes**, **956/956** variant combinations (403/403 variants), the tw-animate-css/forms/typography plugins 528/528, and a real project — **shadcn/ui v4: 769/769 classes** in 4 states — render identically. `@theme`, functional `@utility`, `@custom-variant` and `@apply` with variants are supported.
+The v4 dialect is generated from Tailwind's own compiler. Measured in Chromium against tailwindcss 4.3.5: **23,286/23,286 classes**, **956/956** variant combinations (403/403 variants) and **4 real open-source projects** (shadcn/ui, HyperUI, Magic UI, coss ui: 3,305/3,305 classes and 1,650/1,650 real class strings across 11 state/width passes) render identically; 8 v3 configs and arbitrary JS plugins work without installing `tailwindcss`. Full evaluation (Vietnamese): [docs/strategy/danh-gia-1.0.md](./docs/strategy/danh-gia-1.0.md).
 
-No build step (replaces `@tailwindcss/browser`: 62.9 KB vs 75.3 KB gzip, ~20% faster to first styled frame):
+No build step (replaces `@tailwindcss/browser`: 44.1 KB vs 75.3 KB gzip; inserting elements at runtime up to 5.5× faster):
 
 ```html
 <script type="module" src="https://unpkg.com/@porbit/style/dist/tailwind-auto.mjs"></script>
@@ -64,7 +64,7 @@ With a build step (zero runtime JS, like Tailwind), change one line in `postcss.
 export default { plugins: { '@porbit/style/postcss': {} } }   // instead of '@tailwindcss/postcss'
 ```
 
-A real Next.js 15 app renders with 0 differences versus `@tailwindcss/postcss` and ships 3.67 KB instead of 3.97 KB of CSS (gzip). v3 projects using `@config "./tailwind.config.js"` keep working.
+A real Next.js 15 app renders with 0 differences versus `@tailwindcss/postcss` and ships 3.62 KB instead of 3.88 KB of CSS (gzip), with a 1.6 MB install instead of ~25 MB. v3 projects using `@config "./tailwind.config.js"` keep working.
 
 The tools around Tailwind are covered too:
 
@@ -73,7 +73,7 @@ The tools around Tailwind are covered too:
 | `tailwind-merge` | `@porbit/style/merge` (`cn`) | 100% correct; with project theme/`@utility` 38/38 vs 25/38 for tailwind-merge; lite build 1.5 KB + table |
 | `prettier-plugin-tailwindcss` | `@porbit/style/prettier` | 46/46 shadcn/ui files byte-identical |
 | Tailwind IntelliSense | `presence-style lsp` | class completion (project theme included), color swatches, hover CSS |
-| Safelisting dynamic classes | `tailwind-auto.mjs data-hybrid` | 300/300 runtime-only classes styled after 2.4 ms (Tailwind build: 9/300) |
+| Safelisting dynamic classes | `tailwind-auto.mjs data-hybrid` | 300/300 runtime-only classes styled after 2.3 ms (Tailwind build: 9/300) |
 
 Details and measurements: [docs/guides/tailwind.md](./docs/guides/tailwind.md) (Vietnamese).
 
