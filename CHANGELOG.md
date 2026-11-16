@@ -12,6 +12,11 @@
 - `minifyCss` nhanh hơn ~2 lần (tách khối bằng regex, nhớ thân khối giữa hai lượt, tập biến dùng tính một lần); liệt kê file không còn gọi `path.join`/`path.relative` cho từng file.
 - `compileTailwindCss` trả thêm `timings` (thời gian từng pha).
 
+**Rút gọn tên class cho Next.js / webpack / Rspack**
+- `@porbit/style/webpack` (`PresenceStyleWebpackPlugin` + loader `@porbit/style/webpack-loader`) và `withPresenceStyle(nextConfig, { shortClassNames })` của `@porbit/style/next`: chỉ khi build production bằng webpack; bảng ánh xạ dựng một lần trước khi biên dịch, ghi ra `.next/cache/presence-style/short-class-names.json` và dùng chung cho loader (mã nguồn), plugin PostCSS (tuỳ chọn mới `shortClassNames: true`) và file CSS của bundle. Turbopack chưa hỗ trợ (giữ nguyên tên; dùng `next build --webpack`).
+- Next.js 15 thật (`eval/next-short-classnames.sh`): ứng dụng shadcn/ui computed style khớp 3.170/3.170 phần tử (5 lượt); xem docs/guides/tailwind.md mục 8.
+- Sửa `shortClassNames` (cả Vite/CLI/API) với tailwind-merge: `cn("px-4", "px-2")` không gộp được khi tên đã đổi (ứng dụng shadcn đo được 63% phần tử lệch). Tuỳ chọn mới `merge` (mặc định `'auto'`: bật khi mã dùng tailwind-merge/tailwind-variants/`@porbit/style/merge`) giữ tên gốc cho class có đối thủ cùng thuộc tính và cho tên giữ chuỗi con (`text-a`). Plugin webpack: file không qua loader (`public/`, `.md`, `.html`...) chỉ dùng để giữ tên class (`opaqueSources` của `createShortClassNames`).
+
 **Sửa**
 - Bản 1.0.0 trên npm đóng gói CSS của `@tailwindcss/typography` 0.5.4 (sinh từ `node_modules` cũ) thay vì 0.5.20 đã khai báo. Plugin đóng gói giờ được ghim đúng phiên bản trong `devDependencies`; `gen:tailwind-plugins` dừng nếu `node_modules` lệch với bản ghim.
 

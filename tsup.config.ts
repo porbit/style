@@ -46,8 +46,10 @@ const NODE = {
     prettier: 'src/prettier.ts',
     vite: 'src/vite.ts',
     shorten: 'src/shorten.ts',
+    webpack: 'src/webpack.ts',
+    next: 'src/next.ts',
 }
-const ESM_WRAPPED = ['mcp', 'lsp', 'postcss', 'prettier', 'vite', 'shorten']
+const ESM_WRAPPED = ['mcp', 'lsp', 'postcss', 'prettier', 'vite', 'shorten', 'webpack', 'next']
 
 const common: Options = {
     sourcemap: true,
@@ -113,6 +115,9 @@ export default defineConfig([
         onSuccess: async () => {
             // Next.js và nhiều trình chạy PostCSS gọi `require('@porbit/style/postcss')(options)`: bản CJS phải là hàm.
             writeFileSync('dist/postcss.cjs', "'use strict'\nconst mod = require('./postcss.js')\nmodule.exports = Object.assign(mod.default, mod, { default: mod.default })\n")
+            // Loader webpack/Rspack: module.exports phải là hàm loader (plugin trỏ thẳng tới file này).
+            // (biến trung gian: cjs-module-lexer không coi là re-export toàn bộ webpack.js).
+            writeFileSync('dist/webpack-loader.cjs', "'use strict'\nconst mod = require('./webpack.js')\nmodule.exports = mod.shortClassNamesLoader\n")
             writeEsmWrappers()
         },
     },

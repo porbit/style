@@ -21,6 +21,7 @@ import { createTailwindPluginLoader, parsePluginOptions } from './tailwind-plugi
 import { expandBraces, parseTailwindStylesheet, tailwindV4Dialect } from './tailwind-v4'
 import { buildMergeTable } from './merge'
 import { writeFileSync } from 'node:fs'
+import { findShortNameCollisions, loadShortClassTable, markPostcssShortened, SHORT_CLASS_MAP_ENV } from './short-table'
 
 export interface PresenceStylePostcssOptions extends Omit<ExtractOptions, 'dialects'> {
     /** Thư mục gốc để quét mã nguồn. Mặc định thư mục làm việc (`process.cwd()`). */
@@ -34,6 +35,12 @@ export interface PresenceStylePostcssOptions extends Omit<ExtractOptions, 'diale
      * `cn()` đúng theo theme/@utility của dự án, ~1,5 KB code + bảng nhỏ. Đường dẫn tương đối với `base`.
      */
     mergeTable?: string
+    /**
+     * Đổi tên class theo bảng rút gọn của lần build hiện tại (do plugin bundler `@porbit/style/webpack` hoặc
+     * `withPresenceStyle` của `@porbit/style/next` dựng và trỏ tới qua biến môi trường). Không có bảng (dev,
+     * Turbopack, bundler không bật rút gọn) thì không làm gì: CSS và mã luôn cùng tên.
+     */
+    shortClassNames?: boolean
 }
 
 export const POSTCSS_EXTENSIONS = ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'mts', 'cts', 'vue', 'svelte', 'astro', 'mdx', 'md', 'php', 'erb', 'hbs', 'liquid', 'twig', 'njk']
@@ -73,7 +80,7 @@ export interface CompiledTailwindCss {
 
 /** Biên dịch một file CSS kiểu Tailwind v4 (dùng chung cho plugin PostCSS và công cụ khác). */
 export const compileTailwindCss = async (css: string, options: PresenceStylePostcssOptions & { from?: string } = {}): Promise<CompiledTailwindCss> => {
-    const { base = process.cwd(), extensions = POSTCSS_EXTENSIONS, optimize = true, from, safelist = [], mergeTable, ...rest } = options
+    const { base = process.cwd(), extensions = POSTCSS_EXTENSIONS, optimize = true, from, safelist = [], mergeTable, shortClassNames: _short, ...rest } = options
     const t0 = performance.now()
     const cssDir = from ? dirname(from) : base
     const imports: string[] = []
@@ -173,20 +180,46 @@ interface MinimalHelpers {
     postcss: { parse: (css: string, options?: { from?: string }) => unknown }
 }
 
+/** Bảng rút gọn đang dùng (file do plugin bundler ghi, trỏ tới qua biến môi trường); null khi không có. */
+const activeShortTable = () => {
+    const mapFile = process.env[SHORT_CLASS_MAP_ENV]
+    if (!mapFile) return null
+    const loaded = loadShortClassTable(mapFile)
+    return loaded && Object.keys(loaded.table.map).length ? { mapFile, ...loaded } : null
+}
+
 const presenceStylePostcss = (options: PresenceStylePostcssOptions = {}) => ({
     postcssPlugin: PLUGIN_NAME,
     async Once(root: MinimalRoot, { result, postcss }: MinimalHelpers) {
-        const css = root.toString()
-        if (!TAILWIND_ENTRY.test(css)) return
+        let css = root.toString()
         const from = result.opts.from
-        const compiled = await compileTailwindCss(css, { ...options, from })
-        root.removeAll()
-        root.append(postcss.parse(compiled.css, { from }))
-        const extensions = options.extensions ?? POSTCSS_EXTENSIONS
-        for (const dir of compiled.directories) {
-            result.messages.push({ type: 'dir-dependency', plugin: PLUGIN_NAME, dir, glob: `**/*.{${extensions.join(',')}}`, parent: from })
+        const short = options.shortClassNames ? activeShortTable() : null
+        const entry = TAILWIND_ENTRY.test(css)
+        if (!entry) {
+            if (!short) return
+        } else {
+            const compiled = await compileTailwindCss(css, { ...options, from })
+            css = compiled.css
+            const extensions = options.extensions ?? POSTCSS_EXTENSIONS
+            for (const dir of compiled.directories) {
+                result.messages.push({ type: 'dir-dependency', plugin: PLUGIN_NAME, dir, glob: `**/*.{${extensions.join(',')}}`, parent: from })
+            }
+            for (const file of compiled.imports) result.messages.push({ type: 'dependency', plugin: PLUGIN_NAME, file, parent: from })
         }
-        for (const file of compiled.imports) result.messages.push({ type: 'dependency', plugin: PLUGIN_NAME, file, parent: from })
+        if (short) {
+            // CSS ngoài bảng (thư viện) có class trùng tên ngắn: đổi tên sẽ gắn nhầm style, dừng build.
+            const collisions = findShortNameCollisions(css, short.table)
+            if (collisions.length) {
+                throw new Error(`[presence-style] shortClassNames: ${from ?? 'CSS'} có class trùng tên ngắn (${collisions.slice(0, 5).join(', ')}). Đặt shortClassNames.prefix (ví dụ 'x').`)
+            }
+            const next = short.rewriter.rewriteCss(css)
+            markPostcssShortened()
+            result.messages.push({ type: 'dependency', plugin: PLUGIN_NAME, file: short.mapFile, parent: from })
+            if (next === css && !entry) return
+            css = next
+        }
+        root.removeAll()
+        root.append(postcss.parse(css, { from }))
     },
 })
 presenceStylePostcss.postcss = true
