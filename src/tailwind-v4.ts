@@ -1123,19 +1123,7 @@ const parseCssItems = (text: string): CssItem[] => {
         }
         const head = text.slice(i, j).trim()
         if (text[j] === '{') {
-            let depth = 1
-            let k = j + 1
-            quote = ''
-            while (k < text.length && depth > 0) {
-                const ch = text[k]
-                if (quote) {
-                    if (ch === '\\') k++
-                    else if (ch === quote) quote = ''
-                } else if (ch === '"' || ch === "'") quote = ch
-                else if (ch === '{') depth++
-                else if (ch === '}') depth--
-                k++
-            }
+            const k = blockEnd(text, j + 1)
             items.push({ head, body: text.slice(j + 1, k - 1) })
             i = k
             continue
@@ -1877,17 +1865,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         let from = 0
         const head = /@layer\s+(base|components|theme)\s*\{/g
         for (let m = head.exec(text); m; m = head.exec(text)) {
-            let depth = 1
-            let k = head.lastIndex
-            for (let quote = ''; k < text.length && depth > 0; k++) {
-                const ch = text[k]
-                if (quote) {
-                    if (ch === '\\') k++
-                    else if (ch === quote) quote = ''
-                } else if (ch === '"' || ch === "'") quote = ch
-                else if (ch === '{') depth++
-                else if (ch === '}') depth--
-            }
+            const k = blockEnd(text, head.lastIndex)
             out += text.slice(from, m.index) + `@layer l0{@layer ${m[1]}{${layerBaseCss(text.slice(head.lastIndex, k - 1))}}}`
             from = head.lastIndex = k
         }
@@ -1992,6 +1970,22 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         projectCss,
     ].filter(Boolean).join('\n')
     return dialect
+}
+
+/** Vị trí ngay sau `}` đóng khối bắt đầu ở `start` (sau `{`), bỏ qua ngoặc trong chuỗi. */
+const blockEnd = (text: string, start: number): number => {
+    let depth = 1
+    let k = start
+    for (let quote = ''; k < text.length && depth > 0; k++) {
+        const ch = text[k]
+        if (quote) {
+            if (ch === '\\') k++
+            else if (ch === quote) quote = ''
+        } else if (ch === '"' || ch === "'") quote = ch
+        else if (ch === '{') depth++
+        else if (ch === '}') depth--
+    }
+    return k
 }
 
 /** Thứ tự layer con của CSS nền trong `l0` (như `@layer theme, base, components` của Tailwind), trước mọi utility. */
