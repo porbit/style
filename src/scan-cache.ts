@@ -156,7 +156,9 @@ export const serializeScanCache = (key: string, files: string[], cache: Map<stri
         const raw = entry.candidates
         row.length = 0
         if (raw instanceof Int32Array && entry.gen === generation) {
-            for (let k = 0; k < raw.length; k++) {
+            const at = entry.at ?? 0
+            const end = at + (entry.count ?? 0)
+            for (let k = at; k < end; k++) {
                 const scannerId = raw[k]
                 if (scannerId >= remap.length) {
                     const bigger = new Int32Array(Math.max(scannerId + 1, remap.length * 2, 1024)).fill(-1)

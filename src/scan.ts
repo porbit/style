@@ -15,7 +15,7 @@
  * `scanFiles` đọc + quét nhiều file; khi ép bằng `PRESENCE_STYLE_WORKERS` thì dùng thêm luồng phụ (worker_threads) cho file chưa có
  * trong bộ nhớ đệm: mỗi luồng nhận dần từng lô file liên tiếp, kết quả gộp lại đúng thứ tự file. Mặc định tuần tự (xem dưới).
  */
-import { readFileSync, statSync } from 'node:fs'
+import { closeSync, fstatSync, openSync, readFileSync, statSync } from 'node:fs'
 import { Worker } from 'node:worker_threads'
 
 /**
@@ -27,8 +27,13 @@ import { Worker } from 'node:worker_threads'
  */
 export type Scanner = ((source: string, fresh?: string[]) => string[]) & {
     begin(): void
-    /** Như gọi `scan` nhưng trả số hiệu token (xem `token`) thay cho chuỗi: không cấp phát mảng chuỗi cho từng file. */
-    ids(source: string, fresh?: string[]): Int32Array
+    /**
+     * Như gọi `scan` nhưng ghi số hiệu token (xem `token`) vào vùng nhớ chung `idArena()` từ vị trí `idStart()`, trả
+     * số token: không cấp phát gì cho từng file. Vùng nhớ chỉ ghi thêm; hết chỗ thì cấp vùng mới (vùng cũ còn đúng).
+     */
+    ids(source: string, fresh?: string[]): number
+    idArena(): Int32Array
+    idStart(): number
     /** Chuỗi của token số hiệu `id` (số hiệu chỉ có nghĩa trong cùng `generation`). */
     token(id: number): string
     /** Tăng mỗi lần bảng intern làm lại từ đầu (số hiệu cũ hết nghĩa). */
@@ -66,12 +71,9 @@ export const createScanner = (): Scanner => {
     let round = 1
     let fresh: string[] | undefined
     let out: string[] = []
-    // Chế độ `ids`: kết quả ghi vào bộ đệm số hiệu dùng lại giữa các lần gọi thay cho `out`.
+    // Chế độ `ids`: kết quả ghi thẳng vào vùng nhớ chung `arena` (chỉ ghi thêm, từ `arenaUsed`) thay cho `out`.
     let wantIds = false
-    let idBuf = new Int32Array(1024)
     let idCount = 0
-    // Kết quả `ids` là khung nhìn (subarray) vào một vùng nhớ chung chỉ ghi thêm, hết chỗ thì cấp vùng mới (vùng cũ
-    // còn sống qua các khung nhìn đang dùng): không cấp phát bộ nhớ ngoài heap cho từng file.
     let arena = new Int32Array(0)
     let arenaUsed = 0
     let gen = 0
@@ -119,12 +121,14 @@ export const createScanner = (): Scanner => {
         if (marks[id] !== call) {
             marks[id] = call
             if (wantIds) {
-                if (idCount === idBuf.length) {
-                    const bigger = new Int32Array(idBuf.length * 2)
-                    bigger.set(idBuf)
-                    idBuf = bigger
+                if (arenaUsed + idCount === arena.length) {
+                    // Hết chỗ: vùng mới, chép phần đã ghi của lần gọi này sang.
+                    const next = new Int32Array(Math.max(1 << 16, idCount * 2))
+                    next.set(arena.subarray(arenaUsed, arenaUsed + idCount))
+                    arena = next
+                    arenaUsed = 0
                 }
-                idBuf[idCount++] = id
+                arena[arenaUsed + idCount++] = id
             } else out.push(byId[id])
             if (fresh !== undefined && seenInRound[id] !== round) {
                 seenInRound[id] = round
@@ -344,19 +348,16 @@ export const createScanner = (): Scanner => {
         begin: () => {
             round++
         },
-        ids: (source: string, freshList?: string[]): Int32Array => {
+        ids: (source: string, freshList?: string[]): number => {
             idCount = 0
             wantIds = true
             if (typeof source === 'string' && source) run(source, freshList)
             wantIds = false
-            if (arenaUsed + idCount > arena.length) {
-                arena = new Int32Array(Math.max(1 << 16, idCount))
-                arenaUsed = 0
-            }
-            arena.set(idBuf.subarray(0, idCount), arenaUsed)
             arenaUsed += idCount
-            return arena.subarray(arenaUsed - idCount, arenaUsed)
+            return idCount
         },
+        idArena: () => arena,
+        idStart: () => arenaUsed,
         token: (id: number): string => byId[id],
         generation: () => gen,
     })
@@ -446,12 +447,15 @@ export interface CandidateCacheEntry {
     size: number
     /**
      * Mảng ứng viên, hoặc chuỗi nối bằng ' ' (kết quả từ luồng phụ, tách khi cần), hoặc khi có `table`: số hiệu
-     * token trong `table` nối bằng ',' (nạp từ bộ nhớ đệm trên đĩa, giải khi cần), hoặc số hiệu token của bộ quét
-     * chính (`scanCandidates.ids`, đời bảng intern `gen`): quét tuần tự không dựng mảng chuỗi cho từng file (ít rác
-     * cho GC), ghi bộ nhớ đệm trên đĩa đánh số lại bằng mảng số thay cho Map theo chuỗi.
+     * token trong `table` nối bằng ',' (nạp từ bộ nhớ đệm trên đĩa, giải khi cần), hoặc vùng nhớ số hiệu token của bộ
+     * quét chính (`scanCandidates.ids`: `count` số từ `at`, đời bảng intern `gen`): quét tuần tự không dựng mảng chuỗi
+     * cho từng file (ít rác cho GC), ghi bộ nhớ đệm trên đĩa đánh số lại bằng mảng số thay cho Map theo chuỗi.
      */
     candidates: string[] | string | Int32Array
     table?: string[]
+    /** Số hiệu token: vị trí đầu và số phần tử trong vùng nhớ `candidates`. */
+    at?: number
+    count?: number
     gen?: number
 }
 
@@ -461,10 +465,11 @@ export const candidatesOfEntry = (entry: CandidateCacheEntry): string[] | null =
     if (ids instanceof Int32Array) {
         // Bảng intern đã làm lại: số hiệu hết nghĩa, coi như chưa có.
         if (entry.gen !== mainScanner.generation()) return null
-        const list: string[] = new Array(ids.length)
-        for (let k = 0; k < ids.length; k++) list[k] = mainScanner.token(ids[k])
+        const at = entry.at ?? 0
+        const list: string[] = new Array(entry.count ?? 0)
+        for (let k = 0; k < list.length; k++) list[k] = mainScanner.token(ids[at + k])
         entry.candidates = list
-        entry.gen = undefined
+        entry.gen = entry.at = entry.count = undefined
     } else if (typeof entry.candidates === 'string') {
         const text = entry.candidates
         const table = entry.table
@@ -494,6 +499,33 @@ const workerCount = (): number => {
     const env = Number(process.env.PRESENCE_STYLE_WORKERS)
     if (process.env.PRESENCE_STYLE_WORKERS !== undefined && Number.isFinite(env)) return Math.max(0, Math.floor(env))
     return 0
+}
+
+/**
+ * Mở `file`, fstat + đọc nội dung qua fd. Null khi không mở được hoặc fstat lỗi (người gọi stat theo đường dẫn như
+ * cũ). Đọc lỗi (thư mục...): `text` là chuỗi rỗng — như quét tuần tự cũ: không ứng viên, vẫn ghi bộ nhớ đệm.
+ */
+const openOrNull = (file: string): { info: { mtimeMs: number; size: number }; text: string } | null => {
+    let fd: number
+    try {
+        fd = openSync(file, 'r')
+    } catch (_error) {
+        return null
+    }
+    try {
+        const info = fstatSync(fd)
+        let text = ''
+        try {
+            text = readFileSync(fd, 'utf8')
+        } catch (_error) {
+            text = ''
+        }
+        return { info, text }
+    } catch (_error) {
+        return null
+    } finally {
+        closeSync(fd)
+    }
 }
 
 const statOrNull = (file: string): { mtimeMs: number; size: number } | null => {
@@ -547,20 +579,30 @@ export const scanFiles = async (
         mainScanner.begin()
         for (let index = 0; index < files.length; index++) {
             const file = files[index]
-            const info = stats ? stats[index] : statOrNull(file)
-            if (info === null) continue
             const cached = cache.get(file)
+            let info: { mtimeMs: number; size: number } | null
+            let text: string | null = null
+            if (!stats && cached === undefined) {
+                // Chưa có trong bộ nhớ đệm (build đầu): mở file một lần, stat + đọc qua fd (một lần tra đường dẫn thay
+                // cho hai). Mở lỗi thì stat theo đường dẫn như cũ (file không còn: bỏ qua; không đọc được: không ứng viên).
+                const opened = openOrNull(file)
+                info = opened ? opened.info : statOrNull(file)
+                text = opened ? opened.text : null
+            } else info = stats ? stats[index] : statOrNull(file)
+            if (info === null) continue
             const list = cached && cached.mtime === info.mtimeMs && cached.size === info.size ? candidatesOfEntry(cached) : null
             if (list === null) {
                 scanned++
-                let ids: Int32Array
+                let count = 0
                 fresh.length = 0
                 try {
-                    ids = mainScanner.ids(readFileSync(file, 'utf8'), fresh)
+                    count = mainScanner.ids(text ?? readFileSync(file, 'utf8'), fresh)
                 } catch (_error) {
-                    ids = new Int32Array(0)
+                    count = 0
                 }
-                cache.set(file, { mtime: info.mtimeMs, size: info.size, candidates: ids, gen: mainScanner.generation() })
+                // Số hiệu của file nằm ở [idStart() - count, idStart()) trong idArena() (ghi xong mới đọc vị trí).
+                const at = mainScanner.idStart() - count
+                cache.set(file, { mtime: info.mtimeMs, size: info.size, candidates: mainScanner.idArena(), at, count, gen: mainScanner.generation() })
                 // Token đã gặp ở file quét trước trong lượt này đã có trong `into`: chỉ thêm token mới.
                 for (let k = 0; k < fresh.length; k++) into.add(fresh[k])
                 continue
