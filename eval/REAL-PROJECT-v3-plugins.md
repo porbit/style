@@ -1,17 +1,17 @@
 # Đo Trên Dự Án Thật: v3-plugins
 
-2 file nguồn, 88 ứng viên, **46 class Tailwind hợp lệ** (Tailwind 4.3.5, Chromium, so computed style ở trạng thái mặc định (1280 px), mở, đóng, trong `.dark`, khi ép `:hover`/`:focus`/`:focus-visible`/`:active` trên phần tử, cha `.group` và anh `.peer`, và ở độ rộng 375/768/1600 px).
+2 file nguồn, 92 ứng viên, **50 class Tailwind hợp lệ** (Tailwind 4.3.5, Chromium, so computed style ở trạng thái mặc định (1280 px), mở, đóng, trong `.dark`, khi ép `:hover`/`:focus`/`:focus-visible`/`:active` trên phần tử, cha `.group` và anh `.peer`, và ở độ rộng 375/768/1600 px).
 
 | Chế độ | Chuyển được | Khớp (mặc định) | Khớp (mở) | Khớp (đóng) | Khớp (.dark) | Khớp (:hover) | Khớp (:focus) | Khớp (:focus-visible) | Khớp (:active) | Khớp (375px) | Khớp (768px) | Khớp (1600px) |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| không build (parseTailwindStylesheet) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) |
+| không build (parseTailwindStylesheet) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) |
 
-Số class Tailwind đổi style so với lượt mặc định (biến thể được kiểm): mở 1, đóng 1, .dark 3, :hover 3, :focus 0, :focus-visible 0, :active 3, 375px 11, 768px 4, 1600px 2.
+Số class Tailwind đổi style so với lượt mặc định (biến thể được kiểm): mở 1, đóng 1, .dark 3, :hover 3, :focus 0, :focus-visible 0, :active 3, 375px 13, 768px 5, 1600px 3.
 
 Tổ hợp thật (10 chuỗi class của component, nhiều class trên một phần tử): mặc định 10/10 · mở 10/10 · đóng 10/10 · .dark 10/10 · :hover 10/10 · :focus 10/10 · :focus-visible 10/10 · :active 10/10 · 375px 10/10 · 768px 10/10 · 1600px 10/10.
-| plugin PostCSS (@porbit/style/postcss) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) | 46/46 (100.0%) |
+| plugin PostCSS (@porbit/style/postcss) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) | 50/50 (100.0%) |
 
-Số class Tailwind đổi style so với lượt mặc định (biến thể được kiểm): mở 1, đóng 1, .dark 3, :hover 3, :focus 0, :focus-visible 0, :active 3, 375px 11, 768px 4, 1600px 2.
+Số class Tailwind đổi style so với lượt mặc định (biến thể được kiểm): mở 1, đóng 1, .dark 3, :hover 3, :focus 0, :focus-visible 0, :active 3, 375px 13, 768px 5, 1600px 3.
 
 Tổ hợp thật (10 chuỗi class của component, nhiều class trên một phần tử): mặc định 10/10 · mở 10/10 · đóng 10/10 · .dark 10/10 · :hover 10/10 · :focus 10/10 · :focus-visible 10/10 · :active 10/10 · 375px 10/10 · 768px 10/10 · 1600px 10/10.
 

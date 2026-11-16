@@ -26,5 +26,12 @@
     "wrong": 0,
     "percent": 100,
     "sample": []
+  },
+  "plugins": {
+    "classes": 352,
+    "pairs": 351,
+    "wrong": 0,
+    "percent": 100,
+    "sample": []
   }
 }

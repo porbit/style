@@ -33,6 +33,12 @@ export interface TailwindV4DialectOptions {
      * hoặc dạng khối `{ 'data-open': '{ &:where([data-state="open"]) { @slot; } }' }`.
      */
     variants?: Record<string, string>
+    /**
+     * Thứ tự trong nhóm biến thể của `matchVariant` (plugin JS): `{ mq: { keys, compare } }` — giá trị có tên (`mq-big`)
+     * và giá trị tuỳ ý (`mq-[900px]`) chung một nhóm, xếp theo `compare` (`sort` của plugin) như Tailwind. Lấy từ
+     * `sheet.variantOrder` sau `applyTailwindPluginOutput`/`loader.apply(sheet)`.
+     */
+    variantOrder?: Record<string, TailwindVariantOrder>
     /** Thêm preflight (reset) của Tailwind vào base CSS. Mặc định false. */
     preflight?: boolean
     /** `media` (mặc định, như Tailwind v4): theo hệ điều hành. `class`: theo `.dark` ở tổ tiên. */
@@ -55,6 +61,12 @@ export interface TailwindV4DialectOptions {
      * class (kể cả tiền tố, biến thể), như Tailwind v4.
      */
     blocklist?: string[]
+}
+
+/** Nhóm biến thể của một `matchVariant`: khoá giá trị có tên, so hai giá trị (khoá/giá trị tuỳ ý thô, `null` = DEFAULT). */
+export interface TailwindVariantOrder {
+    keys: string[]
+    compare: (a: { value: string | null; modifier: string | null }, b: { value: string | null; modifier: string | null }) => number
 }
 
 /** Chuẩn hoá tiền tố như Tailwind v4: bỏ một `-` cuối (kiểu v3 `tw-`), chỉ nhận chữ thường a-z. */
@@ -782,6 +794,8 @@ const VARIANT_VALUE_PLACEHOLDER = '__porbit_variant_value__'
 const VARIANT_MODIFIER_PLACEHOLDER = '__porbit_variant_modifier__'
 /** Biến thể hàm của dialect đang hoạt động: [gốc, thân không modifier, thân có modifier (null: không nhận modifier)], gốc dài trước. */
 let FUNCTIONAL_VARIANTS: Array<[string, string, string | null]> = []
+/** Nhóm thứ tự `matchVariant` của dialect đang hoạt động (xem `variantOrder`). */
+let VARIANT_ORDER: Record<string, TailwindVariantOrder> = {}
 /**
  * Biến thể tự định nghĩa theo tên, kể cả biến thể hàm với giá trị tuỳ ý (`tab-[2]`, `tab-[2]/x` của `matchVariant`):
  * thay giá trị (đã đổi `_` thành khoảng trắng như Tailwind) vào thân rồi dịch như `@custom-variant` (lưu lại theo tên).
@@ -1452,7 +1466,7 @@ const parseOrderVariant = (variant: string): OrderVariant | null => {
     else if (ORDER_ROOTS[variant] && ORDER_ROOTS[variant][0] === 's') result = { kind: 'static', key: variant, root: variant }
     // Biến thể hàm của plugin (`tab-[2]`): nhóm riêng `tab-*` xếp sau các giá trị có tên, như `matchVariant` của Tailwind.
     for (const [root] of result ? [] : FUNCTIONAL_VARIANTS) {
-        if (!variant.startsWith(root + '-[')) continue
+        if (!variant.startsWith(root + '-[') || !ORDER_ROOTS[root + '-*']) continue
         const [rest, modifier] = splitModifier(variant.slice(root.length + 1))
         if (/^\[.+\]$/.test(rest)) result = { kind: 'functional', key: variant, root: `${root}-*`, value: { kind: 'arbitrary', value: rest.slice(1, -1) }, modifier }
         break
@@ -1500,6 +1514,20 @@ const groupValue = (variant: OrderVariant): string | null => {
     return !value || value.includes('var(') ? null : value
 }
 
+/** Biến thể thuộc nhóm `matchVariant` nào: [tên nhóm, giá trị (khoá có tên/giá trị tuỳ ý, null = DEFAULT), modifier]. */
+const orderGroupOf = (variant: OrderVariant): [string, { value: string | null; modifier: string | null }] | null => {
+    if (variant.kind === 'functional' && variant.root.endsWith('-*')) {
+        const name = variant.root.slice(0, -2)
+        return VARIANT_ORDER[name] ? [name, { value: variant.value ? arbitraryInner(variant.value.value) : null, modifier: variant.modifier }] : null
+    }
+    if (variant.kind !== 'static') return null
+    for (const name in VARIANT_ORDER) {
+        const key = variant.root === name ? 'DEFAULT' : variant.root.startsWith(name + '-') ? variant.root.slice(name.length + 1) : ''
+        if (key && VARIANT_ORDER[name].keys.includes(key)) return [name, { value: key === 'DEFAULT' ? null : key, modifier: null }]
+    }
+    return null
+}
+
 const compareOrderVariants = (a: OrderVariant, b: OrderVariant): number => {
     if (a.key === b.key) return 0
     if (a.kind === 'arbitrary' && b.kind === 'arbitrary') return a.selector < b.selector ? -1 : 1
@@ -1508,6 +1536,9 @@ const compareOrderVariants = (a: OrderVariant, b: OrderVariant): number => {
     const oa = ORDER_ROOTS[a.root]?.[1] ?? 0
     const ob = ORDER_ROOTS[b.root]?.[1] ?? 0
     if (oa !== ob) return oa - ob
+    const ga = orderGroupOf(a)
+    const gb = orderGroupOf(b)
+    if (ga && gb && ga[0] === gb[0]) return VARIANT_ORDER[ga[0]].compare(ga[1], gb[1])
     if (a.kind === 'compound' && b.kind === 'compound') {
         const inner = compareOrderVariants(a.variant, b.variant)
         if (inner !== 0) return inner
@@ -1645,12 +1676,26 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         if (!ownRoots[name]) ownRoots[name] = ['s', ++lastOrder]
     }
     functionalVariants.sort((a, b) => b[0].length - a[0].length)
+    // Nhóm `matchVariant` (`mq-big`, `mq-small`, `mq-*`): chung một thứ tự gốc, trong nhóm so bằng `compare`.
+    const variantOrder = options.variantOrder || {}
+    for (const [name, group] of Object.entries(variantOrder)) {
+        const members = [`${name}-*`, ...group.keys.map((key) => (key === 'DEFAULT' ? name : `${name}-${key}`))].filter((m) => ownRoots[m] && !(m in TW_ORDER.variants))
+        // Trùng biến thể hàm sẵn có (`matchVariant('nth', ...)`): Tailwind chỉ thay cách áp, giữ thứ tự và cách so của
+        // biến thể cũ — các giá trị đọc như `nth-*` sẵn có.
+        if (TW_ORDER.variants[name as keyof typeof TW_ORDER.variants]?.[0] === 'f') {
+            for (const m of members) delete ownRoots[m]
+            continue
+        }
+        const order = Math.min(...members.map((m) => ownRoots[m][1]))
+        for (const m of members) ownRoots[m] = [ownRoots[m][0], order]
+    }
     const ghostBreakpoints: Record<string, string> = resetNamespaces.includes('--breakpoint-')
         ? Object.fromEntries(Object.entries(defaultTheme).filter(([k]) => k.startsWith('--breakpoint-') && ownTheme[k] === undefined).map(([k, v]) => [k.slice(13), v]))
         : {}
     const activate = () => {
         CUSTOM_VARIANTS = ownVariants
         FUNCTIONAL_VARIANTS = functionalVariants
+        VARIANT_ORDER = variantOrder
         RESET_NAMESPACES = resetNamespaces
         MARKER_PREFIX = markerPrefix
         if (ORDER_ROOTS !== ownRoots) {
@@ -2130,6 +2175,8 @@ export interface TailwindStylesheet {
     css: string
     utilities: Record<string, string>
     variants: Record<string, string>
+    /** Thứ tự nhóm biến thể của `matchVariant` (plugin JS, gộp bởi `applyTailwindPluginOutput`): truyền vào `variantOrder`. */
+    variantOrder?: Record<string, TailwindVariantOrder>
     /** `@import`/`@plugin` không giải được (ngoài `tailwindcss`). */
     unresolved: string[]
     /** Tiền tố (`@import "tailwindcss" prefix(tw)` hoặc `prefix` của `@config`): truyền vào `tailwindV4Dialect({ prefix })`. */
@@ -2179,7 +2226,7 @@ export const expandBraces = (pattern: string): string[] => {
  *   - CSS còn lại giữ nguyên (`@apply` được dialect mở rộng); `@import "tailwindcss"`, `@source`, `@config` bị bỏ qua,
  *   - `--alpha()`/`--spacing()`/`--theme()`/`theme()` trong CSS và trong giá trị `@theme` được khai triển; biến của
  *     `@theme static` thành khối `@layer theme{:root,:host{...}}` đầu `css` (biến theme mà CSS đọc do dialect phát).
- * Truyền kết quả cho dialect: `tailwindV4Dialect({ theme, css, utilities, variants, prefix, important, blocklist })`.
+ * Truyền kết quả cho dialect: `tailwindV4Dialect({ theme, css, utilities, variants, variantOrder, prefix, important, blocklist })`.
  */
 export const parseTailwindStylesheet = (source: string, options: ParseTailwindOptions = {}): TailwindStylesheet => {
     const sheet: TailwindStylesheet = { theme: {}, css: '', utilities: {}, variants: {}, unresolved: [] }

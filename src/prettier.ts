@@ -16,6 +16,7 @@ import { sortClassesInSource, sortTailwindClassString, findClassStrings } from '
 import { resolveConfigFile } from './config-file'
 import { createConfigLoader, createStylesheetReader } from './files'
 import { resolveTailwindPlugin } from './tailwind-plugins'
+import { createTailwindPluginLoader } from './tailwind-plugin-api'
 import { parseTailwindStylesheet, tailwindV4Dialect } from './tailwind-v4'
 import * as acornPlugin from 'prettier/plugins/acorn'
 import * as babelPlugin from 'prettier/plugins/babel'
@@ -49,8 +50,10 @@ const compareFor = (options: PrettierOptions): ((a: string, b: string) => number
     try {
         if (stylesheet) {
             const read = createStylesheetReader(dirname(stylesheet))
-            const sheet = parseTailwindStylesheet(readFileSync(stylesheet, 'utf8'), { resolve: (id) => read(id) ?? resolveTailwindPlugin(id), loadConfig: createConfigLoader(dirname(stylesheet)) })
-            compare = tailwindV4Dialect({ theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, prefix: sheet.prefix }).compare ?? null
+            // Plugin JS (`@plugin`, `plugins` của `@config`): thứ tự nhóm `matchVariant` theo `sort` gộp qua `apply`.
+            const plugins = createTailwindPluginLoader(dirname(stylesheet))
+            const sheet = plugins.apply(parseTailwindStylesheet(readFileSync(stylesheet, 'utf8'), { resolve: (id) => read(id) ?? resolveTailwindPlugin(id) ?? plugins.resolve(id), loadConfig: createConfigLoader(dirname(stylesheet), plugins) }))
+            compare = tailwindV4Dialect({ theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, variantOrder: sheet.variantOrder, prefix: sheet.prefix }).compare ?? null
         } else if (configFile) {
             const config = resolveConfigFile(JSON.parse(readFileSync(configFile, 'utf8')), { readStylesheet: createStylesheetReader(dirname(configFile)), loadConfig: createConfigLoader(dirname(configFile)) })
             compare = config.dialects?.find((d: { compare?: unknown }) => typeof d.compare === 'function')?.compare ?? null

@@ -1,22 +1,22 @@
 {
   "label": "v3-plugins",
-  "candidates": 46,
+  "candidates": 50,
   "summary": {
     "không build (parseTailwindStylesheet)": {
-      "converted": 46,
-      "total": 46,
+      "converted": 50,
+      "total": 50,
       "matched": {
-        "mặc định": 46,
-        "mở": 46,
-        "đóng": 46,
-        ".dark": 46,
-        ":hover": 46,
-        ":focus": 46,
-        ":focus-visible": 46,
-        ":active": 46,
-        "375px": 46,
-        "768px": 46,
-        "1600px": 46
+        "mặc định": 50,
+        "mở": 50,
+        "đóng": 50,
+        ".dark": 50,
+        ":hover": 50,
+        ":focus": 50,
+        ":focus-visible": 50,
+        ":active": 50,
+        "375px": 50,
+        "768px": 50,
+        "1600px": 50
       },
       "exercised": {
         "mở": 1,
@@ -26,9 +26,9 @@
         ":focus": 0,
         ":focus-visible": 0,
         ":active": 3,
-        "375px": 11,
-        "768px": 4,
-        "1600px": 2
+        "375px": 13,
+        "768px": 5,
+        "1600px": 3
       },
       "combos": {
         "total": 10,
@@ -48,20 +48,20 @@
       }
     },
     "plugin PostCSS (@porbit/style/postcss)": {
-      "converted": 46,
-      "total": 46,
+      "converted": 50,
+      "total": 50,
       "matched": {
-        "mặc định": 46,
-        "mở": 46,
-        "đóng": 46,
-        ".dark": 46,
-        ":hover": 46,
-        ":focus": 46,
-        ":focus-visible": 46,
-        ":active": 46,
-        "375px": 46,
-        "768px": 46,
-        "1600px": 46
+        "mặc định": 50,
+        "mở": 50,
+        "đóng": 50,
+        ".dark": 50,
+        ":hover": 50,
+        ":focus": 50,
+        ":focus-visible": 50,
+        ":active": 50,
+        "375px": 50,
+        "768px": 50,
+        "1600px": 50
       },
       "exercised": {
         "mở": 1,
@@ -71,9 +71,9 @@
         ":focus": 0,
         ":focus-visible": 0,
         ":active": 3,
-        "375px": 11,
-        "768px": 4,
-        "1600px": 2
+        "375px": 13,
+        "768px": 5,
+        "1600px": 3
       },
       "combos": {
         "total": 10,

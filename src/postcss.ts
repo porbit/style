@@ -144,7 +144,7 @@ export const compileTailwindCss = async (css: string, options: PresenceStylePost
     const t3 = performance.now()
 
     const preflight = /@import\s+["']tailwindcss(?:\/preflight(?:\.css)?)?["']|@tailwind\s+base\b/.test(css)
-    const dialect = tailwindV4Dialect({ preflight, theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, css: sheet.css, prefix: sheet.prefix, important: sheet.important, blocklist: sheet.blocklist })
+    const dialect = tailwindV4Dialect({ preflight, theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, variantOrder: sheet.variantOrder, css: sheet.css, prefix: sheet.prefix, important: sheet.important, blocklist: sheet.blocklist })
     const result = await extractFromClasses([...candidates], { ...rest, safelist, hashClassName: false, silent: true, minify: optimize, dialects: [dialect] })
     if (mergeTable) {
         const target = resolve(base, mergeTable)
