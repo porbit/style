@@ -46,7 +46,7 @@ Any CSS property works by its full name: `view-transition-name[hero]`, `-webkit-
 
 The v4 dialect is generated from Tailwind's own compiler. Measured in Chromium against tailwindcss 4.3.5: **23,286/23,286 classes**, **956/956** variant combinations (403/403 variants) and **4 real open-source projects** (shadcn/ui, HyperUI, Magic UI, coss ui: 3,305/3,305 classes and 1,650/1,650 real class strings across 11 state/width passes) render identically; 8 v3 configs and arbitrary JS plugins work without installing `tailwindcss`. Full evaluation (Vietnamese): [docs/strategy/danh-gia-1.0.md](./docs/strategy/danh-gia-1.0.md).
 
-No build step (replaces `@tailwindcss/browser`: 44.1 KB vs 75.3 KB gzip; inserting elements at runtime up to 5.5× faster):
+No build step (replaces `@tailwindcss/browser`: 39.9 KB vs 75.3 KB gzip; inserting elements at runtime up to 5.5× faster):
 
 ```html
 <script type="module" src="https://unpkg.com/@porbit/style/dist/tailwind-auto.mjs"></script>
@@ -64,7 +64,7 @@ With a build step (zero runtime JS, like Tailwind), change one line in `postcss.
 export default { plugins: { '@porbit/style/postcss': {} } }   // instead of '@tailwindcss/postcss'
 ```
 
-A real Next.js 15 app renders with 0 differences versus `@tailwindcss/postcss` and ships 3.62 KB instead of 3.88 KB of CSS (gzip), with a 1.6 MB install instead of ~25 MB. v3 projects using `@config "./tailwind.config.js"` keep working.
+A real Next.js 15 app renders with 0 differences versus `@tailwindcss/postcss` and ships 3.62 KB instead of 3.88 KB of CSS (gzip), with a 1.3 MB install instead of ~25 MB. v3 projects using `@config "./tailwind.config.js"` keep working.
 
 The tools around Tailwind are covered too:
 

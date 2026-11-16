@@ -74,7 +74,7 @@ Quét từ vị trí đầu của phần còn lại; với ký tự tại `i`:
 - (a) key trong `SHORT_PROPERTIES`;
 - (b) composite `mx my px py bdx bdy`;
 - (c) tên CSS đầy đủ là giá trị của `SHORT_PROPERTIES`;
-- (d) tên property CSS chuẩn trong `STANDARD_CSS_PROPERTIES` (`src/css-properties.ts`), ví dụ
+- (d) tên property CSS chuẩn trong `standardCssProperties()` (`src/css-properties.ts`; khoá `STANDARD_CSS_PROPERTIES` của `spec/dictionary.json`), ví dụ
   `view-transition-name`, `content-visibility`, `anchor-name`, `field-sizing`;
 - (e) property có tiền tố nhà cung cấp `-webkit-`, `-moz-`, `-ms-`, `-o-`;
 - (f) custom property `--ten` — chỉ ở dạng có ngoặc vuông `--ten[gia-tri]` (xem 4.1).

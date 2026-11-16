@@ -23,14 +23,15 @@ const only = (args.find((a) => a.startsWith('--only=')) || '').slice(7).split(',
 // Ngân sách: vượt là lỗi. Cập nhật có chủ đích khi thay đổi được chấp nhận.
 // Tính gzip của entry cộng mọi chunk nó import tĩnh (số trình duyệt tải khi import thẳng từ CDN).
 const BUDGET = {
-    'dist/index-auto.mjs': 24 * 1024, // bản CDN (+chèn rule có thứ tự)
-    'dist/index.mjs': 37 * 1024, // 4 file tải song song (chunk dùng chung với tailwind/merge): 34,7 -> 36,6 KB
+    'dist/index-auto.mjs': 23 * 1024, // bản CDN (+chèn rule có thứ tự). 23,5 -> danh sách property chuẩn bỏ tên trùng đích alias 22,3 KB
+    'dist/index.mjs': 36 * 1024, // 4 file tải song song (chunk dùng chung với tailwind/merge): 34,7 -> 36,6 -> 37,0 -> bỏ tên property trùng 35,4 KB
     'dist/components.mjs': 8 * 1024,
-    'dist/tailwind-auto.mjs': 45 * 1024, // thay @tailwindcss/browser (75 KB). 0.10: 62,9 -> dữ liệu nén 52,1 -> không từ điển x-css/cache 40,9 -> +giá trị trần/bóng/--spacing()/biến theme/biến thể ghép như Tailwind 44,5 -> bỏ phần chỉ dùng cho editor 44,1 KB
+    'dist/tailwind-auto.mjs': 40.5 * 1024, // thay @tailwindcss/browser (75 KB). 0.10: 62,9 -> dữ liệu nén 52,1 -> không từ điển x-css/cache 40,9 -> +giá trị trần/bóng/--spacing()/biến theme/biến thể ghép như Tailwind 44,5 -> bỏ phần chỉ dùng cho editor 44,1 -> 45,0 -> phần đọc stylesheet nạp động (tailwind-stylesheet.mjs, 4,8 KB) + dữ liệu đứng đầu file, khoá xếp cho gzip 39,9 KB
 }
 // Gói npm (`npm pack`): giải nén 6,8 MB -> 1,47 MB khi tách nhóm build (tsup.config.ts) và bỏ file
-// tài liệu không đọc lúc chạy. Mục tiêu ≤ 1,5 MB.
-const PACKAGE_BUDGET = 1500 * 1000
+// tài liệu không đọc lúc chạy -> 1,45 -> 1,29 MB khi nén LZ77 CSS plugin đóng gói (2 bản: CDN + CJS, 117 -> 40 KB
+// mỗi bản) và bỏ tên property chuẩn trùng đích alias. -> 1,32 MB khi thêm entry next/webpack/webpack-loader (rút gọn tên class cho Next.js). Mục tiêu ≤ 1,35 MB.
+const PACKAGE_BUDGET = 1350 * 1000
 // Dự án nâng cấp từ v3 (`@config`): extend, thay hẳn theme, prefix, important, corePlugins, file .ts, cờ CSS v4.
 const V3_FIXTURES = [
     ['v3-extend', 'eval/fixtures/v3-config/app.css', 'eval/fixtures/v3-config/src'],
@@ -122,7 +123,7 @@ const steps = [
                 },
             })
             if (!r.ok) return r
-            const files = ['spec', 'presence_style/x-core/tests/conformance.core.json', 'presence_style/x-core/src/dictionary_generated.rs', 'src/tailwind-generated.ts', 'src/tailwind-plugins-generated.ts', 'llms.txt', 'llms-full.txt']
+            const files = ['spec', 'presence_style/x-core/tests/conformance.core.json', 'presence_style/x-core/src/dictionary_generated.rs', 'src/tailwind-generated.ts', 'src/tailwind-theme-roots-generated.ts', 'src/tailwind-plugins-generated.ts', 'llms.txt', 'llms-full.txt']
             const diff = run('git', ['status', '--porcelain', '--', ...files])
             const changed = diff.out.trim()
             return changed

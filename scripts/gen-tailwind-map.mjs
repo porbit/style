@@ -311,7 +311,7 @@ for (const group of usedGroups) {
 const PROBES = { length: '3px', color: '#123456', number: '7', any: 'probe', image: 'url(probe)', position: 'left_3px', size: '3px_auto', var: 'var(--probe)' }
 // Gợi ý kiểu (`bg-[length:200%]`, `border-(length:--x)`): Tailwind dùng thẳng loại được gợi ý.
 const HINT_PROBES = { color: '#123456', length: '3px', percentage: '3%', number: '7', integer: '7', url: 'url(probe)', image: 'url(probe)', position: '3px', 'bg-size': '3px', size: '3px', 'line-width': '3px', 'family-name': 'probe', 'absolute-size': 'probe', 'relative-size': 'probe', angle: '7deg' }
-// Loại mà bộ giải mã dùng khi gặp gợi ý (khớp `arbitraryKind` trong src/tailwind-v4.ts); mẫu gợi ý chỉ lưu khi khác.
+// Loại mà bộ giải mã dùng khi gặp gợi ý (khớp `arbitraryKind` trong src/tailwind-v4-core.ts); mẫu gợi ý chỉ lưu khi khác.
 const HINT_KIND = { color: 'color', number: 'number', integer: 'number', length: 'length', percentage: 'length', 'line-width': 'length', url: 'image', image: 'image', position: 'position', 'bg-size': 'size', size: 'size' }
 // Gốc utility chỉ nhận giá trị tuỳ ý (`bg-size-[...]`, `filter-[...]`, `mask-size-(--x)`) không có trong getClassList.
 const roots = new Set([...Object.keys(families), ...classList.map((n) => splitsOf(n)[0]?.[0]).filter(Boolean), ...FUNCTIONAL_ROOTS])
@@ -462,7 +462,7 @@ for (const { name, css, registered } of registeredBy) {
 }
 const PROPERTY_KNOWN_MISMATCH = ['transform', 'filter', 'backdrop-filter', 'text-shadow-none']
 if (propertyMismatch.some((name) => !PROPERTY_KNOWN_MISMATCH.includes(name))) throw new Error(`Quy tắc đăng ký @property lệch Tailwind: ${propertyMismatch.slice(0, 20).join(' ')}`)
-// Bảng gọn xếp lại theo nhóm (thứ tự xuất @property không ảnh hưởng gì); `+` trước tên: cùng nhóm với mục trước; dấu
+// Bảng gọn xếp lại theo nhóm (thứ tự xuất @property không ảnh hưởng gì); `+` trước tên: mục đầu của một nhóm; dấu
 // sau tên: `!` thuộc PROPERTY_NO_SET, `?` thuộc PROPERTY_NO_READ, `~` thuộc PROPERTY_FALLBACK_READ.
 const atomOrder = [...new Set(propertyAtom.values())]
 const groupedProperties = [...propertyBlocks.keys()]
@@ -470,7 +470,7 @@ const groupedProperties = [...propertyBlocks.keys()]
     .sort((a, b) => atomOrder.indexOf(propertyAtom.get(a[0])) - atomOrder.indexOf(propertyAtom.get(b[0])))
     .map(([name, entry], index, all) => {
         const short = name.slice(5)
-        const label = (index && propertyAtom.get(all[index - 1][0]) === propertyAtom.get(name) ? '+' : '') + short +
+        const label = (index && propertyAtom.get(all[index - 1][0]) === propertyAtom.get(name) ? '' : '+') + short +
             (PROPERTY_NO_SET.includes(short) ? '!' : '') + (PROPERTY_NO_READ.includes(short) ? '?' : '') + (PROPERTY_FALLBACK_READ.includes(short) ? '~' : '')
         return typeof entry === 'string' ? label : [label, ...entry.slice(1)]
     })
@@ -600,7 +600,7 @@ const ORDER = { properties: propertyOrder, variants: variantRoots, groups: group
 console.log(`  thứ tự: ${Object.keys(sortOverrides).length} chữ ký, ${Object.keys(classSort).length} class riêng`)
 
 // ---------------------------------------------------------------------------
-// Nén cho bản phân phối (bộ giải mã ở đầu src/tailwind-v4.ts dựng lại đúng các bảng trên)
+// Nén cho bản phân phối (bộ giải mã ở đầu src/tailwind-v4-core.ts dựng lại đúng các bảng trên)
 // ---------------------------------------------------------------------------
 // 1. Khai báo tách thành [chỉ số thuộc tính, chỉ số giá trị] và nằm thẳng trong rule: rule gọn là
 //    [selector?, prop, value, prop, value...] (độ dài lẻ thì phần tử đầu là selector, vắng là selector 0).
@@ -728,24 +728,33 @@ const compactData = () => {
         hints: hintsOut,
         explicit: Object.fromEntries(Object.entries(explicitRules).map(([name, rule]) => [name, pack(rule)])),
         tpl: tplRules.map(pack),
-        // Gốc âm (`-inset`) không ghi: bộ giải mã thêm khi gốc dương có trong danh sách và gốc âm có mẫu tuỳ ý.
-        themeRoots: Object.entries(themeRoots).map(([ns, list]) => {
-            for (const r of list) if (!r.startsWith('-') && arbitrary['-' + r] && !list.includes('-' + r)) throw new Error(`themeRoots: thiếu gốc âm -${r} (${ns})`)
-            let rest = list.filter((r) => !(r.startsWith('-') && list.includes(r.slice(1))))
-            // `m*` = `m mb mbe ... my`, `border-*` = `border border-b ... border-y` (chỉ gốc có mẫu tuỳ ý).
-            for (const r of [...rest]) for (const sep of ['', '-']) {
-                const group = [r, ...THEME_SIDES.map((side) => r + sep + side)].filter((x) => arbitrary[x])
-                if (group.length > 3 && group.every((x) => rest.includes(x))) rest = [...rest.filter((x) => !group.includes(x)), r + sep + '*']
-            }
-            return `${ns}:${rest.join(' ')}`
-        }).join('|'),
         properties: groupedProperties,
         syntaxes: propertySyntaxes,
         fallback: FALLBACK_WRAP,
         keyframes,
     }
 }
-const DIST = compactData()
+// Thứ tự khoá chỉ ảnh hưởng kích thước nén: gzip chỉ nhìn lại 32 KB nên đặt các bảng giống nhau gần nhau.
+// Thứ tự dưới đây tìm bằng thử (gzip của dist/tailwind-auto.mjs nhỏ hơn ~0,6 KB so với thứ tự dựng); bộ giải mã đọc theo tên.
+// Gốc âm, cạnh: xem dưới. Bảng namespace -> gốc nằm ở file riêng: chỉ phần đọc stylesheet (theme của dự án) cần,
+// bản CDN nạp động nó cùng tailwind-stylesheet.mjs.
+    // Gốc âm (`-inset`) không ghi: bộ giải mã thêm khi gốc dương có trong danh sách và gốc âm có mẫu tuỳ ý.
+const THEME_ROOTS_TEXT = Object.entries(themeRoots).map(([ns, list]) => {
+        for (const r of list) if (!r.startsWith('-') && arbitrary['-' + r] && !list.includes('-' + r)) throw new Error(`themeRoots: thiếu gốc âm -${r} (${ns})`)
+        let rest = list.filter((r) => !(r.startsWith('-') && list.includes(r.slice(1))))
+        // `m*` = `m mb mbe ... my`, `border-*` = `border border-b ... border-y` (chỉ gốc có mẫu tuỳ ý).
+        for (const r of [...rest]) for (const sep of ['', '-']) {
+            const group = [r, ...THEME_SIDES.map((side) => r + sep + side)].filter((x) => arbitrary[x])
+            if (group.length > 3 && group.every((x) => rest.includes(x))) rest = [...rest.filter((x) => !group.includes(x)), r + sep + '*']
+        }
+        return `${ns}:${rest.join(' ')}`
+}).join('|')
+const DIST_KEY_ORDER = ['version', 'palette', 'tpl', 'roots', 'explicit', 'hints', 'props', 'properties', 'xs', 'vals', 'syntaxes', 'lits', 'valueSets', 'fallback', 'theme', 'keyframes', 'sels']
+const DIST = (() => {
+    const data = compactData()
+    if (Object.keys(data).sort().join() !== [...DIST_KEY_ORDER].sort().join()) throw new Error('DIST_KEY_ORDER thiếu/thừa khoá của dữ liệu nén')
+    return Object.fromEntries(DIST_KEY_ORDER.map((key) => [key, data[key]]))
+})()
 // Bộ giải mã dựng lại CSS @property từ dạng gọn: kiểm khớp từng ký tự (từng khối và khai báo dự phòng).
 {
     const list = DIST.properties.map((e) => (typeof e === 'string' ? [e] : e)).map(([n, ...rest]) => [n.replace(/[+!?~]/g, ''), ...rest])
@@ -761,7 +770,7 @@ const DIST_ORDER = { ...ORDER, properties: propertyOrder.length }
 
 const header = `// @generated bởi scripts/gen-tailwind-map.mjs từ tailwindcss@${twVersion} — KHÔNG sửa tay.\n// ${JSON.stringify(stats)}\n`
 const body = `${header}
-/** Dữ liệu phương ngữ dạng nén; giải mã ở đầu src/tailwind-v4.ts (định dạng: xem bước nén trong script sinh). */
+/** Dữ liệu phương ngữ dạng nén; giải mã ở đầu src/tailwind-v4-core.ts (định dạng: xem bước nén trong script sinh). */
 export const TW_DATA = ${JSON.stringify(DIST)} as const
 
 /** Preflight (reset) của Tailwind, bọc trong layer thấp nhất \`l0\`. */
@@ -780,6 +789,14 @@ export const TW_APPROXIMATE: readonly string[] = ${JSON.stringify([...approximat
 export const TW_UNSUPPORTED: readonly string[] = ${JSON.stringify(unsupported)}
 `
 fs.writeFileSync(path.join(root, 'src/tailwind-generated.ts'), body)
+fs.writeFileSync(path.join(root, 'src/tailwind-theme-roots-generated.ts'), `// @generated bởi scripts/gen-tailwind-map.mjs từ tailwindcss@${twVersion} — KHÔNG sửa tay.
+
+/**
+ * Namespace theme -> gốc utility đọc khoá tự định nghĩa của namespace đó qua mẫu giá trị tuỳ ý (\`ns:gốc gốc|...\`;
+ * \`m*\`/\`border-*\`: gốc cùng các cạnh; gốc âm đi cùng gốc dương). Giải mã ở src/tailwind-v4-core.ts (THEME_ROOTS).
+ */
+export const TW_THEME_ROOTS: string = ${JSON.stringify(THEME_ROOTS_TEXT)}
+`)
 console.log(`[gen-tailwind-map] tailwindcss@${twVersion} -> src/tailwind-generated.ts`)
 console.log('  ' + JSON.stringify(stats))
 console.log('  họ thêm mẫu khoá theme tự định nghĩa: ' + themeFamilies.join(' '))
