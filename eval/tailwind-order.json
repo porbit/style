@@ -1,0 +1,30 @@
+{
+  "base": {
+    "classes": 23286,
+    "pairs": 23285,
+    "wrong": 0,
+    "percent": 100,
+    "sample": []
+  },
+  "variants": {
+    "classes": 3330,
+    "pairs": 3329,
+    "wrong": 0,
+    "percent": 100,
+    "sample": []
+  },
+  "combos": {
+    "classes": 2278,
+    "pairs": 2277,
+    "wrong": 0,
+    "percent": 100,
+    "sample": []
+  },
+  "shadcn": {
+    "classes": 769,
+    "pairs": 768,
+    "wrong": 0,
+    "percent": 100,
+    "sample": []
+  }
+}

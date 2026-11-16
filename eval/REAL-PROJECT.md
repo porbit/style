@@ -8,6 +8,8 @@
 
 Số class Tailwind đổi style so với lượt mặc định (biến thể được kiểm): mở 39, đóng 18, .dark 769.
 
+Tổ hợp thật (260 chuỗi class của component, nhiều class trên một phần tử): mặc định 260/260 · mở 260/260 · đóng 260/260 · .dark 260/260.
+
 ### không build (parseTailwindStylesheet) — mặc định: lệch 0
 
 
@@ -18,6 +20,18 @@ Số class Tailwind đổi style so với lượt mặc định (biến thể đ
 
 
 ### không build (parseTailwindStylesheet) — .dark: lệch 0
+
+
+### không build (parseTailwindStylesheet) — tổ hợp, mặc định: lệch 0
+
+
+### không build (parseTailwindStylesheet) — tổ hợp, mở: lệch 0
+
+
+### không build (parseTailwindStylesheet) — tổ hợp, đóng: lệch 0
+
+
+### không build (parseTailwindStylesheet) — tổ hợp, .dark: lệch 0
 
 
 ### không build (parseTailwindStylesheet) — chưa chuyển (0)

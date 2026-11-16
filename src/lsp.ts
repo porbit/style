@@ -126,7 +126,7 @@ export const startLanguageServer = (options: LanguageServerOptions = {}): { stop
                 capabilities: {
                     textDocumentSync: { openClose: true, change: 1, save: { includeText: false } },
                     hoverProvider: true,
-                    completionProvider: { triggerCharacters: ['"', "'", ' ', '`'] },
+                    completionProvider: { triggerCharacters: ['"', "'", ' ', '`', ':', '-'], resolveProvider: true },
                     codeActionProvider: { codeActionKinds: ['quickfix', 'source'] },
                 },
                 serverInfo: { name: 'presence-style', version: typeof __PRESENCE_STYLE_VERSION__ === 'string' ? __PRESENCE_STYLE_VERSION__ : '0.0.0' },
@@ -146,8 +146,30 @@ export const startLanguageServer = (options: LanguageServerOptions = {}): { stop
         'textDocument/completion': (params) => {
             const doc = documents.get(params.textDocument.uri)
             if (!doc) return null
-            const items = service.completions(doc.text, toOffset(doc.starts, doc.text, params.position))
-            return { isIncomplete: false, items: items.map((item) => ({ label: item.label, detail: item.detail, kind: item.kind === 'property' ? 10 : 12 })) }
+            const offset = toOffset(doc.starts, doc.text, params.position)
+            const items = service.completions(doc.text, offset)
+            const KIND = { property: 10, value: 12, class: 21, color: 16, variant: 14 } as const
+            const end = toPosition(doc.starts, offset)
+            return {
+                isIncomplete: false,
+                items: items.map((item, index) => ({
+                    label: item.label,
+                    detail: item.detail || undefined,
+                    kind: KIND[item.kind],
+                    // Màu: VS Code hiện ô màu khi `documentation` là mã màu.
+                    documentation: item.color,
+                    sortText: String(index).padStart(6, '0'),
+                    textEdit: item.replaceStart !== undefined ? { range: { start: toPosition(doc.starts, item.replaceStart), end }, newText: item.label } : undefined,
+                    command: item.kind === 'variant' ? { title: 'Gợi ý tiếp', command: 'editor.action.triggerSuggest' } : undefined,
+                    // Mục màu giữ `documentation` là mã màu (ô màu); mục class lấy CSS khi được chọn.
+                    data: item.kind === 'class' ? { name: item.label } : undefined,
+                })),
+            }
+        },
+        'completionItem/resolve': (item) => {
+            if (!item?.data?.name) return item
+            const info = service.explain(item.data.name)
+            return info.valid ? { ...item, documentation: { kind: 'markdown', value: '```css\n' + info.css.trim() + '\n```' } } : item
         },
         'textDocument/codeAction': (params) => {
             const uri = params.textDocument.uri

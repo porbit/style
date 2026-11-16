@@ -100,6 +100,18 @@
       "require": "./dist/lsp.js",
       "default": "./dist/lsp.mjs"
     },
+    "./prettier": {
+      "types": "./dist/prettier.d.ts",
+      "import": "./dist/prettier.mjs",
+      "require": "./dist/prettier.js",
+      "default": "./dist/prettier.mjs"
+    },
+    "./postcss": {
+      "types": "./dist/postcss.d.ts",
+      "import": "./dist/postcss.mjs",
+      "require": "./dist/postcss.js",
+      "default": "./dist/postcss.mjs"
+    },
     "./mcp": {
       "types": "./dist/mcp.d.ts",
       "import": "./dist/mcp.mjs",
@@ -174,6 +186,8 @@
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.0.18",
     "apca-w3": "^0.1.9",
+    "prettier": "^3.10.1",
+    "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "4.3.5",
     "tsup": "^8.0.0",
     "tw-animate-css": "^1.4.0",
@@ -183,5 +197,13 @@
   "publishConfig": {
     "access": "public",
     "provenance": false
+  },
+  "peerDependencies": {
+    "prettier": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "prettier": {
+      "optional": true
+    }
   }
 }

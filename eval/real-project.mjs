@@ -59,6 +59,32 @@ for (const file of sources) for (const c of extractCandidates(fs.readFileSync(fi
 const twCssList = ds.candidatesToCss([...found])
 const candidates = [...found].filter((_, i) => twCssList[i])
 
+// Tổ hợp thật: mỗi chuỗi class trong mã (chuỗi trong cn()/cva()/className) và chuỗi gốc của cva() ghép
+// với từng biến thể — kiểm thứ tự cascade giữa các class cùng phần tử (`px-4 has-[>svg]:px-3`, `p-2 px-4`...).
+const validSet = new Set(candidates)
+const combos = new Set()
+for (const file of sources) {
+    const text = fs.readFileSync(file, 'utf8')
+    const toList = (literal) => {
+        const tokens = literal.trim().split(/\s+/)
+        const ok = tokens.filter((t) => validSet.has(t))
+        return tokens.length >= 2 && ok.length / tokens.length >= 0.8 ? ok : null
+    }
+    for (const m of text.matchAll(/(["'`])((?:(?!\1)[^\\\n])+)\1/g)) {
+        const list = toList(m[2])
+        if (list && list.length >= 2) combos.add(list.join(' '))
+    }
+    for (const m of text.matchAll(/cva\(\s*(["'`])([^"'`]+)\1([\s\S]*?)\n\)/g)) {
+        const base = toList(m[2])
+        if (!base) continue
+        for (const v of m[3].matchAll(/(["'`])((?:(?!\1)[^\\\n])+)\1/g)) {
+            const list = toList(v[2])
+            if (list) combos.add([...base, ...list].join(' '))
+        }
+    }
+}
+const comboList = [...combos]
+
 const compiler = await compile(entry, { base: path.dirname(entryPath), loadStylesheet })
 const twCss = compiler.build(candidates)
 
@@ -129,13 +155,14 @@ const STATES = {
     'mở': 'data-state="open" data-open data-active data-checked data-selected="true" data-disabled data-orientation="horizontal" data-side="bottom" data-inset="true" data-size="sm" data-variant="outline" data-slot="x" aria-invalid="true" aria-expanded="true" aria-selected="true" aria-checked="true" aria-disabled="true"',
     'đóng': 'data-state="closed" data-closed data-unchecked data-orientation="vertical" data-side="left" aria-invalid="false" aria-expanded="false"',
 }
-const htmlFor = (attrs) => candidates.map((c) => `<div class="group peer" ${attrs}><span class="peer" ${attrs}></span><div data-k ${attrs} class="${escapeHtml(c)}"${/animate|slide|fade|zoom|spin/.test(c) ? ' data-anim="1"' : ''}><i>a</i><i>b</i></div></div>`).join('')
+const htmlFor = (attrs, list = candidates) => list.map((c) => `<div class="group peer" ${attrs}><span class="peer" ${attrs}></span><div data-k ${attrs} class="${escapeHtml(c)}"${/animate|slide|fade|zoom|spin/.test(c) ? ' data-anim="1"' : ''}><i>a</i><i>b</i></div></div>`).join('')
 const lines = [`# Đo Trên Dự Án Thật: ${label}`, '', `${sources.length} file nguồn, ${found.size} ứng viên, **${candidates.length} class Tailwind hợp lệ** (Tailwind ${JSON.parse(fs.readFileSync(path.join(twDir, 'package.json'), 'utf8')).version}, Chromium, so computed style ở trạng thái mặc định, mở, đóng và trong \`.dark\`).`, '', `| Chế độ | Chuyển được | ${Object.keys(STATES).map((k) => `Khớp (${k})`).join(' | ')} | Khớp (.dark) |`, `| :--- | ---: | ${Object.keys(STATES).map(() => '---: | ').join('')}---: |`]
 const details = []
 const summary = {}
 for (const mode of modes) {
     const unsupported = candidates.filter((c) => !mode.dialect(c))
-    const oursCss = (await extractFromClasses(candidates, { hashClassName: false, silent: true, minify: true, dialects: [mode.dialect] })).css
+    const order = process.env.REVERSE ? [...candidates].reverse() : candidates
+    const oursCss = (await extractFromClasses(order, { hashClassName: false, silent: true, minify: true, dialects: [mode.dialect] })).css
     const counts = {}
     let twDefault = null
     const exercised = {}
@@ -154,6 +181,17 @@ for (const mode of modes) {
     lines.push(`| ${mode.name} | ${pct(candidates.length - unsupported.length)} | ${runs.map(([name]) => pct(counts[name])).join(' | ')} |`)
     summary[mode.name] = { converted: candidates.length - unsupported.length, total: candidates.length, matched: counts, exercised }
     lines.push('', `Số class Tailwind đổi style so với lượt mặc định (biến thể được kiểm): ${Object.entries(exercised).map(([k, n]) => `${k} ${n}`).join(', ')}.`)
+    // Tổ hợp thật (nhiều class trên một phần tử).
+    const comboCounts = {}
+    for (const [name, attrs, dark] of runs) {
+        const html = htmlFor(attrs, comboList)
+        const [a, b] = await Promise.all([signatures(twCss, html, dark), signatures(oursCss, html, dark)])
+        const failed = comboList.map((c, i) => [c, diff(a[i], b[i], oursCss)]).filter(([, d]) => d.length)
+        comboCounts[name] = comboList.length - failed.length
+        details.push(`### ${mode.name} — tổ hợp, ${name}: lệch ${failed.length}`, '', ...failed.slice(0, 25).map(([c, d]) => `- \`${c}\`: ${d.slice(0, 2).map((x) => '`' + x.slice(0, 140) + '`').join('; ')}`), '')
+    }
+    summary[mode.name].combos = { total: comboList.length, matched: comboCounts }
+    lines.push('', `Tổ hợp thật (${comboList.length} chuỗi class của component, nhiều class trên một phần tử): ${runs.map(([name]) => `${name} ${comboCounts[name]}/${comboList.length}`).join(' · ')}.`)
     const byVariant = {}
     for (const c of unsupported) {
         const v = variantsOf(c).join(':') || '(gốc)'

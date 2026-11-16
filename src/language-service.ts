@@ -6,6 +6,7 @@
 import {
     explainClass,
     findClassAttributes,
+    findClassStrings,
     findClassConflicts,
     findClassTokens,
     isXcssLike,
@@ -33,7 +34,11 @@ export interface ServiceHover {
 export interface ServiceCompletion {
     label: string
     detail: string
-    kind: 'property' | 'value'
+    kind: 'property' | 'value' | 'class' | 'color' | 'variant'
+    /** Offset bắt đầu đoạn được thay (sau tiền tố biến thể `md:hover:`); không có thì client tự xác định từ. */
+    replaceStart?: number
+    /** Mã màu hex (cho ô màu của editor). */
+    color?: string
 }
 
 export interface ServiceEdit {
@@ -59,6 +64,47 @@ export interface LanguageService {
     explain(token: string): ClassExplanation
     /** Đổi cấu hình (file cấu hình thay đổi). */
     setConfig(config: XCSSConfig): void
+}
+
+const COMPLETION_FUNCTIONS = ['cn', 'clsx', 'cva', 'tw', 'twMerge', 'twJoin']
+
+/** `oklch(63.7% 0.237 25.331)` / `#abc` -> `#rrggbb` (để editor hiện ô màu). */
+export const cssColorToHex = (value: string): string | null => {
+    const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+    if (hex) return hex[1].length === 3 ? '#' + [...hex[1]].map((c) => c + c).join('').toLowerCase() : '#' + hex[1].toLowerCase()
+    const m = value.match(/^oklch\(\s*([\d.]+)(%?)\s+([\d.]+)\s+([\d.]+)(?:deg)?\s*(?:\/\s*[\d.%]+\s*)?\)$/i)
+    if (!m) return null
+    const L = Number(m[1]) / (m[2] ? 100 : 1)
+    const C = Number(m[3])
+    const h = (Number(m[4]) * Math.PI) / 180
+    const a = C * Math.cos(h)
+    const b = C * Math.sin(h)
+    const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    const mm = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3
+    const rgb = [
+        4.0767416621 * l - 3.3077115913 * mm + 0.2309699292 * s,
+        -1.2684380046 * l + 2.6097574011 * mm - 0.3413193965 * s,
+        -0.0041960863 * l - 0.7034186147 * mm + 1.707614701 * s,
+    ].map((x) => {
+        const v = x <= 0.0031308 ? 12.92 * x : 1.055 * Math.max(x, 0) ** (1 / 2.4) - 0.055
+        return Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0')
+    })
+    return '#' + rgb.join('')
+}
+
+const COLOR_PROPS = /^(color|background-color|border(-[a-z]+)?-color|outline-color|text-decoration-color|fill|stroke|accent-color|caret-color|--tw-[a-z-]*color)$/
+/** Màu của class (từ token của phương ngữ): giá trị màu cuối trong khai báo thuộc tính màu. */
+const colorOfTokens = (tokens: string[]): string | null => {
+    for (const token of tokens) {
+        const m = token.match(/^(?:[^:[]*:)?([\w-]+)!?\[(.*)\]/)
+        if (!m || !COLOR_PROPS.test(m[1])) continue
+        const value = m[2].replace(/\\_/g, '\u0000').replace(/_/g, ' ').replace(/\u0000/g, '_')
+        const literals = value.match(/oklch\([^()]*\)|#[0-9a-f]{3,8}\b/gi)
+        const hex = literals && cssColorToHex(literals[literals.length - 1])
+        if (hex) return hex
+    }
+    return null
 }
 
 // Token chứa cú pháp mẫu (`${x}`, `{a}`) là biểu thức động, không kiểm.
@@ -142,8 +188,40 @@ export const createLanguageService = (initialConfig: XCSSConfig = {}): LanguageS
     }
 
     let aliasCache: ServiceCompletion[] | null = null
+    let dialectCache: { list: ServiceCompletion[]; variants: ServiceCompletion[] } | null = null
+    const dialectCompletions = () => {
+        const dialect = config.dialects?.find((d) => typeof d.classList === 'function')
+        if (!dialect) return null
+        if (!dialectCache) {
+            const list = dialect.classList!().map((name): ServiceCompletion => {
+                const tokens = dialect(name) || []
+                const color = colorOfTokens(tokens)
+                return color ? { label: name, detail: color, kind: 'color', color } : { label: name, detail: '', kind: 'class' }
+            })
+            const variants = (dialect.variantList?.() || []).map((name): ServiceCompletion => ({ label: name + ':', detail: 'biến thể', kind: 'variant' }))
+            dialectCache = { list, variants }
+        }
+        return dialectCache
+    }
     const completions = (text: string, offset: number): ServiceCompletion[] => {
-        if (!findClassAttributes(text).some((r) => offset >= r.start && offset <= r.end)) return []
+        const attribute = findClassStrings(text, { functions: COMPLETION_FUNCTIONS }).find((r) => offset >= r.start && offset <= r.end)
+        if (!attribute) return []
+        const fromDialect = dialectCompletions()
+        if (fromDialect) {
+            // Token đang gõ và tiền tố biến thể: `md:hover:bg-re|` -> thay `bg-re`.
+            const before = text.slice(attribute.start, offset)
+            const tokenStart = attribute.start + before.search(/\S*$/)
+            const typed = text.slice(tokenStart, offset)
+            let depth = 0
+            let cut = 0
+            for (let i = 0; i < typed.length; i++) {
+                if (typed[i] === '[' || typed[i] === '(') depth++
+                else if (typed[i] === ']' || typed[i] === ')') depth--
+                else if (typed[i] === ':' && depth === 0) cut = i + 1
+            }
+            const replaceStart = tokenStart + cut
+            return [...fromDialect.variants, ...fromDialect.list].map((item) => ({ ...item, replaceStart }))
+        }
         if (!aliasCache) {
             aliasCache = []
             for (const item of listPropertyAliases()) {
@@ -166,7 +244,8 @@ export const createLanguageService = (initialConfig: XCSSConfig = {}): LanguageS
                 preferred: true,
             })
         }
-        const sorted = sortClassesInSource(text)
+        const compare = config.dialects?.find((dialect) => typeof dialect.compare === 'function')?.compare
+        const sorted = sortClassesInSource(text, compare ? { compare, functions: ['cn', 'clsx', 'cva', 'tw', 'twMerge', 'twJoin'] } : {})
         if (sorted !== text) {
             actions.push({ title: 'PresenceStyle: sắp xếp class trong file', kind: 'source', edits: [{ start: 0, end: text.length, newText: sorted }] })
         }
@@ -176,6 +255,7 @@ export const createLanguageService = (initialConfig: XCSSConfig = {}): LanguageS
     const setConfig = (next: XCSSConfig) => {
         config = next
         explainCache.clear()
+        dialectCache = null
     }
 
     return { diagnose, hover, completions, codeActions, explain, setConfig }

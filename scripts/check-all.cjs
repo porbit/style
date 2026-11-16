@@ -22,10 +22,10 @@ const only = (args.find((a) => a.startsWith('--only=')) || '').slice(7).split(',
 
 // Ngân sách: vượt là lỗi. Cập nhật có chủ đích khi thay đổi được chấp nhận.
 const BUDGET = {
-    'dist/index-auto.mjs': 23 * 1024, // bản CDN
+    'dist/index-auto.mjs': 24 * 1024, // bản CDN (+chèn rule có thứ tự)
     'dist/index.mjs': 36 * 1024,
     'dist/components.mjs': 8 * 1024,
-    'dist/tailwind-auto.mjs': 59 * 1024, // thay @tailwindcss/browser (75 KB); +@utility hàm, @custom-variant, @apply biến thể
+    'dist/tailwind-auto.mjs': 63 * 1024, // thay @tailwindcss/browser (75 KB); +thứ tự cascade như Tailwind
 }
 const EVAL_MIN = { xcssValidAfterFix: 99, tailwindValid: 98, holdout: 85 }
 

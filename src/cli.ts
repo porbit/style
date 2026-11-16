@@ -154,6 +154,11 @@ const runSourceCommand = async (command: 'sort' | 'check', argv: string[]): Prom
     const files: string[] = []
     for (const input of options.inputs) files.push(...(await collectFiles(input, options.extensions)))
 
+    // Phương ngữ có thứ tự (Tailwind): sắp như prettier-plugin-tailwindcss, cả chuỗi trong cn()/cva()...
+    const compare = config.dialects?.find((dialect) => typeof dialect.compare === 'function')?.compare
+    const sortOptions = compare
+        ? { compare, functions: Array.isArray((config as Record<string, unknown>).sortFunctions) ? ((config as Record<string, unknown>).sortFunctions as string[]) : ['cn', 'clsx', 'cva', 'tw', 'twMerge', 'twJoin'] }
+        : {}
     let problems = 0
     for (const file of files) {
         const source = await readFile(file, 'utf8').catch(() => null)
@@ -161,7 +166,7 @@ const runSourceCommand = async (command: 'sort' | 'check', argv: string[]): Prom
         const shown = relative(process.cwd(), file) || file
 
         if (command === 'sort') {
-            const sorted = sortClassesInSource(source)
+            const sorted = sortClassesInSource(source, sortOptions)
             if (sorted === source) continue
             problems++
             if (write) await writeFile(file, sorted, 'utf8')

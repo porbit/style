@@ -66,13 +66,22 @@ export type XCSSConfig = {
 /**
  * Phương ngữ: hàm đổi một class theo cú pháp khác (ví dụ Tailwind) thành các token x-css.
  * Trả `null` khi không nhận class đó; engine sẽ xử lý class như x-css bình thường.
- * Các token trả về phải cùng media, layer và selector để gộp thành một rule.
+ * Token liền kề cùng media/layer/selector gộp thành một rule; khác nhau thì thành nhiều rule cho cùng class.
  */
 export type XCSSDialect = ((className: string) => string[] | null) & {
     /** Breakpoint riêng của phương ngữ (ví dụ `tw-sm` = 40rem của Tailwind), nối sau breakpoint của engine. */
     breakpoints?: Record<string, string>[]
     /** CSS nền phương ngữ cần (ví dụ `@property` của Tailwind), đặt ngay sau câu khai báo thứ tự layer. */
     baseCss?: string
+    /**
+     * Thứ tự rule trong CSS (cascade) giữa các class của phương ngữ, như thứ tự của Tailwind:
+     * rule được chèn đúng vị trí thay vì nối theo thứ tự gặp class. Trả số âm nếu `a` đứng trước `b`.
+     */
+    compare?: (a: string, b: string) => number
+    /** Danh sách class phương ngữ sinh được (cho gợi ý của editor). */
+    classList?: () => string[]
+    /** Danh sách biến thể dùng trước `:` (cho gợi ý của editor). */
+    variantList?: () => string[]
     /** Khai báo phương ngữ sinh ra đã được kiểm ở nguồn: bỏ qua CSS.supports (selector vẫn được kiểm). */
     trusted?: boolean
 }
@@ -1934,9 +1943,10 @@ export const xcss = (
             sheet: CSSStyleSheet,
             rule: string,
             getFallbackText: () => string,
+            index: number = sheet.cssRules.length,
         ): void => {
             try {
-                sheet.insertRule(rule, sheet.cssRules.length)
+                sheet.insertRule(rule, index)
             } catch (_e) {
                 // insertRule thất bại (rule không hợp lệ, etc.) → fallback replaceSync
                 try {
@@ -1945,6 +1955,33 @@ export const xcss = (
                     // Bỏ qua nếu cả hai đều thất bại
                 }
             }
+        }
+
+        // Thứ tự rule của phương ngữ có `compare` (Tailwind): khối rule có thứ tự nằm cuối mỗi sheet, sắp theo
+        // `compare`; rule khác (x-css, cache) nằm trước khối đó theo thứ tự chèn như cũ.
+        const orderKeysByMedia: Record<string, Array<{ compare: (a: string, b: string) => number; name: string } | undefined>> = {}
+        const orderedCountByMedia: Record<string, number> = {}
+        const ruleInsertIndex = (media: string, length: number, order?: { compare: (a: string, b: string) => number; name: string }): number => {
+            const keys = (orderKeysByMedia[media] ||= [])
+            while (keys.length < length) keys.unshift(undefined)
+            const ordered = orderedCountByMedia[media] || 0
+            let index: number
+            if (!order) {
+                index = length - ordered
+            } else {
+                let lo = length - ordered
+                let hi = length
+                while (lo < hi) {
+                    const mid = (lo + hi) >> 1
+                    const key = keys[mid]
+                    if (key && key.compare === order.compare && order.compare(order.name, key.name) < 0) hi = mid
+                    else lo = mid + 1
+                }
+                index = lo
+                orderedCountByMedia[media] = ordered + 1
+            }
+            keys.splice(index, 0, order)
+            return index
         }
 
         const updateRules = (txtCls: string, d: any) => {
@@ -1985,17 +2022,26 @@ export const xcss = (
                 // Cập nhật text store cho cache persistence. Chỉ join khi thật sự
                 // cần export/cache/fallback CSSOM để tránh sao chép toàn bộ sheet.
                 if (!cssTextStore[media]) cssTextStore[media] = []
-                cssTextStore[media].push(txtCss)
+                const store = cssTextStore[media]
+                const index = ruleInsertIndex(media, store.length, d.order)
+                if (index === store.length) store.push(txtCss)
+                else store.splice(index, 0, txtCss)
 
                 if (!isBrowser) {
                     // SSR: chỉ cập nhật text store (đã làm ở trên)
                 } else if (cssStyleSheetsDom[media]) {
-                    // Browser hiện đại: insertRule O(1) — nhanh hơn replaceSync O(n)
-                    safeInsertRule(
-                        cssStyleSheetsDom[media],
-                        txtCss,
-                        () => getSheetText(media),
-                    )
+                    const sheet = cssStyleSheetsDom[media]
+                    if (sheet.cssRules.length === store.length - 1) {
+                        // Browser hiện đại: insertRule — nhanh hơn replaceSync O(n)
+                        safeInsertRule(sheet, txtCss, () => getSheetText(media), index)
+                    } else {
+                        // CSSOM lệch text store (rule hỏng trước đó): dựng lại để giữ đúng thứ tự.
+                        try {
+                            sheet.replaceSync(getSheetText(media))
+                        } catch (_error) {
+                            // bỏ qua
+                        }
+                    }
                 } else if (legacyStyleEls[media]) {
                     scheduleLegacyStyleText(media)
                 }
@@ -2490,7 +2536,7 @@ export const xcss = (
     // Gộp nhiều token x-css thành rule cho một class nguồn. Token liền kề cùng media/layer/selector chung một rule;
     // nhóm khác (`not-hover:`, `container`, `prose`, biến thể nhiều selector) thành rule kèm theo (`extra`),
     // giữ thứ tự xuất hiện. Một token không hợp lệ thì cả class bị bỏ (không sinh CSS dở dang).
-    function resolveTokenGroup(tokens: string[], className: string, trusted = false) {
+    function resolveTokenGroup(tokens: string[], className: string, trusted = false, order?: { compare: (a: string, b: string) => number; name: string }) {
         const groups: Array<{ key: string; media: string; layer: string; selector: string; declarations: string[] }> = []
         for (let index = 0; index < tokens.length; index++) {
             const parsed = parseClassName(tokens[index])
@@ -2531,6 +2577,7 @@ export const xcss = (
                 property: group.declarations.join(';'),
                 selector: selectorStr,
                 cssRules: `.${className}${selectorStr}{${group.declarations.join(';')}}`,
+                order,
             })
         }
         if (rules.length === 0) return null
@@ -2554,7 +2601,8 @@ export const xcss = (
                     tokens = null
                 }
                 if (tokens && tokens.length) {
-                    const resolved = resolveTokenGroup(tokens, className, dialect.trusted === true)
+                    const order = typeof dialect.compare === 'function' ? { compare: dialect.compare, name: parseTarget } : undefined
+                    const resolved = resolveTokenGroup(tokens, className, dialect.trusted === true, order)
                     if (resolved) return resolved
                 }
             }

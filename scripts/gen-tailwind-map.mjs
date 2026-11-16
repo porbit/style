@@ -335,6 +335,59 @@ const stats = {
     approximate: approximateClasses.size,
 }
 
+// ---------------------------------------------------------------------------
+// Thứ tự class của Tailwind (getClassOrder): bảng thuộc tính + thứ tự gốc biến thể
+// ---------------------------------------------------------------------------
+
+// Bảng thứ tự thuộc tính không được export: đọc từ bản build của Tailwind (kiểm bằng eval/tailwind-order.mjs).
+const libSource = readTw('dist/lib.js')
+const propertyOrderMatch = libSource.match(/var [A-Za-z_$][\w$]*=(\["container-type","pointer-events"[^\]]*\])/)
+if (!propertyOrderMatch) throw new Error('Không tìm thấy bảng thứ tự thuộc tính trong tailwindcss/dist/lib.js')
+const propertyOrder = JSON.parse(propertyOrderMatch[1])
+const variantRoots = {}
+for (const [name, info] of ds.variants.entries()) variantRoots[name] = [info.kind === 'static' ? 's' : info.kind === 'functional' ? 'f' : info.kind === 'compound' ? 'c' : 'a', info.order]
+// Nhóm có hàm so sánh riêng: breakpoint/min (tăng dần), max (giảm dần), @/@min (tăng), @max (giảm).
+const groupDirection = {}
+for (const [name, dir] of [['max', 'desc'], ['min', 'asc'], ['@max', 'desc'], ['@', 'asc']]) groupDirection[variantRoots[name][1]] = dir
+// Khoá thuộc tính của Tailwind tính trên AST (có `--tw-sort` ẩn, `@media` lồng) có thể khác khoá tính từ
+// khai báo đầu ra. Lưu phần khác theo chữ ký thuộc tính (`prop,prop,...`); chữ ký mơ hồ thì lưu theo class.
+const ourSort = (decls) => {
+    const seen = new Set()
+    for (const [prop] of decls) {
+        const index = propertyOrder.indexOf(prop)
+        if (index !== -1) seen.add(index)
+    }
+    return { order: [...seen].sort((a, b) => a - b), count: decls.length }
+}
+const sameSort = (a, b) => a.count === b.count && a.order.length === b.order.length && a.order.every((x, i) => x === b.order[i])
+const bySignature = new Map()
+const classSort = {}
+for (const [name, rule] of parsed) {
+    const candidate = ds.parseCandidate(name)[0]
+    const node = candidate && ds.compileAstNodes(candidate)[0]
+    if (!node) continue
+    const tw = node.propertySort
+    const signature = (rule.sel || '') + '|' + rule.decls.map(([p]) => p).join(',')
+    if (sameSort(tw, ourSort(rule.decls))) {
+        if (!bySignature.has(signature)) bySignature.set(signature, null)
+        else if (bySignature.get(signature) !== null) bySignature.set(signature, 'conflict')
+        continue
+    }
+    const value = [tw.count, ...tw.order]
+    const previous = bySignature.get(signature)
+    if (previous === undefined) bySignature.set(signature, value)
+    else if (previous === null || previous === 'conflict' || previous.join() !== value.join()) bySignature.set(signature, 'conflict')
+    classSort[name] = value
+}
+const sortOverrides = {}
+for (const [signature, value] of bySignature) if (Array.isArray(value)) sortOverrides[signature] = value
+for (const name of Object.keys(classSort)) {
+    const signature = (parsed.get(name).sel || '') + '|' + parsed.get(name).decls.map(([p]) => p).join(',')
+    if (Array.isArray(bySignature.get(signature))) delete classSort[name]
+}
+const ORDER = { properties: propertyOrder, variants: variantRoots, groups: groupDirection, signatures: sortOverrides, classes: classSort }
+console.log(`  thứ tự: ${Object.keys(sortOverrides).length} chữ ký, ${Object.keys(classSort).length} class riêng`)
+
 const header = `// @generated bởi scripts/gen-tailwind-map.mjs từ tailwindcss@${twVersion} — KHÔNG sửa tay.\n// ${JSON.stringify(stats)}\n`
 const body = `${header}
 export const TW_DATA = ${JSON.stringify(STRUCTURE)} as const
@@ -344,6 +397,9 @@ export const TW_PROPERTIES_CSS = ${JSON.stringify(propertiesCss)}
 
 /** Preflight (reset) của Tailwind, bọc trong layer thấp nhất \`l0\`. */
 export const TW_PREFLIGHT_CSS = ${JSON.stringify('@layer l0{' + preflightCss + '}')}
+
+/** Thứ tự class của Tailwind: bảng thuộc tính, [loại, thứ tự] của gốc biến thể, chiều so sánh của nhóm breakpoint/container. */
+export const TW_ORDER = ${JSON.stringify(ORDER)} as const
 
 /** Class chuyển gần đúng (bỏ @media lồng của Tailwind). */
 export const TW_APPROXIMATE: readonly string[] = ${JSON.stringify([...approximateClasses].sort())}
