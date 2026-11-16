@@ -1,0 +1,13 @@
+@import "tailwindcss";
+@config "./tailwind.config.js";
+
+@utility tab-4 {
+  tab-size: 4;
+}
+
+@custom-variant pointer-coarse (@media (pointer: coarse));
+
+/* Có tiền tố thì `@apply` cũng phải viết `tw:` (Tailwind báo lỗi với `@apply p-2`). */
+.card {
+  @apply tw:p-2 tw:hover:bg-brand;
+}

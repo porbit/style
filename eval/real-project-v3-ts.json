@@ -1,0 +1,96 @@
+{
+  "label": "v3-ts",
+  "candidates": 20,
+  "summary": {
+    "không build (parseTailwindStylesheet)": {
+      "converted": 20,
+      "total": 20,
+      "matched": {
+        "mặc định": 20,
+        "mở": 20,
+        "đóng": 20,
+        ".dark": 20,
+        ":hover": 20,
+        ":focus": 20,
+        ":focus-visible": 20,
+        ":active": 20,
+        "375px": 20,
+        "768px": 20,
+        "1600px": 20
+      },
+      "exercised": {
+        "mở": 2,
+        "đóng": 0,
+        ".dark": 2,
+        ":hover": 1,
+        ":focus": 0,
+        ":focus-visible": 0,
+        ":active": 1,
+        "375px": 1,
+        "768px": 0,
+        "1600px": 0
+      },
+      "combos": {
+        "total": 2,
+        "matched": {
+          "mặc định": 2,
+          "mở": 2,
+          "đóng": 2,
+          ".dark": 2,
+          ":hover": 2,
+          ":focus": 2,
+          ":focus-visible": 2,
+          ":active": 2,
+          "375px": 2,
+          "768px": 2,
+          "1600px": 2
+        }
+      }
+    },
+    "plugin PostCSS (@porbit/style/postcss)": {
+      "converted": 20,
+      "total": 20,
+      "matched": {
+        "mặc định": 20,
+        "mở": 20,
+        "đóng": 20,
+        ".dark": 20,
+        ":hover": 20,
+        ":focus": 20,
+        ":focus-visible": 20,
+        ":active": 20,
+        "375px": 20,
+        "768px": 20,
+        "1600px": 20
+      },
+      "exercised": {
+        "mở": 2,
+        "đóng": 0,
+        ".dark": 2,
+        ":hover": 1,
+        ":focus": 0,
+        ":focus-visible": 0,
+        ":active": 1,
+        "375px": 1,
+        "768px": 0,
+        "1600px": 0
+      },
+      "combos": {
+        "total": 2,
+        "matched": {
+          "mặc định": 2,
+          "mở": 2,
+          "đóng": 2,
+          ".dark": 2,
+          ":hover": 2,
+          ":focus": 2,
+          ":focus-visible": 2,
+          ":active": 2,
+          "375px": 2,
+          "768px": 2,
+          "1600px": 2
+        }
+      }
+    }
+  }
+}

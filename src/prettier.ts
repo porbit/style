@@ -50,7 +50,7 @@ const compareFor = (options: PrettierOptions): ((a: string, b: string) => number
         if (stylesheet) {
             const read = createStylesheetReader(dirname(stylesheet))
             const sheet = parseTailwindStylesheet(readFileSync(stylesheet, 'utf8'), { resolve: (id) => read(id) ?? resolveTailwindPlugin(id), loadConfig: createConfigLoader(dirname(stylesheet)) })
-            compare = tailwindV4Dialect({ theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants }).compare ?? null
+            compare = tailwindV4Dialect({ theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, prefix: sheet.prefix }).compare ?? null
         } else if (configFile) {
             const config = resolveConfigFile(JSON.parse(readFileSync(configFile, 'utf8')), { readStylesheet: createStylesheetReader(dirname(configFile)), loadConfig: createConfigLoader(dirname(configFile)) })
             compare = config.dialects?.find((d: { compare?: unknown }) => typeof d.compare === 'function')?.compare ?? null

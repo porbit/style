@@ -7,6 +7,16 @@ import {
     SPECIFIC_VALUES as BUILTIN_SPECIFIC_VALUES,
 } from './dictionary'
 
+// Cờ build (tsup.config.ts `define`): bản CDN Tailwind (`tailwind-auto.mjs`) đặt cả hai là false để bundler
+// loại bỏ phần không dùng. Mọi entry khác đặt true; không định nghĩa (chạy thẳng mã nguồn: vitest...) cũng là true.
+//   __XCSS_CACHE__: cache localStorage (nén LZW/deflate), đồng bộ khoá giữa tab, nạp CSS từ cache lúc khởi tạo.
+//   __XCSS_DICTIONARY__: từ điển x-css dựng sẵn, nạp từ điển ngoài (URL/Node), danh sách property chuẩn.
+// Khi tắt từ điển, engine chạy như `dictionaryImport: false` dù cấu hình đặt gì.
+declare const __XCSS_CACHE__: boolean | undefined
+declare const __XCSS_DICTIONARY__: boolean | undefined
+const CACHE_BUILD = typeof __XCSS_CACHE__ === 'undefined' || __XCSS_CACHE__
+const DICTIONARY_BUILD = typeof __XCSS_DICTIONARY__ === 'undefined' || __XCSS_DICTIONARY__
+
 
 export type XCSSConfig = {
     base?: string
@@ -84,6 +94,11 @@ export type XCSSDialect = ((className: string) => string[] | null) & {
     variantList?: () => string[]
     /** Khai báo phương ngữ sinh ra đã được kiểm ở nguồn: bỏ qua CSS.supports (selector vẫn được kiểm). */
     trusted?: boolean
+    /**
+     * Class thuộc phương ngữ dù phương ngữ không sinh được CSS (ví dụ `z-1` có dạng utility Tailwind nhưng giá trị
+     * không hợp lệ): engine không hiểu class theo cú pháp x-css nữa, tránh sinh CSS sai (`z-index:-1`).
+     */
+    owns?: (className: string) => boolean
 }
 
 export type XCSSPreloadManifest = {
@@ -1172,9 +1187,9 @@ export const xcss = (
     const shouldHashOutputClassName = hashClassName !== false
 
     const cacheConfig = resolveCacheConfig(cacheOptions)
-    const cacheKey = createCacheKey(cacheConfig)
-    const keySyncKey = createKeySyncKey(cacheConfig)
-    const keySyncChannelName = createKeySyncChannelName(cacheConfig)
+    const cacheKey = CACHE_BUILD ? createCacheKey(cacheConfig) : ''
+    const keySyncKey = CACHE_BUILD ? createKeySyncKey(cacheConfig) : ''
+    const keySyncChannelName = CACHE_BUILD ? createKeySyncChannelName(cacheConfig) : ''
 
     const mergedExcludes = excludeNames
 
@@ -1223,14 +1238,15 @@ export const xcss = (
     const mediaKeySet = new Set<string>([...defaultMediaKeys, ...customMediaKeys])
     // `[@supports_(display:grid)]`: at-rule nội tuyến (không cần đăng ký), `_` là khoảng trắng.
     const isValidMediaKey = (mq?: string): boolean => !mq || mediaKeySet.has(mq) || isInlineAtRuleKey(mq)
-    const shouldEnforceKnownProperties = dictionaryImport !== false
+    const shouldEnforceKnownProperties = DICTIONARY_BUILD && dictionaryImport !== false
     const compositePropertyKeys = new Set(['mx', 'my', 'px', 'py', 'bdx', 'bdy'])
     let knownFullPropertyNames = new Set<string>()
-    const standardPropertyNames = new Set<string>(STANDARD_CSS_PROPERTIES)
+    const standardPropertyNames = new Set<string>(DICTIONARY_BUILD ? STANDARD_CSS_PROPERTIES : [])
     const isKnownPropertyKey = (prop: string): boolean => {
         if (!prop) return false
         if (!shouldEnforceKnownProperties) return true
-        if (!PropertiesCss || Object.keys(PropertiesCss).length === 0) return true
+        // Từ điển rỗng <=> tập tên đầy đủ rỗng; tránh Object.keys() O(n) ở mỗi lần tra (nóng khi dịch class).
+        if (!knownFullPropertyNames.size) return true
         return (
             !!PropertiesCss[prop] ||
             compositePropertyKeys.has(prop) ||
@@ -1325,7 +1341,7 @@ export const xcss = (
     let dictionaryReady = true
     let dictionaryReadyPromise: Promise<void> = Promise.resolve()
 
-    if (dictionaryImport === false) {
+    if (!DICTIONARY_BUILD || dictionaryImport === false) {
         applyDictionary(null)
     } else if (typeof dictionaryImport === 'string') {
         dictionaryReady = false
@@ -1354,7 +1370,7 @@ export const xcss = (
         const browserWindow = isBrowser ? window : null
         // Chỉ thăm dò (ghi/xoá thử) localStorage khi người dùng bật cache: tránh một lần
         // ghi đồng bộ vào ổ đĩa cho mỗi engine khởi tạo ở cấu hình mặc định.
-        const cacheEnabled = !!cacheConfig.loadOnInit && isBrowser && canUseCacheRuntime()
+        const cacheEnabled = CACHE_BUILD && !!cacheConfig.loadOnInit && isBrowser && canUseCacheRuntime()
         const browserStorage = cacheEnabled ? getLocalStorageSafe() : null
         const cacheStorage = cacheEnabled ? browserStorage : null
         let docRoot: Document | ShadowRoot | null = null
@@ -1415,12 +1431,12 @@ export const xcss = (
 
         const resolveSourceClassName = (value: string): string =>
             shouldHashOutputClassName ? CSS_KEY_SOURCES.get(value) || value : value
-        const keyRegistryKey = createKeyRegistryKey(cacheConfig)
+        const keyRegistryKey = CACHE_BUILD ? createKeyRegistryKey(cacheConfig) : ''
         let sizeLast = cacheConfig.sizeLast;
 
         // Flag: lần render đầu tiên xử lý CSS đồng bộ để giảm CLS
         let isFirstRenderBatch = true;
-        const syncSourceId = `xcss_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
+        const syncSourceId = CACHE_BUILD ? `xcss_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}` : ''
         const pendingKeySyncEntries: [string, string][] = []
         let pendingKeySyncScheduled = false
         let keySyncBroadcastChannel: BroadcastChannel | null = null
@@ -1647,11 +1663,9 @@ export const xcss = (
         }
 
         // Fallback <style> không có insertRule; gom các rule mới trong cùng
-        // microtask để chỉ cập nhật textContent một lần cho mỗi media sheet.
+        // microtask để chỉ cập nhật textContent một lần cho mỗi media sheet (tập rỗng = chưa hẹn flush).
         const dirtyLegacyMediaKeys = new Set<string>()
-        let legacyStyleFlushScheduled = false
         const flushLegacyStyleText = () => {
-            legacyStyleFlushScheduled = false
             dirtyLegacyMediaKeys.forEach((mediaKey) => {
                 const style = legacyStyleEls[mediaKey]
                 if (style) style.textContent = getSheetText(mediaKey)
@@ -1659,10 +1673,8 @@ export const xcss = (
             dirtyLegacyMediaKeys.clear()
         }
         const scheduleLegacyStyleText = (mediaKey: string) => {
+            if (!dirtyLegacyMediaKeys.size) queueMicrotask(flushLegacyStyleText)
             dirtyLegacyMediaKeys.add(mediaKey)
-            if (legacyStyleFlushScheduled) return
-            legacyStyleFlushScheduled = true
-            queueMicrotask(flushLegacyStyleText)
         }
 
         // Cache Key & Logic
@@ -1813,8 +1825,12 @@ export const xcss = (
             if (rootSheet) cssStyleSheetsDom['root'] = rootSheet
         }
 
+        // Khối @layer trong CSSOM của từng sheet (xem insertIntoLayer). replaceSync xoá các khối đó: lần chèn sau
+        // tạo khối mới ở cuối sheet.
+        let layerBlocks: Record<string, { b: CSSStyleSheet | CSSGroupingRule; g: any[]; o: number }> = {}
         const applySheetText = (mediaKey: string, text: string) => {
             setSheetText(mediaKey, text)
+            layerBlocks = {}
             if (!isBrowser) return
             if (cssStyleSheetsDom[mediaKey]) {
                 cssStyleSheetsDom[mediaKey].replaceSync(text)
@@ -1937,26 +1953,6 @@ export const xcss = (
             })
         }
 
-        // Chèn 1 rule vào CSSStyleSheet — O(1), không parse lại toàn bộ.
-        // Fallback về replaceSync nếu insertRule thất bại.
-        const safeInsertRule = (
-            sheet: CSSStyleSheet,
-            rule: string,
-            getFallbackText: () => string,
-            index: number = sheet.cssRules.length,
-        ): void => {
-            try {
-                sheet.insertRule(rule, index)
-            } catch (_e) {
-                // insertRule thất bại (rule không hợp lệ, etc.) → fallback replaceSync
-                try {
-                    sheet.replaceSync(getFallbackText())
-                } catch (_e2) {
-                    // Bỏ qua nếu cả hai đều thất bại
-                }
-            }
-        }
-
         // Thứ tự rule của phương ngữ có `compare` (Tailwind): khối rule có thứ tự nằm cuối mỗi sheet, sắp theo
         // `compare`; rule khác (x-css, cache) nằm trước khối đó theo thứ tự chèn như cũ.
         const orderKeysByMedia: Record<string, Array<{ compare: (a: string, b: string) => number; name: string } | undefined>> = {}
@@ -1965,11 +1961,8 @@ export const xcss = (
             const keys = (orderKeysByMedia[media] ||= [])
             while (keys.length < length) keys.unshift(undefined)
             const ordered = orderedCountByMedia[media] || 0
-            let index: number
-            if (!order) {
-                index = length - ordered
-            } else {
-                let lo = length - ordered
+            let lo = length - ordered
+            if (order) {
                 let hi = length
                 while (lo < hi) {
                     const mid = (lo + hi) >> 1
@@ -1977,71 +1970,111 @@ export const xcss = (
                     if (key && key.compare === order.compare && order.compare(order.name, key.name) < 0) hi = mid
                     else lo = mid + 1
                 }
-                index = lo
                 orderedCountByMedia[media] = ordered + 1
             }
-            keys.splice(index, 0, order)
-            return index
+            keys.splice(lo, 0, order)
+            return lo
+        }
+
+        // CSSOM của trình duyệt có @layer: mỗi sheet giữ MỘT khối `@layer lN{}` cho mỗi layer và chèn style rule
+        // vào trong khối đó. Chromium chỉ invalidate phần tử khớp selector khi thêm style rule vào khối/nhóm có
+        // sẵn, còn thêm một at-rule mới (`@layer`, `@media`, `@supports`) thì tính lại style của mọi phần tử dùng
+        // sheet (đo trên trang 1.000 phần tử: 0,3 ms so với 17 ms mỗi lần). Rule cùng `wrap` nằm liền nhau dùng
+        // chung một nhóm (`@media (hover: hover){a}{b}` ≡ `{a b}`), nên chỉ nhóm mới phải trả giá đó.
+        // Thứ tự trong khối theo đúng quy tắc của text store (ruleInsertIndex) nên cascade không đổi: khác layer
+        // thì thứ tự layer quyết định, cùng layer thì thứ tự tương đối giữ nguyên. `g`: nhóm chứa từng rule (null:
+        // rule nằm thẳng trong khối), wrap của nhóm ghi ở thuộc tính `w` của chính nhóm.
+        // Trình duyệt thiếu @layer: "khối" là chính sheet (một dãy cho cả sheet như text store), `o` = số rule có
+        // sẵn ở đầu sheet (CSS nạp từ cache lúc khởi tạo).
+        const insertIntoLayer = (sheet: CSSStyleSheet, media: string, layer: number, body: string, wrap: string, order?: { compare: (a: string, b: string) => number; name: string }) => {
+            const key = '@' + media + (supportsAtLayer ? ' ' + layer : '')
+            let blk = layerBlocks[key]
+            let i = -1
+            try {
+                if (!blk) {
+                    const o = sheet.cssRules.length
+                    blk = layerBlocks[key] = supportsAtLayer ? { b: sheet.cssRules[sheet.insertRule(`@layer l${layer}{}`, o)] as CSSGroupingRule, g: [], o: 0 } : { b: sheet, g: [], o }
+                    orderKeysByMedia[key] = []
+                    orderedCountByMedia[key] = 0
+                }
+                const { b, g } = blk
+                i = ruleInsertIndex(key, g.length, order)
+                // Vị trí trong khối (mỗi nhóm tính là một rule) và số rule của nhóm đứng trước nằm trước điểm chèn.
+                let top = blk.o
+                let run = 0
+                for (let j = 0; j < i; j++) {
+                    if (g[j] && g[j] === g[j - 1]) run++
+                    else {
+                        top++
+                        run = 1
+                    }
+                }
+                const prev = g[i - 1]
+                if (prev && prev === g[i] && prev.w !== wrap) {
+                    // Điểm chèn nằm giữa một nhóm khác wrap: phần sau điểm chèn sang nhóm mới ngay sau nhóm cũ,
+                    // rule mới đứng giữa hai nhóm (vị trí `top`).
+                    let rest = ''
+                    for (; prev.cssRules.length > run; prev.deleteRule(run)) rest += prev.cssRules[run].cssText
+                    b.insertRule(`${prev.w}{${rest}}`, top)
+                    const next: any = b.cssRules[top]
+                    next.w = prev.w
+                    for (let j = i; g[j] === prev; j++) g[j] = next
+                }
+                let group = wrap && prev?.w === wrap ? prev : null
+                if (group) group.insertRule(body, run)
+                else if (wrap && g[i]?.w === wrap) (group = g[i]).insertRule(body, 0)
+                else {
+                    b.insertRule(wrap ? `${wrap}{${body}}` : body, top)
+                    if (wrap) (group = b.cssRules[top] as any).w = wrap
+                }
+                g.splice(i, 0, group)
+            } catch (_error) {
+                // Rule trình duyệt không hiểu: bỏ qua như replaceSync sẽ làm.
+                if (i >= 0) {
+                    orderKeysByMedia[key].splice(i, 1)
+                    if (order) orderedCountByMedia[key]--
+                }
+            }
         }
 
         const updateRules = (txtCls: string, d: any) => {
             let { media, property, selector, layer, className } = d
-
-            let cssTextStore = cssStyleSheetsText
 
             layer = Number(layer) || 0
             let cssExts = shouldHashOutputClassName ? CSS_KEYS.get(txtCls) : null
             let cssName = composeSelector(`.${cssExts || className}`, selector)
 
             // CB4: trên thiết bị cảm ứng, chỉ áp :hover khi thiết bị thật sự hỗ trợ hover.
+            // `wrap`: at-rule bọc ngoài cùng (giữ riêng để gom nhóm trong CSSOM, xem insertIntoLayer).
             let ruleBody = `${cssName}{${property}}`
-            if (hoverMedia && selector && selector.indexOf(':hover') !== -1) {
-                ruleBody = `@media (hover: hover){${ruleBody}}`
-            }
+            let wrap = hoverMedia && selector?.includes(':hover') ? '@media (hover: hover)' : ''
             // At-rule ngoài @media: breakpoint đăng ký với query `@...` giữ sheet riêng (giữ thứ tự),
             // key nội tuyến `[@...]` đi vào sheet mặc định.
-            const atRuleQuery = mediaQueryByKey.get(media)
-            if (atRuleQuery && atRuleQuery.startsWith('@')) {
-                ruleBody = `${atRuleQuery}{${ruleBody}}`
-            } else if (isInlineAtRuleKey(media)) {
-                ruleBody = `${decodeInlineAtRule(media)}{${ruleBody}}`
-                media = 'default'
+            let outer = mediaQueryByKey.get(media)
+            if (!outer?.startsWith('@')) outer = isInlineAtRuleKey(media) ? decodeInlineAtRule(media) : ''
+            if (outer) {
+                if (wrap) ruleBody = `${wrap}{${ruleBody}}`
+                wrap = outer
+                if (media[0] === '[') media = 'default'
             }
+            const fullBody = wrap ? `${wrap}{${ruleBody}}` : ruleBody
             // CB2: bỏ bọc @layer trên trình duyệt thiếu hỗ trợ -> giữ thứ tự theo insertion order.
-            var txtCss = supportsAtLayer ? `@layer l${layer}{${ruleBody}}` : ruleBody
+            var txtCss = supportsAtLayer ? `@layer l${layer}{${fullBody}}` : fullBody
 
-            if (!cssStyleSheetsSet[media]) {
-                cssStyleSheetsSet[media] = new Set()
-            }
-
-            let cssStyleSheetSet = cssStyleSheetsSet[media]
+            const cssStyleSheetSet = (cssStyleSheetsSet[media] ||= new Set())
 
             if (!cssStyleSheetSet.has(txtCss)) {
                 cssStyleSheetSet.add(txtCss)
 
                 // Cập nhật text store cho cache persistence. Chỉ join khi thật sự
                 // cần export/cache/fallback CSSOM để tránh sao chép toàn bộ sheet.
-                if (!cssTextStore[media]) cssTextStore[media] = []
-                const store = cssTextStore[media]
-                const index = ruleInsertIndex(media, store.length, d.order)
-                if (index === store.length) store.push(txtCss)
-                else store.splice(index, 0, txtCss)
+                const store = (cssStyleSheetsText[media] ||= [])
+                store.splice(ruleInsertIndex(media, store.length, d.order), 0, txtCss)
 
                 if (!isBrowser) {
                     // SSR: chỉ cập nhật text store (đã làm ở trên)
                 } else if (cssStyleSheetsDom[media]) {
-                    const sheet = cssStyleSheetsDom[media]
-                    if (sheet.cssRules.length === store.length - 1) {
-                        // Browser hiện đại: insertRule — nhanh hơn replaceSync O(n)
-                        safeInsertRule(sheet, txtCss, () => getSheetText(media), index)
-                    } else {
-                        // CSSOM lệch text store (rule hỏng trước đó): dựng lại để giữ đúng thứ tự.
-                        try {
-                            sheet.replaceSync(getSheetText(media))
-                        } catch (_error) {
-                            // bỏ qua
-                        }
-                    }
+                    insertIntoLayer(cssStyleSheetsDom[media], media, layer, ruleBody, wrap, d.order)
                 } else if (legacyStyleEls[media]) {
                     scheduleLegacyStyleText(media)
                 }
@@ -2095,8 +2128,6 @@ export const xcss = (
         }
 
         const processObservedItems = (items: string[]) => {
-            if (items.length === 0) return
-
             const run = () => applyObservedItems(items)
             if (dictionaryReady) {
                 run()
@@ -2266,16 +2297,13 @@ export const xcss = (
          * Dùng khi unmount ứng dụng, hot-reload, hoặc teardown test để tránh rò rỉ bộ nhớ.
          */
         const destroy = () => {
-            if (disconnectObserver) {
-                disconnectObserver()
-                disconnectObserver = undefined
-            }
+            disconnectObserver?.()
+            disconnectObserver = undefined
             if (debounceTimer) {
                 clearTimeout(debounceTimer)
                 debounceTimer = null
             }
             dirtyLegacyMediaKeys.clear()
-            legacyStyleFlushScheduled = false
             if (keySyncBroadcastChannel) {
                 try {
                     keySyncBroadcastChannel.close()
@@ -2607,6 +2635,15 @@ export const xcss = (
                 }
             }
         }
+        // Class có dạng của phương ngữ mà phương ngữ không nhận: không rơi xuống cú pháp x-css (sinh CSS sai).
+        if (dialectList.some((dialect) => {
+            try {
+                return typeof dialect.owns === 'function' && dialect.owns(parseTarget)
+            } catch (_error) {
+                return false
+            }
+        })) return null
+
 
         // Support chained utilities: "md:dF&fxdC@;li", "dF&fk-fxdC@;li", "md:[grp1]&[grp2]@;li"
         if (parseTarget.includes('&') && !parseTarget.startsWith('&')) {
@@ -2771,58 +2808,30 @@ export const xcss = (
         code === 0x3000 ||
         code === 0xfeff
 
-    const splitClassAttribute = (value: string): string[] => {
-        const tokens: string[] = []
-        let tokenStart = -1
-        for (let index = 0; index <= value.length; index++) {
-            const isBoundary =
-                index === value.length || isClassWhitespace(value.charCodeAt(index))
-            if (!isBoundary) {
-                if (tokenStart === -1) tokenStart = index
-                continue
-            }
-            if (tokenStart !== -1) {
-                tokens.push(value.slice(tokenStart, index))
-                tokenStart = -1
-            }
-        }
-        return tokens
+    // Chuỗi class của phần tử (`className`, SVG: `baseVal`) tách như classList: theo khoảng trắng HTML (ASCII).
+    const classNameOf = (node: any): string => {
+        const raw = node.className
+        return typeof raw === 'string' ? raw : raw?.baseVal || ''
     }
+    const splitClassName = (value: string): string[] => value.split(/[\t\n\f\r ]+/)
 
-    const getClassListTokens = (node: Element): string[] => {
-        const classList = node.classList
-        if (classList) {
-            const tokens: string[] = []
-            for (let index = 0; index < classList.length; index++) {
-                const token = classList[index]
-                if (token) tokens.push(token)
-            }
-            return tokens
-        }
-        return splitClassAttribute(node.getAttribute('class') || '')
-    }
-
-    const collectClassesInto = (node: Element, out: string[]): void => {
-        const cls = node?.classList
-        if (!cls) return
-        for (let i = 0; i < cls.length; i++) {
-            const f = cls[i]
-            if (!f) continue
+    // Đọc chuỗi class một lần (`className`, SVG: `baseVal`) thay vì gọi `classList[i]` cho từng token, và bỏ
+    // qua chuỗi đã gặp: danh sách/bảng/burst innerHTML lặp cùng chuỗi class ở hàng nghìn phần tử. Bỏ qua an toàn
+    // vì mọi token của chuỗi đó đã vào hàng đợi của observer này (`seen` sống theo từng observeDom()).
+    const collectClassesInto = (node: Element, out: string[], seen: Set<string>): void => {
+        const value = classNameOf(node)
+        if (!value || seen.has(value)) return
+        if (seen.size > 4095) seen.clear()
+        seen.add(value)
+        for (const f of splitClassName(value)) {
             const c = f.charCodeAt(0) === 45 ? f.charCodeAt(1) : f.charCodeAt(0)
             if ((c >= 97 && c <= 122) || (c >= 48 && c <= 57)) out.push(f)
         }
     }
 
-    const getClassAttrs = (el: Element): string[] => {
-        const out: string[] = []
-        if (!el) return out
-        collectClassesInto(el, out)
-        const descendants = el.querySelectorAll?.('[class]')
-        if (descendants) {
-            for (let i = 0; i < descendants.length; i++) {
-                collectClassesInto(descendants[i] as Element, out)
-            }
-        }
+    const getClassAttrs = (el: Element, seen: Set<string>, out: string[] = []): string[] => {
+        collectClassesInto(el, out, seen)
+        for (const node of el.querySelectorAll?.('[class]') || []) collectClassesInto(node, out, seen)
         return out
     }
 
@@ -2831,114 +2840,62 @@ export const xcss = (
         cb: (items: string[]) => void,
         skipInitialScan = false,
     ): (() => void) | undefined => {
-        if (typeof cb != 'function') {
-            throw new Error('Callback is not a function')
-        }
-        if (!dom) return undefined
-        let docx: Element | ShadowRoot | undefined = undefined
-
-        // Type guards
-        if ('documentElement' in dom) {
-            docx = dom.documentElement
-        } else if (dom instanceof Element || ('tagName' in dom)) { // Basic check for Element
-            docx = dom as Element
-        } else if ('host' in dom) { // Basic check for ShadowRoot
-            docx = dom as ShadowRoot
-        }
-
+        // Document -> documentElement; Element và ShadowRoot giữ nguyên.
+        const docx = (dom && 'documentElement' in dom ? dom.documentElement : dom) as Element
         if (!docx) return undefined
 
+        // Chuỗi class đã quét bởi observer này (xem collectClassesInto).
+        const seen = new Set<string>()
+        // Element: cả chính nó lẫn con cháu; ShadowRoot không phải Element (không có className) nên chỉ quét
+        // con cháu — vẫn có CSS trước paint đầu.
+        const scan = () => {
+            const items = getClassAttrs(docx, seen)
+            if (items.length) cb(items)
+        }
         if (skipInitialScan) {
             // Static-first: không quét trước paint đầu. Vẫn quét một lần khi trình duyệt rảnh
             // để bù class không có trong CSS tĩnh (ví dụ class do JS sinh trước khi observe);
             // class đã có trong manifest bị bỏ qua O(1) nên lượt quét này rẻ.
-            const target = docx
             const deferredScan = () => {
-                if (!active) return
-                if (target instanceof Element) {
-                    cb(getClassAttrs(target))
-                    return
-                }
-                const deferredClasses: string[] = []
-                const elements = target.querySelectorAll?.('[class]')
-                if (elements) {
-                    for (let i = 0; i < elements.length; i++) collectClassesInto(elements[i] as Element, deferredClasses)
-                }
-                if (deferredClasses.length) cb(deferredClasses)
+                if (active) scan()
             }
             const idle = (globalThis as any).requestIdleCallback as ((fn: () => void, opts?: { timeout: number }) => number) | undefined
             if (typeof idle === 'function') idle(deferredScan, { timeout: 500 })
             else setTimeout(deferredScan, 0)
-        } else if (docx instanceof Element) {
-            cb(getClassAttrs(docx))
         } else {
-            // ShadowRoot không phải Element nên nhánh cũ bỏ qua hoàn toàn lần quét
-            // đầu tiên. Quét trực tiếp descendants để CSS có trước paint đầu.
-            const initialClasses: string[] = []
-            const elements = docx.querySelectorAll?.('[class]')
-            if (elements) {
-                for (let i = 0; i < elements.length; i++) {
-                    collectClassesInto(elements[i] as Element, initialClasses)
-                }
-            }
-            if (initialClasses.length) cb(initialClasses)
+            scan()
         }
 
-        // B6: gom class từ một loạt mutation (burst) rồi flush 1 lần qua rAF/microtask,
-        // tránh reparse đồng bộ trong từng callback gây jank (đặc biệt mobile/list ảo).
+        // B6: gom class từ một loạt mutation (burst) rồi flush 1 lần qua rAF/microtask, trước style recalc của
+        // khung hình kế tiếp. Sau destroy() (`active` = false) lượt flush đã hẹn không làm gì.
         let pendingClasses: Set<string> | null = null
-        let animationFrameId: number | null = null
         let active = true
         const enqueue = (items: string[]): void => {
             if (!items.length) return
             if (!pendingClasses) {
                 pendingClasses = new Set()
                 const flush = () => {
-                    animationFrameId = null
-                    if (!active) return
-                    const batch = pendingClasses!
+                    const batch = pendingClasses
                     pendingClasses = null
-                    if (batch.size) cb([...batch])
+                    if (active && batch?.size) cb([...batch])
                 }
-                if (typeof requestAnimationFrame !== 'undefined') {
-                    animationFrameId = requestAnimationFrame(flush)
-                } else {
-                    queueMicrotask(flush)
-                }
+                ;((globalThis as any).requestAnimationFrame || queueMicrotask)(flush)
             }
             for (let i = 0; i < items.length; i++) pendingClasses.add(items[i])
         }
 
-        // Tạo MutationObserver để theo dõi thay đổi class
+        // MutationObserver: `attributeFilter` chỉ báo thuộc tính class (đích luôn là Element); childList chỉ cần
+        // node được thêm.
         if (typeof MutationObserver !== 'undefined') {
             const observer = new MutationObserver((mutationList) => {
                 for (const mutation of mutationList) {
-                    if (
-                        mutation.type == 'attributes' &&
-                        mutation.attributeName == 'class'
-                    ) {
-                        if (mutation.target.nodeType == 1) {
-                            const target = mutation.target as Element
-                            const currentClasses = getClassListTokens(target)
-                            const oldClassSet = new Set(
-                                splitClassAttribute(mutation.oldValue || ''),
-                            )
-                            if (currentClasses.length || oldClassSet.size) {
-                                enqueue(currentClasses.filter((token) => !oldClassSet.has(token)))
-                            }
-                        }
+                    if (mutation.type == 'attributes') {
+                        const oldClassSet = new Set(splitClassName(mutation.oldValue || ''))
+                        enqueue(splitClassName(classNameOf(mutation.target)).filter((token) => token && !oldClassSet.has(token)))
                     } else {
-                        if (mutation.type == 'childList' && mutation.addedNodes.length > 0) {
-                            const vClass: string[] = []
-                            for (let index = 0; index < mutation.addedNodes.length; index++) {
-                                const node = mutation.addedNodes[index]
-                                if (node.nodeType === 1) {
-                                    vClass.push(...getClassAttrs(node as Element))
-                                }
-                            }
-
-                            enqueue(vClass)
-                        }
+                        const vClass: string[] = []
+                        for (const node of mutation.addedNodes || []) if (node.nodeType === 1) getClassAttrs(node as Element, seen, vClass)
+                        enqueue(vClass)
                     }
                 }
             })
@@ -2954,13 +2911,6 @@ export const xcss = (
             return () => {
                 active = false
                 pendingClasses = null
-                if (
-                    animationFrameId !== null &&
-                    typeof cancelAnimationFrame !== 'undefined'
-                ) {
-                    cancelAnimationFrame(animationFrameId)
-                    animationFrameId = null
-                }
                 observer.disconnect()
             }
         }
@@ -2970,7 +2920,7 @@ export const xcss = (
 
     // API công khai để xuất cache cho build thủ công
     const exportCache = () => {
-        const storage = cacheConfig.loadOnInit ? getLocalStorageSafe() : null
+        const storage = CACHE_BUILD && cacheConfig.loadOnInit ? getLocalStorageSafe() : null
         if (!storage) return lastKnownCacheData
         let raw: string | null = null
         try {

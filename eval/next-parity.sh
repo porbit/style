@@ -5,6 +5,7 @@
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=${1:-$(mktemp -d)}
+mkdir -p "$WORK"
 npm run build --prefix "$ROOT" >/dev/null
 PKG=$(cd "$ROOT" && npm pack --pack-destination "$WORK" | tail -1)
 for side in ours tw; do

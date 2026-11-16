@@ -15,6 +15,8 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { extractCandidates, extractFromClasses, type ExtractOptions } from './extract'
 import { collectFilesSync, createConfigLoader, createStylesheetReader } from './files'
 import { resolveTailwindPlugin } from './tailwind-plugins'
+import { TAILWIND_PLUGIN_CSS } from './tailwind-plugins-generated'
+import { createTailwindPluginLoader, parsePluginOptions } from './tailwind-plugin-api'
 import { parseTailwindStylesheet, tailwindV4Dialect } from './tailwind-v4'
 import { buildMergeTable } from './merge'
 import { writeFileSync } from 'node:fs'
@@ -106,14 +108,31 @@ export const compileTailwindCss = async (css: string, options: PresenceStylePost
         if (content !== null && (id.startsWith('.') || isAbsolute(id))) imports.push(resolve(cssDir, id))
         return content
     }
-    const loadConfig = createConfigLoader(cssDir)
-    const sheet = parseTailwindStylesheet(css, {
-        resolve: (id) => read(id) ?? resolveTailwindPlugin(id),
+    // Plugin JS không có bản đóng gói (`@plugin "tailwind-scrollbar"`, plugin trong tailwind.config.js): chạy qua
+    // API giả lập; `theme()` của plugin thấy `@theme` của file CSS (đọc lười, chỉ khi có plugin JS).
+    // `@plugin "x" { opt: v; }`: tách tuỳ chọn ra, phần còn lại đọc như `@plugin "x";`.
+    const pluginOptions = new Map<string, Record<string, unknown>>()
+    const source = css.replace(/@plugin\s+(["'])([^"']+)\1\s*\{([^{}]*)\}/g, (_m, _q, id: string, body: string) => {
+        pluginOptions.set(id, parsePluginOptions(body))
+        return `@plugin "${id}";`
+    })
+    const jsPlugins = createTailwindPluginLoader(cssDir, { theme: () => parseTailwindStylesheet(source, { resolve: (id) => (/\.[cm]?[jt]s$/.test(id) ? null : reader(id) ?? resolveTailwindPlugin(id)) }).theme })
+    const loadConfig = createConfigLoader(cssDir, jsPlugins)
+    const sheet = jsPlugins.apply(parseTailwindStylesheet(source, {
+        resolve: (id) => {
+            // `@plugin "./plugin.js"` (file JS không đọc như CSS) và plugin có tuỳ chọn: luôn chạy bản JS.
+            if (/\.[cm]?[jt]s$/.test(id) || pluginOptions.has(id)) return jsPlugins.resolve(id, pluginOptions.get(id))
+            const css = read(id) ?? (Object.hasOwn(TAILWIND_PLUGIN_CSS, id) ? TAILWIND_PLUGIN_CSS[id] : null)
+            if (css != null || id.endsWith('.css')) return css ?? null
+            // Bí danh (`tailwindcss-animate` -> tw-animate-css, khác giá trị): bản JS của dự án nếu có cài, rồi mới bản đóng gói.
+            return jsPlugins.resolve(id) ?? resolveTailwindPlugin(id)
+        },
         loadConfig: (id) => {
             imports.push(resolve(cssDir, id))
             return loadConfig(id)
         },
-    })
+    }))
+    imports.push(...jsPlugins.files)
 
     // Nguồn quét.
     const sourceOption = css.match(/@import\s+["']tailwindcss["'][^;]*\bsource\(\s*(none|["']([^"']+)["'])\s*\)/)
@@ -142,7 +161,7 @@ export const compileTailwindCss = async (css: string, options: PresenceStylePost
     for (const file of files) for (const candidate of candidatesOf(file)) candidates.add(candidate)
 
     const preflight = /@import\s+["']tailwindcss(?:\/preflight(?:\.css)?)?["']|@tailwind\s+base\b/.test(css)
-    const dialect = tailwindV4Dialect({ preflight, theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, css: sheet.css })
+    const dialect = tailwindV4Dialect({ preflight, theme: sheet.theme, utilities: sheet.utilities, variants: sheet.variants, css: sheet.css, prefix: sheet.prefix, important: sheet.important })
     const result = await extractFromClasses([...candidates], { ...rest, safelist, hashClassName: false, silent: true, minify: optimize, dialects: [dialect] })
     if (mergeTable) {
         const target = resolve(base, mergeTable)
@@ -191,3 +210,4 @@ export default presenceStylePostcss
 
 export { createConfigLoader, createStylesheetReader } from './files'
 export { tailwindConfigToCss } from './tailwind-config'
+export { applyTailwindPluginOutput, createTailwindPluginLoader, requireWithTailwindShims, runTailwindPlugin } from './tailwind-plugin-api'

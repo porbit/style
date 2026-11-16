@@ -7,7 +7,10 @@
  *   xcss.cssObserve(document, { dialects: [tailwindV4Dialect({ preflight: true })] })
  */
 import type { XCSSDialect } from './core'
-import { TW_DATA, TW_ORDER, TW_PREFLIGHT_CSS, TW_PROPERTIES_CSS } from './tailwind-generated'
+
+declare const __XCSS_EDITOR__: boolean | undefined
+const EDITOR_BUILD = typeof __XCSS_EDITOR__ === 'undefined' || __XCSS_EDITOR__
+import { TW_DATA, TW_ORDER, TW_PREFLIGHT_CSS } from './tailwind-generated'
 
 /** Một rule: selector (`&` là phần tử), khai báo; `query` là điều kiện media riêng (`container`); `more` là rule kèm theo. */
 type Rule = { sel: string; decls: Array<[string, string]>; query?: string; more?: Rule[] }
@@ -31,6 +34,26 @@ export interface TailwindV4DialectOptions {
     preflight?: boolean
     /** `media` (mặc định, như Tailwind v4): theo hệ điều hành. `class`: theo `.dark` ở tổ tiên. */
     darkMode?: 'media' | 'class'
+    /**
+     * Tiền tố như `@import "tailwindcss" prefix(tw)`: class viết `tw:flex`, `tw:hover:bg-red-500` (tiền tố đứng
+     * trước mọi biến thể); class không tiền tố không được nhận; `group`/`peer` thành `tw:group`/`tw:peer`.
+     * Nhận cả kiểu v3 `'tw-'` (bỏ một dấu `-` cuối như Tailwind v4); tiền tố khác chữ thường a-z báo lỗi.
+     * Biến theme trong CSS sinh ra giữ tên không tiền tố (`var(--color-red-500, …)`), giá trị như Tailwind.
+     */
+    prefix?: string
+    /**
+     * `true` (như `@import "tailwindcss" important` / `important: true` của cấu hình v3): mọi khai báo
+     * utility thêm `!important`. Chuỗi selector (`'#app'`, `important: '#app'` của cấu hình v3): utility chỉ áp
+     * trong phần tử đó (`#app .p-2`, cùng độ ưu tiên như Tailwind). `@apply` không bị ảnh hưởng (như Tailwind).
+     */
+    important?: boolean | string
+}
+
+/** Chuẩn hoá tiền tố như Tailwind v4: bỏ một `-` cuối (kiểu v3 `tw-`), chỉ nhận chữ thường a-z. */
+export const normalizeTailwindPrefix = (prefix: string): string => {
+    const value = prefix.endsWith('-') ? prefix.slice(0, -1) : prefix
+    if (!/^[a-z]+$/.test(value)) throw new Error(`The prefix "${value}" is invalid. Prefixes must be lowercase ASCII letters (a-z) only.`)
+    return value
 }
 
 // Bảng màu nén (`red:97.1 0.013 17.38,...|...`) -> `--color-red-50: oklch(97.1% 0.013 17.38)`.
@@ -71,15 +94,126 @@ const templatePrefixes = (templateIndex: number): string[] => {
 }
 /** Namespace theme bị thay hẳn trong dialect đang hoạt động. */
 let RESET_NAMESPACES: string[] = []
-const families = TW_DATA.families as unknown as Record<string, Array<[number, number]>>
-const explicit = TW_DATA.explicit as unknown as Record<string, readonly number[]>
-const arbitraryTemplates = TW_DATA.arbitrary as unknown as Record<string, number | Record<string, number>>
-const templates = TW_DATA.templates as unknown as readonly number[][]
-const sels = TW_DATA.sels as readonly string[]
-const declTable = TW_DATA.decls as readonly string[]
+
+// ---------------------------------------------------------------------------
+// Giải mã dữ liệu nén (định dạng: bước nén cuối scripts/gen-tailwind-map.mjs)
+// ---------------------------------------------------------------------------
+
+/** Rule gọn: [selector?, prop, value, prop, value...]; độ dài lẻ thì phần tử đầu là selector. */
+type CompactRule = readonly number[]
+/** Mẫu giá trị tuỳ ý: chỉ số trong `tpl`, hoặc [mẫu thứ j của họ, biểu thức xs[x], chỉ số giá trị thay vào]. */
+type ArbitrarySpec = number | readonly [number, number, number]
+const DATA = TW_DATA as unknown as {
+    props: readonly string[]
+    vals: readonly string[]
+    sels: readonly string[]
+    xs: readonly string[]
+    lits: readonly string[]
+    valueSets: readonly string[]
+    /** gốc -> [giá trị tuỳ ý (spec hoặc [length, color, number, any]), class dựng từ mẫu [j, x, chỉ số lits] | 0, ...[bộ giá trị, ...rule gọn]] */
+    roots: Record<string, readonly unknown[]>
+    explicit: Record<string, CompactRule>
+    tpl: readonly CompactRule[]
+    properties: ReadonlyArray<string | readonly [string, string, number?]>
+    syntaxes: readonly string[]
+    fallback: readonly [string, string]
+    keyframes: readonly string[]
+    /** gốc -> { gợi ý kiểu (`length`, `color`...): spec } khi mẫu của gợi ý khác mẫu suy từ loại giá trị. */
+    hints: Record<string, Record<string, ArbitrarySpec>>
+}
+const sels = DATA.sels
+/** Bảng khai báo `prop:value` dùng chung; rule giải mã là [chỉ số selector, ...chỉ số khai báo]. */
+const declTable: string[] = []
+const declIndex = new Map<string, number>()
+const internDecl = (text: string): number => {
+    let index = declIndex.get(text)
+    if (index === undefined) declIndex.set(text, (index = declTable.push(text) - 1))
+    return index
+}
+const decodeRule = (rule: CompactRule, from = 0): number[] => {
+    const odd = (rule.length - from) & 1
+    const out = [odd ? rule[from] : 0]
+    for (let i = from + odd; i < rule.length; i += 2) out.push(internDecl(DATA.props[rule[i]] + ':' + DATA.vals[rule[i + 1]]))
+    return out
+}
+/** Rule dựng từ mẫu: thay mọi biểu thức `xs[x]` bằng `literal` (`height:calc(var(--spacing) * {v})` -> `height:100%`). */
+const deriveRule = (template: number[], x: number, literal: string): number[] =>
+    [template[0], ...template.slice(1).map((index) => internDecl(declTable[index].split(DATA.xs[x]).join(literal)))]
+const templates: number[][] = []
+const families: Record<string, Array<[number, number]>> = {}
+const explicit: Record<string, number[]> = {}
+const arbitraryTemplates: Record<string, number | Record<string, number>> = {}
+/** Mẫu theo gợi ý kiểu: `bg-[length:200%]` -> background-size (giá trị trần `bg-[200%]` là background-position). */
+const hintTemplates: Record<string, Record<string, number>> = {}
+for (const root in DATA.roots) {
+    const entries = DATA.roots[root].slice(2) as CompactRule[]
+    if (entries.length) families[root] = entries.map((entry) => [templates.push(decodeRule(entry, 1)) - 1, entry[0]])
+}
+const tplBase = templates.length
+for (const rule of DATA.tpl) templates.push(decodeRule(rule))
+// Thứ tự trong mảng loại của dữ liệu (xem bước nén của scripts/gen-tailwind-map.mjs).
+const ARBITRARY_KINDS = ['length', 'color', 'number', 'any', 'image', 'position', 'size', 'var']
+for (const root in DATA.roots) {
+    const [arbitrary, derived] = DATA.roots[root] as [ArbitrarySpec | ReadonlyArray<ArbitrarySpec | null> | null, ReadonlyArray<readonly [number, number, number]> | 0]
+    const familyTemplate = (j: number) => templates[families[root][j][0]]
+    if (derived) {
+        for (const [j, x, lit] of derived) {
+            for (const pair of DATA.lits[lit].split('|')) {
+                const eq = pair.indexOf('=')
+                explicit[`${root}-${pair.slice(0, eq)}`] = deriveRule(familyTemplate(j), x, pair.slice(eq + 1))
+            }
+        }
+    }
+    if (arbitrary === null) continue
+    const one = (spec: ArbitrarySpec): number =>
+        typeof spec === 'number' ? tplBase + spec : templates.push(deriveRule(familyTemplate(spec[0]), spec[1], DATA.vals[spec[2]])) - 1
+    if (typeof arbitrary === 'number' || arbitrary.length === 3) arbitraryTemplates[root] = one(arbitrary as ArbitrarySpec)
+    else {
+        const kinds: Record<string, number> = {}
+        arbitrary.forEach((spec, i) => {
+            if (spec !== null) kinds[ARBITRARY_KINDS[i]] = one(spec as ArbitrarySpec)
+        })
+        arbitraryTemplates[root] = kinds
+    }
+    const hints = DATA.hints[root]
+    if (hints) hintTemplates[root] = Object.fromEntries(Object.entries(hints).map(([hint, spec]) => [hint, one(spec)]))
+}
+for (const name in DATA.explicit) explicit[name] = decodeRule(DATA.explicit[name])
 const valueSetCache: Array<Set<string> | undefined> = []
-const valueSet = (index: number): Set<string> =>
-    (valueSetCache[index] ||= new Set((TW_DATA.valueSets as readonly string[])[index].split(' ')))
+/** Bộ giá trị `a b c`; `@--color-` là mọi khoá của namespace đó trong theme mặc định. Không gồm dấu `#...`. */
+const valueSet = (index: number): Set<string> => {
+    const text = DATA.valueSets[index]
+    if (text[0] !== '@') return (valueSetCache[index] ||= new Set(text.split(' ').filter((v) => v[0] !== '#')))
+    const ns = text.slice(1)
+    return (valueSetCache[index] ||= new Set(Object.keys(defaultTheme).filter((k) => k.startsWith(ns) && !k.slice(ns.length).includes('--')).map((k) => k.slice(ns.length))))
+}
+// Số viết chuẩn như Tailwind (`String(Number(v)) === v`): `z-01`, `p-1.50`, `p-.5` không hợp lệ.
+const canonicalNumber = (v: string) => /^\d+(\.\d+)?$/.test(v) && String(Number(v)) === v
+/** Giá trị trần theo loại (dấu trong bộ giá trị, dò từ Tailwind khi sinh dữ liệu). */
+const BARE_TESTS: Record<string, (v: string) => boolean> = {
+    '#int': (v) => canonicalNumber(v) && Number.isInteger(Number(v)),
+    '#pint': (v) => canonicalNumber(v) && Number.isInteger(Number(v)) && Number(v) > 0,
+    '#q': (v) => canonicalNumber(v) && Number.isInteger(Number(v) * 4),
+    '#num': canonicalNumber,
+    '#frac': (v) => /^\d+\/\d+$/.test(v) && v.split('/').every(canonicalNumber),
+}
+const bareKindCache: Array<string[] | undefined> = []
+const bareKinds = (index: number): string[] =>
+    (bareKindCache[index] ||= DATA.valueSets[index][0] === '@' ? [] : DATA.valueSets[index].split(' ').filter((v) => v[0] === '#'))
+/** Bộ giá trị thứ `index` nhận `value`: giá trị liệt kê hoặc giá trị trần đúng loại (`z-1`, `opacity-64`, `aspect-3/7`). */
+const acceptsValue = (index: number, value: string): boolean =>
+    index === -1 ? BARE_TESTS['#q'](value) : valueSet(index).has(value) || bareKinds(index).some((kind) => BARE_TESTS[kind](value))
+/** Bảng thứ tự thuộc tính của Tailwind (getClassOrder). */
+const ORDER_PROPERTIES = DATA.props.slice(0, TW_ORDER.properties)
+/** @property, dự phòng (trình duyệt chưa hỗ trợ @property) và keyframes Tailwind cần (base CSS của phương ngữ). */
+const PROPERTIES_CSS = (() => {
+    const list = DATA.properties.map((entry) => (typeof entry === 'string' ? [entry] : entry)) as Array<readonly [string, string?, number?]>
+    return [
+        ...list.map(([name, initial, syntax]) => `@property --tw-${name} { syntax: "${DATA.syntaxes[syntax || 0]}"; inherits: false;${initial === undefined ? '' : ` initial-value: ${initial};`} }`),
+        DATA.fallback[0] + list.map(([name, initial]) => `--tw-${name}:${initial ?? 'initial'}`).join(';') + DATA.fallback[1],
+        ...DATA.keyframes,
+    ].join('\n')
+})()
 
 // ---------------------------------------------------------------------------
 // Tra rule của phần gốc (không biến thể)
@@ -118,30 +252,124 @@ const spaceMathOperators = (value: string) => {
         else if (ch === ')') depth--
         const prev = value[i - 1] ?? ''
         const next = value[i + 1] ?? ''
-        if (depth > 0 && (ch === '+' || ch === '-') && /[\w%)]/.test(prev) && /[\w(.]/.test(next) &&
-            !/[a-z-]/i.test(prev === ')' ? '' : prev.replace(/[\d%]/, '')) ) {
-            out += ` ${ch} `
-            continue
+        if (depth > 0 && (ch === '+' || ch === '-') && /[\w%)]/.test(prev) && /[\w(.]/.test(next)) {
+            // Toán tử khi phía trước là `)` hoặc một số (có đơn vị: `1lh`, `100%`); trong tên (`safe-area-inset`,
+            // `--x-y`) và số mũ (`1e+3`) thì không.
+            let start = i
+            while (start > 0 && /[\w.%-]/.test(value[start - 1])) start--
+            const word = value.slice(start, i)
+            if (prev === ')' || (/^-?[\d.]/.test(word) && !/^-?[\d.]+e$/i.test(word))) {
+                out += ` ${ch} `
+                continue
+            }
         }
         out += ch
     }
     return out.replace(/\s+/g, ' ')
 }
-const decodeArbitrary = (raw: string) => spaceMathOperators(raw.replace(/\\_/g, '\u0000').replace(/_/g, ' ').replace(/\u0000/g, '_'))
+const underscoreToSpace = (raw: string) => raw.replace(/\\_/g, '\u0000').replace(/_/g, ' ').replace(/\u0000/g, '_')
+
+/** `5` -> `5%`, `[0.05]` -> `5%`, `[5%]` -> `5%`, `(--x)` -> `var(--x)`; null nếu không hợp lệ (như Tailwind: bội 0.25). */
+const alphaOf = (modifier: string): string | null => {
+    const arbitrary = modifier.match(/^\[(.+)\]$/)
+    if (arbitrary) return NUMBER_VALUE.test(arbitrary[1]) ? `${Number(arbitrary[1]) * 100}%` : arbitrary[1]
+    const variable = modifier.match(/^\((--[\w-]+)\)$/)
+    if (variable) return `var(${variable[1]})`
+    return BARE_TESTS['#q'](modifier) ? `${modifier}%` : null
+}
+const mixAlpha = (color: string, alpha: string) => `color-mix(in oklab, ${color} ${alpha}, transparent)`
+
+/**
+ * Hàm lúc build của Tailwind trong giá trị tuỳ ý: `--spacing(3)` -> `calc(var(--spacing) * 3)`,
+ * `--alpha(red / 50%)` -> `color-mix(...)`, `--theme(--color-black/4%)` -> `color-mix(in oklab, var(--color-black) 4%, transparent)`,
+ * `--theme(--x, dự phòng)`. Null khi `--theme()` đọc biến không có trong theme mà không có dự phòng (Tailwind bỏ class).
+ */
+const expandValueThemeFunctions = (value: string): string | null => {
+    if (!value.includes('--')) return value
+    let out: string | null = replaceCssFunction(value, '--spacing', (args) => {
+        const inner = expandValueThemeFunctions(args.trim())
+        if (inner === null) return null
+        return inner === '0' ? '0px' : inner === '1' ? 'var(--spacing)' : `calc(var(--spacing) * ${inner})`
+    })
+    if (out === null) return null
+    out = replaceCssFunction(out, '--alpha', (args) => {
+        const inner = expandValueThemeFunctions(args)
+        const parts = inner === null ? [] : splitTopLevel(inner, '/')
+        const alpha = parts[1] && (NUMBER_VALUE.test(parts[1]) ? `${Number(parts[1]) * 100}%` : parts[1])
+        return parts.length === 2 && alpha ? mixAlpha(parts[0], alpha) : null
+    })
+    if (out === null) return null
+    return replaceCssFunction(out, '--theme', (args) => {
+        const [head, ...rest] = splitTopLevel(args)
+        const fallback = rest.length ? expandValueThemeFunctions(rest.join(', ')) : undefined
+        const [name, alphaText] = splitTopLevel(head, '/')
+        if (!/^--[\w.-]+$/.test(name) || fallback === null) return null
+        const alpha = alphaText === undefined ? null : NUMBER_VALUE.test(alphaText) ? `${Number(alphaText) * 100}%` : alphaText
+        const ref = theme[name] !== undefined ? (fallback === undefined ? `var(${name})` : `var(${name}, ${fallback})`) : fallback
+        if (ref === undefined) return null
+        return alpha ? mixAlpha(ref, alpha) : ref
+    })
+}
+/** Giá trị tuỳ ý theo quy ước Tailwind (`_` là khoảng trắng, hàm `--spacing()`/`--theme()`/`--alpha()`, khoảng trắng quanh `+`/`-`). */
+const decodeArbitrary = (raw: string): string | null => {
+    const expanded = expandValueThemeFunctions(underscoreToSpace(raw))
+    return expanded === null ? null : spaceMathOperators(expanded)
+}
 
 const COLOR_VALUE = /^(#[0-9a-f]{3,8}|(rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color|color-mix)\(.*\)|currentcolor|transparent|var\(--color-[\w-]+\))$/i
 const LENGTH_VALUE = /^(-?(\d*\.)?\d+(px|r?em|%|vh|vw|dvh|dvw|svh|svw|lvh|lvw|vmin|vmax|ch|ex|lh|rlh|cm|mm|in|pt|pc|cq[whib]|cqmin|cqmax)|0|(calc|min|max|clamp)\(.*\))$/i
 const NUMBER_VALUE = /^-?(\d*\.)?\d+$/
-
-const arbitraryKind = (value: string): { kind: string; value: string } => {
-    const hint = value.match(/^(length|color|number|percentage|url|image|family-name|absolute-size|relative-size|position|bg-size|line-width|integer|any):(.*)$/)
-    if (hint) {
-        const kind = hint[1] === 'color' ? 'color' : hint[1] === 'number' || hint[1] === 'integer' ? 'number' : hint[1] === 'length' || hint[1] === 'percentage' || hint[1] === 'line-width' ? 'length' : 'any'
-        return { kind, value: hint[2] }
+// Như `inferDataType` của Tailwind: ảnh (url()/gradient, cả danh sách nhiều lớp), vị trí và kích thước nền.
+const IMAGE_FUNCTION = /^(url|element|image|cross-fade|image-set|(repeating-)?(conic|linear|radial)-gradient)\(/i
+const isImageValue = (value: string) => {
+    let count = 0
+    for (const part of splitTopLevel(value)) {
+        if (part.startsWith('var(')) continue
+        if (!IMAGE_FUNCTION.test(part)) return false
+        count++
     }
+    return count > 0
+}
+// Độ dài/phần trăm như Tailwind khi đoán vị trí/kích thước: phải có đơn vị (`0` không phải độ dài).
+const STRICT_LENGTH = /^(-?(\d*\.)?\d+(px|r?em|%|vh|vw|dvh|dvw|svh|svw|lvh|lvw|vmin|vmax|vi|vb|ch|ex|cap|ic|lh|rlh|cm|mm|q|in|pt|pc|cq[whib]|cqmin|cqmax)|(calc|min|max|clamp|--spacing)\(.*\))$/i
+const isPositionValue = (value: string) => {
+    let count = 0
+    for (const part of splitTopLevel(value, ' ')) {
+        if (part.startsWith('var(')) continue
+        if (!/^(center|top|right|bottom|left)$/.test(part) && !STRICT_LENGTH.test(part)) return false
+        count++
+    }
+    return count > 0
+}
+const isSizeValue = (value: string) => {
+    let count = 0
+    for (const size of splitTopLevel(value)) {
+        if (size === 'cover' || size === 'contain') {
+            count++
+            continue
+        }
+        const values = splitTopLevel(size, ' ')
+        if (values.length !== 1 && values.length !== 2) return false
+        if (values.every((v) => v === 'auto' || STRICT_LENGTH.test(v))) count++
+    }
+    return count > 0
+}
+// Gợi ý kiểu `[kiểu:giá trị]` như bộ đọc class của Tailwind (mọi tên chữ thường).
+const TYPE_HINT = /^([a-z-]+):(.*)$/
+// Gợi ý kiểu -> loại (khớp HINT_KIND trong scripts/gen-tailwind-map.mjs); gợi ý có mẫu riêng nằm trong `hintTemplates`.
+const HINT_KIND: Record<string, string> = { color: 'color', number: 'number', integer: 'number', length: 'length', percentage: 'length', 'line-width': 'length', url: 'image', image: 'image', position: 'position', 'bg-size': 'size', size: 'size' }
+
+const arbitraryKind = (value: string): { kind: string; value: string; hint?: string } => {
+    const hint = value.match(TYPE_HINT)
+    if (hint) return { kind: HINT_KIND[hint[1]] ?? 'any', value: hint[2], hint: hint[1] }
+    // Như `inferDataType` của Tailwind: giá trị bắt đầu bằng `var(` không đoán loại (nhánh mặc định của họ).
+    if (value.startsWith('var(')) return { kind: 'var', value }
     if (COLOR_VALUE.test(value)) return { kind: 'color', value }
+    if (isImageValue(value)) return { kind: 'image', value }
     if (NUMBER_VALUE.test(value)) return { kind: 'number', value }
     if (LENGTH_VALUE.test(value)) return { kind: 'length', value }
+    if (isPositionValue(value)) return { kind: 'position', value }
+    if (isSizeValue(value)) return { kind: 'size', value }
     return { kind: 'any', value }
 }
 
@@ -156,57 +384,152 @@ const splitRoots = (name: string): Array<[string, string]> => {
     return out
 }
 
-const resolveBase = (name: string): Rule | null => {
-    const direct = explicit[name]
-    if (direct) return unpack(direct)
+// Bóng đổ: biến màu/độ mờ của từng họ (`shadow-black` đặt `--tw-shadow-color`).
+const SHADOW_FAMILIES: Record<string, { ns: string; target: string; color: string; alpha: string }> = {
+    shadow: { ns: '--shadow-', target: '--tw-shadow', color: '--tw-shadow-color', alpha: '--tw-shadow-alpha' },
+    'inset-shadow': { ns: '--inset-shadow-', target: '--tw-inset-shadow', color: '--tw-inset-shadow-color', alpha: '--tw-inset-shadow-alpha' },
+    'text-shadow': { ns: '--text-shadow-', target: 'text-shadow', color: '--tw-text-shadow-color', alpha: '--tw-text-shadow-alpha' },
+    'drop-shadow': { ns: '--drop-shadow-', target: '--tw-drop-shadow-size', color: '--tw-drop-shadow-color', alpha: '--tw-drop-shadow-alpha' },
+}
+const SHADOW_KEYWORD = /^(inset|inherit|initial|revert|unset)$/
+const SHADOW_MATH = /^(calc|clamp|max|min|--spacing)$/
+const SHADOW_COLOR_FUNCTION = /^(color(-mix)?|contrast-color|device-cmyk|hsla?|hwb|o?lab|o?lch|light-dark|rgba?|--alpha)$/
+/**
+ * Như `replaceShadowColors` của Tailwind 4.3: lớp bóng có ít nhất hai độ dài thì màu của lớp (`#...`, hàm màu, hoặc
+ * phần lạ duy nhất như `red`, `var(--x)`) được bọc bằng `wrap`; lớp không có màu thì thêm `wrap(currentcolor)`.
+ * Khác Tailwind (để gọn, không mang bảng tên màu): lớp có từ hai phần lạ trở lên (`var(--y) red`) giữ nguyên.
+ */
+const replaceShadowColors = (input: string, wrap: (color: string) => string): string =>
+    splitTopLevel(input).map((shadow) => {
+        const parts = splitTopLevel(shadow, ' ')
+        let lengths = 0
+        let unknown = 0
+        let candidate = -1
+        let replaced = -1
+        for (let i = 0; i < parts.length && replaced === -1; i++) {
+            const part = parts[i]
+            const lower = part.toLowerCase()
+            const fn = lower.match(/^([\w-]+)\(/)
+            if (fn) {
+                if (SHADOW_COLOR_FUNCTION.test(fn[1])) replaced = i
+                else if (SHADOW_MATH.test(fn[1])) lengths++
+                else {
+                    candidate = i
+                    unknown++
+                }
+                continue
+            }
+            if (SHADOW_KEYWORD.test(lower)) continue
+            if (/^-?(\d+|\.\d+)/.test(lower)) lengths++
+            else if (part[0] === '#') replaced = i
+            else {
+                candidate = i
+                unknown++
+            }
+        }
+        if (replaced === -1) {
+            if (lengths < 2) return shadow
+            if (unknown === 0) return `${shadow} ${wrap('currentcolor')}`
+            if (unknown !== 1) return shadow
+            replaced = candidate
+        }
+        return parts.map((part, i) => (i === replaced ? wrap(part) : part)).join(' ')
+    }).join(', ')
 
-    // Thuộc tính tuỳ ý: `[mask-type:luminance]`.
+/** Bóng tuỳ ý (`shadow-[4px_4px_0_0]`): màu vào `var(--tw-shadow-color, …)`; inset/drop-shadow áp cho từng lớp. */
+const shadowArbitrary = (root: string, template: readonly number[], raw: string): Rule => {
+    const family = SHADOW_FAMILIES[root]
+    const layers = splitTopLevel(replaceShadowColors(raw, (color) => `var(${family.color}, ${color})`))
+    return unpack(template, (t) => {
+        if (t === 'drop-shadow({a})') return layers.map((layer) => `drop-shadow(${layer})`).join(' ')
+        if (t === 'inset {a}') return layers.map((layer) => `inset ${layer}`).join(', ')
+        return t.split('{a}').join(layers.join(', '))
+    })
+}
+
+/** Mẫu giá trị tuỳ ý đặt `{a}` vào thuộc tính màu (`background-color`, `fill`, `--tw-shadow-color`, `--tw-gradient-from`...). */
+const COLOR_PROPERTY = /(^|-)color$|^(fill|stroke)$|^--tw-gradient-(from|via|to)$|^--tw-scrollbar-(thumb|track)$/
+const isColorTemplate = (index: number) => templates[index].slice(1).some((i) => {
+    const text = declTable[i]
+    const colon = text.indexOf(':')
+    return COLOR_PROPERTY.test(text.slice(0, colon)) && text.includes('{a}', colon)
+})
+
+/**
+ * Phần gốc (không biến thể) -> rule. `modifier` (`/50`, `/6`, `/(--x)`) áp như Tailwind: độ mờ của màu (cả màu
+ * tuỳ ý `bg-[red]/50`), line-height của cỡ chữ, độ mờ của bóng.
+ */
+const resolveBase = (name: string, modifier: string | null = null): Rule | null => {
+    const done = (rule: Rule | null): Rule | null => (rule && modifier !== null ? applyModifier(rule, modifier) : rule)
+    const direct = explicit[name]
+    if (direct) return done(unpack(direct))
+
+    // Thuộc tính tuỳ ý: `[mask-type:luminance]`, `[--x:--spacing(2)]`.
     const property = name.match(/^\[([a-z-]+):(.+)\]$/)
-    if (property) return { sel: '', decls: [[property[1], decodeArbitrary(property[2])]] }
+    if (property) {
+        const value = decodeArbitrary(property[2])
+        return value === null || modifier !== null ? null : { sel: '', decls: [[property[1], value]] }
+    }
 
     for (const [root, value] of splitRoots(name)) {
+        // Giá trị tuỳ ý `bg-[...]` và theo biến CSS kiểu Tailwind v4 `bg-(--brand)`, `border-(length:--w)`.
         const arbitrary = value.match(/^\[(.+)\]$/)
-        if (arbitrary) {
+        const variable = arbitrary ? null : value.match(/^\((?:([a-z-]+):)?(--[\w-]+)\)$/)
+        if (arbitrary || variable) {
             const options = arbitraryTemplates[root]
             if (options === undefined) continue
-            const { kind, value: raw } = arbitraryKind(decodeArbitrary(arbitrary[1]))
-            const index = typeof options === 'number' ? options : options[kind] ?? options.any ?? options.length
+            let kind: string
+            let raw: string
+            let hint: string | undefined
+            if (arbitrary) {
+                const decoded = decodeArbitrary(arbitrary[1])
+                if (decoded === null) return null
+                ;({ kind, value: raw, hint } = arbitraryKind(decoded))
+            } else {
+                const [, typeHint, name] = variable as RegExpMatchArray
+                hint = typeHint
+                // Không gợi ý kiểu: Tailwind không đoán loại của `var()`, dùng nhánh mặc định của utility.
+                kind = hint ? HINT_KIND[hint] ?? 'any' : 'var'
+                raw = `var(${name})`
+            }
+            const hinted = hint === undefined ? undefined : hintTemplates[root]?.[hint]
+            const index = hinted ?? (typeof options === 'number' ? options : options[kind] ?? options.any ?? options.length)
             if (index === undefined) continue
-            return unpack(templates[index], (t) => t.split('{a}').join(raw))
-        }
-        // Giá trị theo biến CSS kiểu Tailwind v4: `bg-(--brand)`.
-        const variable = value.match(/^\((--[\w-]+)\)$/)
-        if (variable) {
-            const options = arbitraryTemplates[root]
-            if (options === undefined) continue
-            const index = typeof options === 'number' ? options : options.color ?? options.any ?? options.length
-            if (index !== undefined) return unpack(templates[index], (t) => t.split('{a}').join(`var(${variable[1]})`))
-            continue
+            const isColor = isColorTemplate(index)
+            if (SHADOW_FAMILIES[root] && !isColor) return done(shadowArbitrary(root, templates[index], raw))
+            // Màu tuỳ ý + độ mờ: `bg-[red]/50` -> `color-mix(in oklab, red 50%, transparent)`.
+            if (modifier !== null && isColor) {
+                const alpha = alphaOf(modifier)
+                if (!alpha) return null
+                const mixed = mixAlpha(raw, alpha)
+                return unpack(templates[index], (t) => t.split('{a}').join(mixed))
+            }
+            return done(unpack(templates[index], (t) => t.split('{a}').join(raw)))
         }
         const entries = families[root]
         if (!entries) continue
-        for (const [templateIndex, setIndex] of entries) {
+        // Giá trị liệt kê trước giá trị trần: Tailwind viết `mask-linear-45` là `45deg` nhưng số trần là `calc(1deg * 37)`.
+        const ordered = [...entries.filter(([, set]) => set !== -1 && valueSet(set).has(value)), ...entries]
+        for (const [templateIndex, setIndex] of ordered) {
             // Giá trị trong `--spacing-*` (`p-gutter`, `p-18` từ cấu hình): Tailwind ưu tiên `var(--spacing-x)` trước hệ số.
             if (theme[`--spacing-${value}`] !== undefined && /var\(--spacing\) \* -?\{v\}/.test(templates[templateIndex].slice(1).map((i) => declTable[i]).join(';'))) {
                 const named = `var(--spacing-${value})`
-                return unpack(templates[templateIndex], (t) => t
+                return done(unpack(templates[templateIndex], (t) => t
                     .replace(/calc\(var\(--spacing\) \* -\{v\}\)/g, `calc(${named} * -1)`)
                     .replace(/calc\(var\(--spacing\) \* \{v\}\)/g, named)
-                    .split('{v}').join(value))
+                    .split('{v}').join(value)))
             }
-            let accepted = setIndex === -1
-                ? NUMBER_VALUE.test(value) && Number.isInteger(Number(value) * 4)
-                : valueSet(setIndex).has(value)
+            let accepted = acceptsValue(setIndex, value)
             // Namespace bị thay (`--color-*: initial`): giá trị mặc định không còn (`bg-red-500`).
             if (accepted && RESET_NAMESPACES.length) {
                 const prefixes = templatePrefixes(templateIndex)
                 if (prefixes.some((prefix) => RESET_NAMESPACES.some((ns) => prefix.startsWith(ns)) && theme[prefix + value] === undefined)) accepted = false
             }
-            if (accepted) return unpack(templates[templateIndex], (t) => fill(t, value))
+            if (accepted) return done(unpack(templates[templateIndex], (t) => fill(t, value)))
         }
         if (theme !== defaultTheme) {
             const shadow = themeShadow(name)
-            if (shadow) return shadow
+            if (shadow) return done(shadow)
             for (const [templateIndex] of entries) {
                 const prefixes = templatePrefixes(templateIndex)
                 if (prefixes.length && prefixes.every((prefix) => theme[prefix + value] !== undefined)) {
@@ -218,7 +541,7 @@ const resolveBase = (name: string): Rule | null => {
                         if (theme[`--text-${value}--letter-spacing`] !== undefined) rule.decls.push(['letter-spacing', `var(--tw-tracking, var(--text-${value}--letter-spacing))`])
                         if (theme[`--text-${value}--font-weight`] !== undefined) rule.decls.push(['font-weight', `var(--tw-font-weight, var(--text-${value}--font-weight))`])
                     }
-                    return rule
+                    return done(rule)
                 }
             }
         }
@@ -228,12 +551,6 @@ const resolveBase = (name: string): Rule | null => {
 
 // Bóng đổ từ theme (`--shadow-soft`): Tailwind nhúng giá trị và bọc từng màu trong
 // `var(--tw-shadow-color, màu)` thay vì đọc `var(--shadow-soft)`. Dựng lại từ rule `*-sm` làm mẫu.
-const SHADOW_FAMILIES: Record<string, { ns: string; target: string; color: string }> = {
-    shadow: { ns: '--shadow-', target: '--tw-shadow', color: '--tw-shadow-color' },
-    'inset-shadow': { ns: '--inset-shadow-', target: '--tw-inset-shadow', color: '--tw-inset-shadow-color' },
-    'text-shadow': { ns: '--text-shadow-', target: 'text-shadow', color: '--tw-text-shadow-color' },
-    'drop-shadow': { ns: '--drop-shadow-', target: '--tw-drop-shadow-size', color: '--tw-drop-shadow-color' },
-}
 const COLOR_TOKEN = /(?:rgba?|hsla?|hwb|oklch|oklab|lab|lch|color)\([^()]*\)|#[0-9a-fA-F]{3,8}\b|\b(?:black|white|transparent|currentcolor)\b/gi
 const themeShadow = (name: string): Rule | null => {
     const match = name.match(/^(shadow|inset-shadow|text-shadow|drop-shadow)-(.+)$/)
@@ -257,25 +574,63 @@ const themeShadow = (name: string): Rule | null => {
     return rule
 }
 
-// `bg-red-500/50` (độ mờ màu) và `text-sm/6` (line-height).
+/** Thay mọi `var(--tw-x-color, MÀU)` (ngoặc cân) trong `value` bằng `var(--tw-x-color, fn(MÀU))`. */
+const mapShadowColorVars = (value: string, colorVar: string, fn: (color: string) => string): string => {
+    const head = `var(${colorVar}, `
+    let out = ''
+    let i = 0
+    for (let at = value.indexOf(head); at !== -1; at = value.indexOf(head, i)) {
+        let depth = 1
+        let k = at + 4
+        while (k < value.length && depth > 0) {
+            if (value[k] === '(') depth++
+            else if (value[k] === ')') depth--
+            k++
+        }
+        out += value.slice(i, at) + head + fn(value.slice(at + head.length, k - 1)) + ')'
+        i = k
+    }
+    return out + value.slice(i)
+}
+
+// `bg-red-500/50` (độ mờ màu), `text-sm/6` (line-height), `shadow-sm/5` (độ mờ bóng).
 const applyModifier = (rule: Rule, modifier: string): Rule | null => {
     const arbitrary = modifier.match(/^\[(.+)\]$/)
     if (rule.decls.some(([prop]) => prop === 'font-size')) {
-        const lineHeight = arbitrary ? decodeArbitrary(arbitrary[1]) : NUMBER_VALUE.test(modifier) ? `calc(var(--spacing) * ${modifier})` : null
+        // Như Tailwind: `[x]`, `(--x)`, bội 0.25 của spacing, `none` = 1, khoá `--leading-*` của theme.
+        const variable = modifier.match(/^\((--[\w-]+)\)$/)
+        const lineHeight = arbitrary ? decodeArbitrary(arbitrary[1])
+            : variable ? `var(${variable[1]})`
+            : BARE_TESTS['#q'](modifier) ? `calc(var(--spacing) * ${modifier})`
+            : modifier === 'none' ? '1'
+            : theme[`--leading-${modifier}`] !== undefined ? `var(--leading-${modifier})` : null
         if (!lineHeight) return null
-        return { sel: rule.sel, decls: rule.decls.map(([p, v]) => [p, p === 'line-height' ? lineHeight : v]) }
+        const decls = rule.decls.map(([p, v]): [string, string] => [p, p === 'line-height' ? lineHeight : v])
+        if (!decls.some(([p]) => p === 'line-height')) decls.push(['line-height', lineHeight])
+        return { sel: rule.sel, decls }
     }
-    const percent = arbitrary
-        ? (NUMBER_VALUE.test(arbitrary[1]) ? `${Number(arbitrary[1]) * 100}%` : arbitrary[1])
-        : NUMBER_VALUE.test(modifier) ? `${modifier}%` : null
+    const percent = alphaOf(modifier)
     if (!percent) return null
+    // Bóng có sẵn/tuỳ ý: `--tw-shadow-alpha: 5%`, màu `oklab(from MÀU l a b / 5%)` (currentcolor: color-mix) như Tailwind.
+    const family = Object.values(SHADOW_FAMILIES).find((f) => rule.decls.some(([prop]) => prop === f.target))
+    if (family) {
+        const decls = rule.decls.map(([prop, value]): [string, string] => [prop, prop !== family.target ? value : mapShadowColorVars(value, family.color, (color) =>
+            color.toLowerCase() === 'currentcolor' ? mixAlpha(color, percent) : `oklab(from ${color} l a b / ${percent})`)])
+        // `drop-shadow-sm/5`: Tailwind đọc lại kích thước đã đổi màu thay vì `drop-shadow(var(--drop-shadow-sm))`.
+        const final = family.alpha === '--tw-drop-shadow-alpha' ? decls.map(([prop, value]): [string, string] => [prop, prop === '--tw-drop-shadow' ? 'var(--tw-drop-shadow-size)' : value]) : decls
+        return { sel: rule.sel, decls: [[family.alpha, arbitrary ? arbitrary[1] : percent], ...final] }
+    }
     let changed = false
     const decls = rule.decls.map(([prop, value]): [string, string] => {
-        const next = value.replace(/var\(--color-[\w-]+\)|currentcolor|#[0-9a-fA-F]{3,8}\b/g, (color) => {
+        // Màu dự phòng của biến màu (`var(--tw-ring-color, currentcolor)` của `ring-2`) không phải màu của class:
+        // Tailwind không nhận `ring-2/50`.
+        const fallbacks: string[] = []
+        const masked = value.replace(/var\(--tw-[\w-]*color, (?:var\(--color-[\w-]+\)|currentcolor|#[0-9a-fA-F]{3,8})\)/g, (m) => `\u0000${fallbacks.push(m) - 1}\u0000`)
+        const next = masked.replace(/var\(--color-[\w-]+\)|currentcolor|#[0-9a-fA-F]{3,8}\b/g, (color) => {
             changed = true
-            return `color-mix(in oklab, ${color} ${percent}, transparent)`
+            return mixAlpha(color, percent)
         })
-        return [prop, next]
+        return [prop, next.replace(/\u0000(\d+)\u0000/g, (_, i) => fallbacks[Number(i)])]
     })
     return changed ? { sel: rule.sel, decls } : null
 }
@@ -345,6 +700,8 @@ const registeredKeys = new Set<string>()
 const MEDIA_QUERY = new Map<string, string>()
 /** Biến thể tự định nghĩa của dialect đang hoạt động. */
 let CUSTOM_VARIANTS: Record<string, string[][]> = {}
+/** Tiền tố class đã escape cho selector (`tw\:`) của dialect đang hoạt động: `group`/`peer` thành `.tw\:group`. */
+let MARKER_PREFIX = ''
 const buildBreakpoints = (darkMode: 'media' | 'class') => {
     const singles: Array<[string, string]> = []
     for (const key of [...RESPONSIVE].reverse()) singles.push([`max-${key}`, `(width < ${breakpointValue(key)})`])
@@ -373,40 +730,104 @@ const buildBreakpoints = (darkMode: 'media' | 'class') => {
 const arbitraryInner = (raw: string) => raw.replace(/\\_/g, '\u0000').replace(/_/g, ' ').replace(/\u0000/g, '_')
 
 /**
- * Mảnh selector của một "trạng thái" dùng được sau `not-`, `has-`, `in-`, `group-`, `peer-`:
- * `hover` -> `:hover`, `[.x]` -> `:is(.x)`, `nth-3` -> `:nth-child(3)`, `has-checked` -> `:has(:checked)`.
+ * Một phương án của biến thể "trạng thái": at-rule bọc ngoài (`@media (hover: hover)`) và selector tương đối
+ * (`&` là phần tử: `&:hover`, `& :is(h1)`). `relative`: biến thể tuỳ ý bắt đầu bằng tổ hợp (`[>img]`).
  */
-const stateFragment = (state: string): string | null => {
-    if (CUSTOM_VARIANTS[state]) return customFragment(CUSTOM_VARIANTS[state])
-    if (PSEUDO_CLASSES[state]) return PSEUDO_CLASSES[state]
+type StateAlt = { at: string[]; sel: string; relative?: boolean }
+
+/**
+ * `&` -> `*` khi selector của biến thể nằm trong `:has()`/`:where()`/`:not()` như Tailwind; `*` đứng trước
+ * pseudo/thuộc tính/class bị bỏ khi in (`*:hover` -> `:hover`), còn trước khoảng trắng thì giữ (`* :is(h1)`).
+ */
+const starred = (sel: string) => splitTopLevel(sel).map((part) => part.replace(/&(?=[:.[#])/g, '').replace(/&/g, '*')).join(', ')
+
+/** Phủ định at-rule cho `not-` như Tailwind: `@media (x)` -> `@media not (x)`, bỏ `not` có sẵn; null nếu không được. */
+const negateAtRule = (rule: string): string | null => {
+    const m = rule.match(/^@(media|supports|container)(?:\s+|(?=\())([\s\S]+)$/)
+    if (!m || splitTopLevel(m[2]).length > 1) return null
+    // `@container main (width > 1px)` -> `@container main not (...)`: tên container đứng trước điều kiện.
+    const name = m[1] === 'container' ? m[2].match(/^(?!not\s)[\w-]+\s+(?=\(|not\s)/)?.[0] ?? '' : ''
+    const rest = m[2].trim().slice(name.length)
+    return `@${m[1]} ${name}${/^not\s/.test(rest) ? rest.replace(/^not\s+/, '') : `not ${rest}`}`
+}
+
+/**
+ * Các phương án của một "trạng thái" dùng được một mình hoặc sau `not-`, `has-`, `in-`, `group-`, `peer-`
+ * (null nếu không phải trạng thái): `hover` -> `@media (hover: hover)` + `&:hover`, `[.x]` -> `&:is(.x)`,
+ * `nth-3` -> `&:nth-child(3)`, biến thể tự định nghĩa nhiều bước (`@media` + selector) giữ nguyên at-rule.
+ * Ghép như Tailwind: `group-`/`peer-` thay `&` bằng `:where(.group)`, `has-`/`in-`/`not-` thay `&` bằng `*`;
+ * `not-` của biến thể có at-rule thành hai phương án (selector phủ định HOẶC at-rule phủ định).
+ */
+const stateAlternatives = (state: string): StateAlt[] | null => {
+    const custom = CUSTOM_VARIANTS[state]
+    if (custom) {
+        const alts: StateAlt[] = []
+        for (const steps of custom) {
+            const alt: StateAlt = { at: [], sel: '&' }
+            for (const step of steps) {
+                const inner = step.startsWith('[') && step.endsWith(']') ? arbitraryInner(step.slice(1, -1)) : null
+                if (inner === null) return null
+                if (inner.startsWith('@')) alt.at.push(inner)
+                else if (inner.includes('&')) {
+                    // Bước trong lồng trong bước ngoài: `&` của bước trong là selector của bước ngoài.
+                    const outer = alt.sel
+                    alt.sel = inner.replace(/&/g, () => outer)
+                } else return null
+            }
+            // Phương án cùng at-rule gộp thành danh sách selector (`&:a, &:b`), như một rule của Tailwind.
+            const same = alts.find((other) => other.at.join() === alt.at.join())
+            if (same) same.sel += `, ${alt.sel}`
+            else alts.push(alt)
+        }
+        return alts.length ? alts : null
+    }
+    if (state === 'hover') return [{ at: [`@media ${HOVER_MEDIA}`], sel: '&:hover' }]
+    if (PSEUDO_CLASSES[state]) return [{ at: [], sel: '&' + PSEUDO_CLASSES[state] }]
     const arbitrary = state.match(/^\[(.+)\]$/)
     if (arbitrary) {
         const inner = arbitraryInner(arbitrary[1])
-        return inner.includes('&') ? null : `:is(${inner})`
+        if (inner.startsWith('@')) return [{ at: [inner], sel: '&' }]
+        if (inner.includes('&')) return [{ at: [], sel: inner }]
+        if (/^[>+~]/.test(inner)) return [{ at: [], sel: `&${inner}`, relative: true }]
+        return [{ at: [], sel: `&:is(${inner})` }]
     }
     const nth = state.match(/^nth(-last)?(-of-type)?-(?:\[(.+)\]|(\d+))$/)
-    if (nth) return `:nth${nth[1] || ''}${nth[2] ? '-of-type' : '-child'}(${nth[3] ? arbitraryInner(nth[3]) : nth[4]})`
+    if (nth) return [{ at: [], sel: `&:nth${nth[1] || ''}${nth[2] ? '-of-type' : '-child'}(${nth[3] ? arbitraryInner(nth[3]) : nth[4]})` }]
     const attr = state.match(/^(aria|data)-(?:\[(.+)\]|([a-z-]+))$/)
-    if (attr) return `[${attr[1]}-${attr[2] ? arbitraryInner(attr[2]) : attr[1] === 'aria' ? `${attr[3]}="true"` : attr[3]}]`
-    if (state === 'ltr' || state === 'rtl') return `:where(:dir(${state}), [dir="${state}"], [dir="${state}"] *)`
-    // Quan hệ lồng: `group-peer-hover` = .group đứng sau .peer đang hover; `in-hover` = nằm trong phần tử hover.
-    const relation = state.match(/^(group|peer|in)-(.+?)(?:\/([\w-]+))?$/)
+    if (attr) return [{ at: [], sel: `&[${attr[1]}-${attr[2] ? arbitraryInner(attr[2]) : attr[1] === 'aria' ? `${attr[3]}="true"` : attr[3]}]` }]
+    if (state === 'ltr' || state === 'rtl') return [{ at: [], sel: `&:where(:dir(${state}), [dir="${state}"], [dir="${state}"] *)` }]
+    // Quan hệ: `group-peer-hover` = .group đứng sau .peer đang hover; `in-hover` = nằm trong phần tử hover.
+    const relation = state.match(/^(group|peer|in|has)-(.+?)(?:\/([\w-]+))?$/)
     if (relation) {
-        const inner = stateFragment(relation[2])
-        if (!inner) return null
-        const marker = relation[3] ? `${relation[1]}\\/${relation[3]}` : relation[1]
-        if (relation[1] === 'in') return `:is(:where(${inner}) *)`
-        return relation[1] === 'group' ? `:is(:where(.${marker})${inner} *)` : `:is(:where(.${marker})${inner} ~ *)`
-    }
-    const has = state.match(/^has-(.+)$/)
-    if (has) {
-        const inner = stateFragment(has[1])
-        return inner ? `:has(${inner})` : null
+        const [, kind, innerState, name] = relation
+        if (name && (kind === 'in' || kind === 'has')) return null
+        const inner = stateAlternatives(innerState)
+        // Như Tailwind: cần đúng một rule selector cho mỗi phương án (`group-not-hover`, `has-[@media...]` không hợp lệ).
+        // Biến thể có giả phần tử (`::before`) không ghép được.
+        if (!inner || inner.some((alt) => alt.sel === '&' || alt.sel.includes('::') || (alt.relative && kind !== 'has'))) return null
+        const marker = `:where(.${MARKER_PREFIX}${name ? `${kind}\\/${name}` : kind})`
+        return inner.map(({ at, sel, relative }) => {
+            if (kind === 'has') return { at, sel: `&:has(${relative ? sel.slice(1) : starred(sel)})` }
+            if (kind === 'in') return { at, sel: `:where(${starred(sel)}) &` }
+            const list = splitTopLevel(sel).map((part) => part.replace(/&/g, marker))
+            const target = list.length > 1 ? `:is(${list.join(', ')})` : list[0]
+            return { at, sel: kind === 'group' ? `&:is(${target} *)` : `&:is(${target} ~ *)` }
+        })
     }
     const not = state.match(/^not-(.+)$/)
     if (not) {
-        const inner = stateFragment(not[1])
-        return inner ? `:not(${inner})` : null
+        const inner = stateAlternatives(not[1])
+        if (!inner || inner.length !== 1) return null
+        const [{ at, sel, relative }] = inner
+        if (relative || at.length > 1 || sel.includes('::')) return null
+        const out: StateAlt[] = []
+        if (sel !== '&') out.push({ at: [], sel: `&:not(${starred(sel)})` })
+        if (at.length) {
+            const negated = negateAtRule(at[0])
+            if (!negated) return null
+            out.push({ at: [negated], sel: '&' })
+        }
+        return out.length ? out : null
     }
     return null
 }
@@ -488,7 +909,8 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
         }
         // `not-dark`, `not-md`...: phủ định media -> `@media not (...)` (at-rule nội tuyến).
         const notMedia = variant.match(/^not-(.+)$/)
-        if (notMedia && mediaOf(notMedia[1], darkMode)) {
+        // Biến thể tự định nghĩa cùng tên (`@custom-variant dark (&:is(.dark *))`) thắng media sẵn có.
+        if (notMedia && !CUSTOM_VARIANTS[notMedia[1]] && mediaOf(notMedia[1], darkMode)) {
             if (inline) return null
             inline = `[${('@media not ' + mediaOf(notMedia[1], darkMode)).replace(/\s+/g, '_')}]`
             continue
@@ -498,17 +920,6 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
         if (notContainer) {
             if (inline) return null
             inline = encodeArbitrary((MEDIA_QUERY.get(notContainer) as string).replace(/^@container\s+/, '@container not '))
-            continue
-        }
-        // group-*/peer-* (kể cả có tên `group-hover/item`), in-*: trạng thái của tổ tiên/anh em.
-        const relation = variant.match(/^(group|peer|in)-(.+?)(?:\/([\w-]+))?$/)
-        if (relation) {
-            const fragment = stateFragment(relation[2])
-            if (!fragment) return null
-            if (/(^|-)hover$/.test(relation[2])) media.push('hover')
-            const marker = relation[3] ? `${relation[1]}\\/${relation[3]}` : relation[1]
-            if (relation[1] === 'in') sel = `:where(${fragment}) ` + sel
-            else sel = sel.replace('&', relation[1] === 'group' ? `&:is(:where(.${marker})${fragment} *)` : `&:is(:where(.${marker})${fragment} ~ *)`)
             continue
         }
         const arbitrary = variant.match(/^\[(.+)\]$/)
@@ -526,14 +937,23 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
             inline = `[${arbitrary[1]}]`
             continue
         }
-        const fragment = stateFragment(variant)
-        if (fragment) {
-            // `has-group-hover`: Tailwind bọc trong `@media (hover: hover)`.
-            if (/^has-.*-hover$/.test(variant)) media.push('hover')
-            sel = sel.replace('&', '&' + fragment)
-            continue
+        // group-*/peer-* (kể cả có tên `group-hover/item`), in-*, has-*, not-*, aria-*, data-*, nth-*...: trạng thái
+        // của phần tử/tổ tiên/anh em/con. At-rule của trạng thái (`@media (hover: hover)` của `hover` sẵn có hoặc
+        // của biến thể tự định nghĩa) đi theo; biến thể tự định nghĩa tên `...-hover` không có media nếu không khai báo.
+        // Nhiều phương án (`not-hover`) đã được `expandVariants` tách thành nhiều danh sách bước.
+        const alts = stateAlternatives(variant)
+        if (!alts || alts.length !== 1 || alts[0].relative) return null
+        for (const rule of alts[0].at) {
+            const query = rule.match(/^@media\s+([\s\S]+)$/)
+            if (query && query[1] === HOVER_MEDIA) media.push('hover')
+            else if (query && !/^not\b/.test(query[1])) queries.push(query[1])
+            else {
+                if (inline) return null
+                inline = encodeArbitrary(rule)
+            }
         }
-        return null
+        const own = alts[0].sel
+        sel = sel.replace('&', () => own)
     }
     if (pseudoElement) sel = sel.replace('&', '&' + pseudoElement)
 
@@ -721,6 +1141,8 @@ const utilityRules = (body: string): Rule[] => {
         rules.push(rule)
         for (const item of parseCssItems(text)) {
             if ('decl' in item) rule.decls.push(item.decl)
+            // `@apply a b` giữ chỗ (thứ tự so với khai báo khác) dưới dạng khai báo giả `@apply`.
+            else if ('at' in item && /^@apply\s/.test(item.at)) rule.decls.push(['@apply', item.at.slice(7).trim()])
             else if ('head' in item) {
                 const media = item.head.match(/^@media\s+(.+)$/)
                 if (media) walk(item.body, sel, query ? `${query} and ${media[1]}` : media[1])
@@ -809,13 +1231,25 @@ const compileUserUtility = (body: string): UserUtility => ({
     usesModifier: body.includes('--modifier('),
 })
 
+/** `@apply` trong `@utility`: khai báo đặt tại chỗ + rule riêng cho phần có biến thể. */
+type ApplyInUtility = (list: string, sel: string, query: string | undefined) => { decls: Array<[string, string]>; rules: Rule[] }
+
 /** Áp giá trị (và modifier) vào `@utility name-*`. */
-const evaluateUtility = (utility: UserUtility, value: string | null, modifier: string | null): Rule[] | null => {
+const evaluateUtility = (utility: UserUtility, value: string | null, modifier: string | null, apply?: ApplyInUtility): Rule[] | null => {
     let matched = !utility.functional
     const rules: Rule[] = []
     for (const rule of utility.rules) {
         const decls: Array<[string, string]> = []
+        const extra: Rule[] = []
         for (const [prop, raw] of rule.decls) {
+            if (prop === '@apply') {
+                const applied = apply?.(raw, rule.sel, rule.query)
+                if (applied) {
+                    decls.push(...applied.decls)
+                    extra.push(...applied.rules)
+                }
+                continue
+            }
             let next: string | null = raw
             if (next.includes('--value(')) {
                 next = value === null ? null : replaceCssFunction(next, '--value', (args) => resolveFunctionalArg(args, value))
@@ -834,6 +1268,7 @@ const evaluateUtility = (utility: UserUtility, value: string | null, modifier: s
             decls.push([prop, next])
         }
         if (decls.length) rules.push({ sel: rule.sel, query: rule.query, decls })
+        rules.push(...extra)
     }
     return matched && rules.length ? rules : null
 }
@@ -868,18 +1303,6 @@ const compileCustomVariant = (body: string): string[][] | null => {
     return result.length ? result : null
 }
 
-/** Mảnh selector của biến thể tự định nghĩa khi dùng sau `group-`, `peer-`, `not-`, `has-`, `in-`. */
-const customFragment = (alternatives: string[][]): string | null => {
-    const fragments: string[] = []
-    for (const steps of alternatives) {
-        if (steps.length !== 1) return null
-        const sel = arbitraryInner(steps[0].slice(1, -1))
-        if (!sel.startsWith('&') || sel.indexOf('&', 1) !== -1) return null
-        fragments.push(sel.slice(1))
-    }
-    return fragments.length === 1 ? fragments[0] : `:is(${fragments.map((f) => '*' + f).join(', ')})`
-}
-
 /** Media key (`tw-md`) hoặc at-rule nội tuyến (`[@media_...]`) -> phần đầu at-rule CSS. */
 const atRuleOf = (media: string): string | null => {
     if (media.startsWith('tw-')) {
@@ -900,7 +1323,7 @@ type OrderVariant =
     | { kind: 'functional'; key: string; root: string; value: { kind: 'named' | 'arbitrary'; value: string } | null; modifier: string | null }
     | { kind: 'compound'; key: string; root: string; variant: OrderVariant; modifier: string | null }
 
-const PROPERTY_INDEX = new Map<string, number>(TW_ORDER.properties.map((p, i) => [p, i]))
+const PROPERTY_INDEX = new Map<string, number>(ORDER_PROPERTIES.map((p, i) => [p, i]))
 /** Gốc biến thể của dialect đang hoạt động: [loại, thứ tự]; biến thể tự định nghĩa nối sau. */
 let ORDER_ROOTS: Record<string, readonly [string, number]> = TW_ORDER.variants
 const FUNCTIONAL_ROOTS = Object.keys(TW_ORDER.variants).filter((k) => TW_ORDER.variants[k as keyof typeof TW_ORDER.variants][0] === 'f').sort((a, b) => b.length - a.length)
@@ -1081,13 +1504,21 @@ const sortVariantsDesc = (variants: OrderVariant[]): OrderVariant[] => {
 
 export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSDialect => {
     const darkMode = options.darkMode ?? 'media'
+    // Tiền tố `tw` -> class `tw:...`; selector của `group`/`peer` là `.tw\:group`.
+    const prefix = options.prefix ? normalizeTailwindPrefix(options.prefix) : ''
+    const markerPrefix = prefix ? `${prefix}\\:` : ''
+    // `important: true` -> mọi khai báo `!important`; `important: '#app'` -> `&` thành `:is(#app &)`.
+    const importantAll = options.important === true
+    const importantSelector = typeof options.important === 'string' && options.important.trim() ? options.important.trim() : ''
     // `--color-*: initial` (hoặc `--*: initial`): bỏ cả namespace mặc định như `@theme` của Tailwind.
     const resetNamespaces = Object.entries(options.theme || {}).filter(([k, v]) => k.endsWith('*') && v.trim() === 'initial').map(([k]) => k.slice(0, -1))
+    // `--x: initial` (không `*`): bỏ đúng biến đó như `@theme` của Tailwind (dùng khi `prefix` đến từ `@config`).
+    const removedKeys = new Set(Object.entries(options.theme || {}).filter(([k, v]) => !k.endsWith('*') && v.trim() === 'initial').map(([k]) => k))
     const ownTheme = options.theme && Object.keys(options.theme).length
         ? Object.fromEntries([
             ...Object.entries(defaultTheme).filter(([k]) => !resetNamespaces.some((ns) => k.startsWith(ns))),
             ...Object.entries(options.theme).filter(([k]) => !k.endsWith('*')),
-        ])
+        ].filter(([k]) => !removedKeys.has(k)))
         : defaultTheme
     const ownVariants: Record<string, string[][]> = {}
     for (const [name, body] of Object.entries(options.variants || {})) {
@@ -1105,6 +1536,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     const activate = () => {
         CUSTOM_VARIANTS = ownVariants
         RESET_NAMESPACES = resetNamespaces
+        MARKER_PREFIX = markerPrefix
         if (ORDER_ROOTS !== ownRoots) {
             ORDER_ROOTS = ownRoots
             orderVariantCache.clear()
@@ -1126,14 +1558,41 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
     const staticUtilities = new Map<string, UserUtility>()
     const functionalUtilities: Array<[string, UserUtility]> = []
     for (const [name, body] of Object.entries(options.utilities || {})) {
-        const utility = compileUserUtility(body.includes(':') || body.includes('{') ? body : '')
+        const utility = compileUserUtility(/[:{]|@apply\s/.test(body) ? body : '')
         if (name.endsWith('-*')) functionalUtilities.push([name.slice(0, -2), utility])
         else staticUtilities.set(name, utility)
     }
     functionalUtilities.sort((a, b) => b[0].length - a[0].length)
+    // `@apply` trong `@utility` (`@utility container { @apply mx-auto max-w-[1400px] lg:px-8 }`): khai báo không
+    // biến thể đặt tại chỗ, phần có biến thể/media thành rule riêng của utility. Media nội tuyến đổi về điều kiện
+    // `@media`; at-rule khác (`@container`, `@supports`) chưa hỗ trợ trong `@utility` nên bỏ.
+    const applying = new Set<string>()
+    const applyInUtility: ApplyInUtility = (list, sel, query) => {
+        const decls: Array<[string, string]> = []
+        const rules: Rule[] = []
+        for (const name of list.split(/\s+/).filter(Boolean)) {
+            if (applying.has(name)) continue
+            applying.add(name)
+            const result = place(name, false)
+            applying.delete(name)
+            if (!result) continue
+            for (const placed of result.placed) {
+                let media: string | undefined
+                if (placed.media) {
+                    const at = atRuleOf(placed.media)
+                    if (!at || !at.startsWith('@media ')) continue
+                    media = at.slice(7)
+                }
+                const childSel = sel === '&' ? placed.sel : placed.sel.replace(/&/g, sel)
+                if (!media && placed.sel === '&') decls.push(...placed.decls)
+                else rules.push({ sel: childSel, decls: placed.decls, query: [query, media].filter(Boolean).join(' and ') || undefined })
+            }
+        }
+        return { decls, rules }
+    }
     const userRules = (name: string): Rule[] | null => {
         const own = staticUtilities.get(name)
-        if (own) return evaluateUtility(own, null, null)
+        if (own) return evaluateUtility(own, null, null, applyInUtility)
         for (const [prefix, utility] of functionalUtilities) {
             if (!name.startsWith(prefix + '-')) continue
             let value = name.slice(prefix.length + 1)
@@ -1143,7 +1602,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
                 modifier = value.slice(slash + 1)
                 value = value.slice(0, slash)
             }
-            const rules = evaluateUtility(utility, value, modifier)
+            const rules = evaluateUtility(utility, value, modifier, applyInUtility)
             if (rules) return rules
         }
         return null
@@ -1155,29 +1614,53 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         decls: [['width', '100%']],
         more: RESPONSIVE.map((key) => ({ sel: '', decls: [['max-width', breakpointValue(key)] as [string, string]], query: `(width >= ${breakpointValue(key)})` })),
     })
+    /** Utility sẵn có, kể cả modifier (`text-sm/none`, `shadow-xs/5`, `bg-[red]/50`). */
+    const resolveBuiltin = (name: string): Rule | null => {
+        if (name === 'container') return containerRule()
+        const direct = resolveBase(name)
+        if (direct) return direct
+        const [head, modifier] = splitModifier(name)
+        return modifier === null || !head ? null : resolveBase(head, modifier)
+    }
+    // Utility của dự án/plugin trùng tên utility sẵn có (`@utility container`, `scrollbar-thumb-*` của plugin, kể cả
+    // khi có modifier): cả hai cùng áp, phần của dự án đứng sau nên thắng như Tailwind.
     const resolveAny = (name: string): Rule | null => {
-        const builtin = name === 'container' ? containerRule() : resolveBase(name)
+        const builtin = resolveBuiltin(name)
         const own = userRules(name)
-        if (!own) return builtin
-        return builtin ? chain([builtin, ...own]) : chain(own)
+        if (own) return builtin ? chain([builtin, ...own]) : chain(own)
+        if (builtin) return builtin
+        // Utility của dự án không khai báo `--modifier()` mà class có modifier: áp độ mờ lên kết quả (như trước).
+        const [head, modifier] = splitModifier(name)
+        if (modifier === null) return null
+        const plain = userRules(head)
+        return plain && applyModifier(chain(plain), modifier)
     }
 
     /** Mỗi biến thể tự định nghĩa có thể có nhiều phương án (danh sách selector = nhiều rule). */
     const expandVariants = (parts: string[]): string[][] => {
         let lists: string[][] = [[]]
         for (const variant of parts) {
-            // `not-hover`, `not-group-hover`...: `:not(...)` + `@media not (hover: hover)` như Tailwind.
-            const notHover = /^not-((group|peer|in)-)*hover(\/[\w-]+)?$/.test(variant)
-            const alternatives = ownVariants[variant] ?? (notHover ? [[variant], ['[@media_not_(hover:_hover)]']] : [[variant]])
-            lists = lists.flatMap((list) => alternatives.map((steps) => [...list, ...steps]))
+            // Trạng thái ghép nhiều phương án: `not-hover`, `not-group-hover`... = `:not(...)` HOẶC
+            // `@media not (hover: hover)`; `group-x`/`has-x` với biến thể tự định nghĩa nhiều phương án khác at-rule.
+            let alternatives = ownVariants[variant]
+            if (!alternatives && /^(group|peer|in|has|not)-/.test(variant)) {
+                const alts = stateAlternatives(variant)
+                if (alts && alts.length > 1) alternatives = alts.map(({ at, sel }) => [...at.map(encodeArbitrary), encodeArbitrary(sel)])
+            }
+            const steps = alternatives ?? [[variant]]
+            lists = lists.flatMap((list) => steps.map((each) => [...list, ...each]))
         }
         return lists
     }
 
     type Placed = { media: string; sel: string; decls: Array<[string, string]> }
     /** Class Tailwind -> các rule đã đặt chỗ (selector có `&`, media key/at-rule nội tuyến, khai báo). */
-    const place = (className: string): { placed: Placed[]; important: boolean; base: Array<[string, string]>; signature: string; root: string; variants: string[] } | null => {
+    /** `inUtilities`: class sinh utility (áp `important` của dialect); false cho `@apply` (Tailwind không áp). */
+    const place = (fullName: string, inUtilities = true): { placed: Placed[]; important: boolean; base: Array<[string, string]>; signature: string; root: string; variants: string[] } | null => {
         activate()
+        // Có tiền tố: chỉ nhận `tw:...` (kể cả trong `@apply`, như Tailwind), tiền tố đứng trước mọi biến thể.
+        if (prefix && !fullName.startsWith(prefix + ':')) return null
+        const className = prefix ? fullName.slice(prefix.length + 1) : fullName
         const parts = splitVariants(className)
         let base = parts.pop() as string
         let important = false
@@ -1189,14 +1672,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
             base = base.slice(1)
         }
 
-        let rule = resolveAny(base)
-        if (!rule) {
-            const slash = base.lastIndexOf('/')
-            if (slash > 0 && !base.slice(slash).includes(']')) {
-                const resolved = resolveAny(base.slice(0, slash))
-                rule = resolved && applyModifier(resolved, base.slice(slash + 1))
-            }
-        }
+        const rule = resolveAny(base)
         if (!rule) return null
 
         const rules = [rule, ...(rule.more || [])]
@@ -1208,6 +1684,9 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
                 if (!each.decls.length) continue
                 const at = applyVariants(variantList, each.sel, darkMode, each.query)
                 if (!at) return null
+                // `important: '#app'`: Tailwind bọc `@tailwind utilities` trong `#app { }` -> `#app .x`,
+                // `:is(:where(.group):hover :is(#app .x))`... `:is(#app &)` cùng phạm vi và độ ưu tiên.
+                if (importantSelector && inUtilities) at.sel = at.sel.replace(/&/g, `:is(${importantSelector} &)`)
                 let decls = each.decls
                 // before:/after: cần `content` như Tailwind.
                 if (/::(before|after)/.test(at.sel) && !decls.some(([p]) => p === 'content')) {
@@ -1217,6 +1696,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
             }
         }
         if (placed.some((p) => /::(before|after)/.test(p.sel)) && !baseDecls.some(([p]) => p === 'content')) baseDecls.unshift(['content', 'var(--tw-content)'])
+        if (importantAll && inUtilities) important = true
         return placed.length ? { placed, important, base: baseDecls, signature: baseSignature, root: base, variants: parts } : null
     }
 
@@ -1256,7 +1736,7 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         let extra = ''
         const parentSel = splitTopLevel(selector).length > 1 ? `:is(${selector})` : selector
         for (const name of list.trim().split(/\s+/)) {
-            const result = place(name)
+            const result = place(name, false)
             if (!result) {
                 inline += `/* @apply ${name}: chưa hỗ trợ */`
                 continue
@@ -1316,68 +1796,147 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         const seen = new Set<string>()
         return result.placed.flatMap(({ media, sel: placedSel, decls }) => {
             const sel = placedSel === '&' ? '' : placedSel.startsWith('&') && placedSel.indexOf('&', 1) === -1 ? placedSel.slice(1) : placedSel
-            const suffix = sel ? '@' + sel.replace(/\s+/g, ';') : ''
+            // Khoảng trắng trong chuỗi có nháy (`[class*=' h-']`) viết `\20 `: engine đọc `';` là dấu `;` thật.
+            const suffix = sel ? '@' + sel.replace(/(["'])((?:(?!\1).)*)\1/g, (_m, q: string, inner: string) => q + inner.replace(/ /g, '\\20 ') + q).replace(/\s+/g, ';') : ''
             const prefix = media ? media + ':' : ''
             return decls.map(([prop, value]) => {
                 // `--tw-blur: ;` (rỗng) của Tailwind: dùng `initial`, cùng kết quả khi biến được đọc
                 // bằng `var(--tw-blur,)` vì engine không nhận giá trị rỗng.
                 const finalValue = value.trim() === '' && prop.startsWith('--') ? 'initial' : withThemeFallback(value)
+                // Biến CSS không nhận dạng `--x![...]` của engine: ghi `!important` vào giá trị (`--x: v !important`).
+                if (result.important && prop.startsWith('--')) return `${prefix}${prop}[${encodeValue(finalValue + ' !important')}]${suffix}`
                 return `${prefix}${prop}${result.important ? '!' : ''}[${encodeValue(finalValue)}]${suffix}`
             }).filter((token) => !seen.has(token) && !!seen.add(token))
         })
     }) as XCSSDialect
+    // Class có dạng utility Tailwind (gốc là họ/utility của Tailwind hoặc của dự án, giá trị viết kiểu Tailwind) mà
+    // phương ngữ không sinh được (giá trị Tailwind không nhận, biến thể chưa hỗ trợ): engine không thử cú pháp x-css,
+    // nên `z-1` không thành `z-index:-1`. Class x-css thật (`m-10px`, `dF`, `cRed@:hover`) không bị giữ.
+    const TAILWIND_VALUE = /^(\[.+\]|\((?:[a-z-]+:)?--[\w-]+\)|\d+(\.\d+)?(\/\d+)?|[a-z][a-z0-9.-]*|\d+x[sl]|\d+xl)$/
+    dialect.owns = (fullName: string): boolean => {
+        activate()
+        if (prefix && !fullName.startsWith(prefix + ':')) return false
+        let base = splitVariants(prefix ? fullName.slice(prefix.length + 1) : fullName).pop() as string
+        if (base.endsWith('!')) base = base.slice(0, -1)
+        else if (base.startsWith('!')) base = base.slice(1)
+        if (explicit[base] || staticUtilities.has(base) || base === 'container') return true
+        const [head] = splitModifier(base)
+        return splitRoots(head).some(([root, value]) =>
+            (families[root] !== undefined || arbitraryTemplates[root] !== undefined || functionalUtilities.some(([name]) => name === root)) && TAILWIND_VALUE.test(value))
+    }
     // Khai báo lấy nguyên văn từ compiler Tailwind: không cần CSS.supports cho từng khai báo.
     dialect.trusted = true
     dialect.breakpoints = breakpoints
     dialect.compare = compare
-    // Danh sách class (cho gợi ý của editor): class tường minh, họ × bộ giá trị, giá trị theme của dự án,
-    // `@utility` của dự án. Chỉ giữ class mà phương ngữ thật sự sinh được CSS.
-    let classListCache: string[] | null = null
-    dialect.classList = () => {
-        if (classListCache) return classListCache
-        activate()
-        const names = new Set<string>(Object.keys(explicit))
-        const SPACING = ['0', '0.5', '1', '1.5', '2', '2.5', '3', '3.5', '4', '5', '6', '7', '8', '9', '10', '11', '12', '14', '16', '20', '24', '28', '32', '36', '40', '44', '48', '52', '56', '60', '64', '72', '80', '96']
-        for (const [root, entries] of Object.entries(families)) {
-            for (const [templateIndex, setIndex] of entries) {
-                if (setIndex === -1) SPACING.forEach((v) => names.add(`${root}-${v}`))
-                else valueSet(setIndex).forEach((v) => names.add(`${root}-${v}`))
-                if (ownTheme !== defaultTheme) {
-                    const text = templates[templateIndex].slice(1).map((i) => declTable[i]).join(';')
-                    for (const m of text.matchAll(/var\((--[\w-]*?)\{v\}\)/g)) {
-                        for (const key of Object.keys(options.theme || {})) {
-                            const suffix = key.slice(m[1].length)
-                            if (key.startsWith(m[1]) && suffix && !suffix.includes('--')) names.add(`${root}-${suffix}`)
+    // Danh sách class/biến thể chỉ dùng cho editor (LSP): bản CDN (`__XCSS_EDITOR__` = false) bỏ hẳn phần này.
+    if (EDITOR_BUILD) {
+        // Danh sách class (cho gợi ý của editor): class tường minh, họ × bộ giá trị, giá trị theme của dự án,
+        // `@utility` của dự án. Chỉ giữ class mà phương ngữ thật sự sinh được CSS.
+        let classListCache: string[] | null = null
+        dialect.classList = () => {
+            if (classListCache) return classListCache
+            activate()
+            const names = new Set<string>(Object.keys(explicit))
+            const SPACING = ['0', '0.5', '1', '1.5', '2', '2.5', '3', '3.5', '4', '5', '6', '7', '8', '9', '10', '11', '12', '14', '16', '20', '24', '28', '32', '36', '40', '44', '48', '52', '56', '60', '64', '72', '80', '96']
+            for (const [root, entries] of Object.entries(families)) {
+                for (const [templateIndex, setIndex] of entries) {
+                    if (setIndex === -1) SPACING.forEach((v) => names.add(`${root}-${v}`))
+                    else valueSet(setIndex).forEach((v) => names.add(`${root}-${v}`))
+                    if (ownTheme !== defaultTheme) {
+                        const text = templates[templateIndex].slice(1).map((i) => declTable[i]).join(';')
+                        for (const m of text.matchAll(/var\((--[\w-]*?)\{v\}\)/g)) {
+                            for (const key of Object.keys(options.theme || {})) {
+                                const suffix = key.slice(m[1].length)
+                                if (key.startsWith(m[1]) && suffix && !suffix.includes('--')) names.add(`${root}-${suffix}`)
+                            }
                         }
                     }
                 }
             }
+            for (const [name] of staticUtilities) names.add(name)
+            names.add('container')
+            classListCache = [...names].map((name) => (prefix ? `${prefix}:${name}` : name)).filter((name) => !!dialect(name)).sort(compare)
+            return classListCache
         }
-        for (const [name] of staticUtilities) names.add(name)
-        names.add('container')
-        classListCache = [...names].filter((name) => !!dialect(name)).sort(compare)
-        return classListCache
+        /** Tên biến thể dùng được trước `:` (cho gợi ý). */
+        dialect.variantList = () => {
+            activate()
+            const list = Object.entries(ORDER_ROOTS).filter(([, [kind]]) => kind === 's').map(([name]) => name)
+            for (const key of RESPONSIVE) list.push(`max-${key}`)
+            for (const size of CONTAINER_SIZES) list.push(`@${size}`, `@max-${size}`)
+            for (const state of ['hover', 'focus', 'focus-visible', 'focus-within', 'active', 'checked', 'disabled', 'invalid']) list.push(`group-${state}`, `peer-${state}`)
+            list.push('aria-checked', 'aria-disabled', 'aria-expanded', 'aria-invalid', 'aria-selected', 'has-checked', 'not-first', 'not-last')
+            return [...new Set(list)]
+        }
     }
-    /** Tên biến thể dùng được trước `:` (cho gợi ý). */
-    dialect.variantList = () => {
-        activate()
-        const list = Object.entries(ORDER_ROOTS).filter(([, [kind]]) => kind === 's').map(([name]) => name)
-        for (const key of RESPONSIVE) list.push(`max-${key}`)
-        for (const size of CONTAINER_SIZES) list.push(`@${size}`, `@max-${size}`)
-        for (const state of ['hover', 'focus', 'focus-visible', 'focus-within', 'active', 'checked', 'disabled', 'invalid']) list.push(`group-${state}`, `peer-${state}`)
-        list.push('aria-checked', 'aria-disabled', 'aria-expanded', 'aria-invalid', 'aria-selected', 'has-checked', 'not-first', 'not-last')
-        return [...new Set(list)]
-    }
+    // CSS của dự án: mở rộng `@apply`, khai triển `--alpha()`/`--spacing()`/`--theme()`; biến theme mà CSS đó
+    // đọc (`--border: var(--color-black)`) được khai báo ở `:root` trong layer thấp nhất, trước preflight và
+    // CSS nền (như `@layer theme` của Tailwind). Utility không cần: giá trị theme đã nằm trong `var(--x, …)`.
+    const projectCss = options.css ? expandThemeFunctions(layerBaseCss(options.css.includes('@apply') ? expandApply(options.css) : options.css), ownTheme) : ''
+    const themeCss = projectCss ? usedThemeCss(projectCss, ownTheme) : ''
     dialect.baseCss = [
-        TW_PROPERTIES_CSS,
+        PROPERTIES_CSS,
+        themeCss ? `@layer l0{${themeCss}}` : '',
         options.preflight ? themedPreflight() : '',
-        options.css ? layerBaseCss(options.css.includes('@apply') ? expandApply(options.css) : options.css) : '',
+        projectCss,
     ].filter(Boolean).join('\n')
     return dialect
 }
 
 /** Phiên bản Tailwind mà dữ liệu được sinh từ. */
 export const TAILWIND_DATA_VERSION = TW_DATA.version
+
+// ---------------------------------------------------------------------------
+// Hàm theme trong CSS của dự án (`--alpha()`, `--spacing()`, `--theme()`, `theme()`) và biến theme ở `:root`
+// ---------------------------------------------------------------------------
+
+/**
+ * Khai triển hàm theme như Tailwind v4 trong mọi CSS (ngoài `@theme`, cả `:root`, `.dark`, `@apply`):
+ *   `--alpha(c / 8%)` -> `color-mix(in oklab, c 8%, transparent)`, `--spacing(3)` -> `calc(var(--spacing) * 3)`,
+ *   `--theme(--x)` -> `var(--x)` (biến `@theme inline`, có chữ `inline`, hoặc trong điều kiện `@media`/`@container`:
+ *   giá trị), `--theme(--x / 50%)` -> `color-mix(...)`, `--theme(--x, dự phòng)` khi theme không có `--x`,
+ *   `theme(--x)` (cú pháp cũ) -> giá trị. `values`: theme; `inline`: tên biến của `@theme inline`.
+ */
+const expandThemeFunctions = (text: string, values: Record<string, string>, inline: ReadonlySet<string> = new Set()): string =>
+    // Điều kiện at-rule không đọc được `var()`: thay bằng giá trị.
+    text.replace(/(@(?:media|container|supports)\b[^{};]*)|[^@]+|@/g, (part, prelude?: string) => {
+        const withAlpha = (args: string, color: (c: string) => string) => {
+            const [c, alpha] = splitTopLevel(args, '/')
+            return alpha ? `color-mix(in oklab, ${color(c)} ${alpha}, transparent)` : color(c)
+        }
+        let out = replaceCssFunction(part, '--theme', (args) => {
+            const [head, ...fallback] = splitTopLevel(args)
+            return withAlpha(head, (path) => {
+                const name = path.replace(/\s+inline$/, '')
+                if (values[name] === undefined) return fallback.join(', ') || `var(${name})`
+                return prelude || name !== path || inline.has(name) ? values[name] : `var(${name})`
+            })
+        }) as string
+        // `theme(--x)` cú pháp cũ: luôn là giá trị.
+        out = out.replace(/(^|[^\w-])theme\(\s*(--[\w.-]+)\s*\)/g, (match, before: string, name: string) => (values[name] === undefined ? match : before + values[name]))
+        out = replaceCssFunction(out, '--spacing', (args) => `calc(var(--spacing) * ${args.trim()})`) as string
+        return replaceCssFunction(out, '--alpha', (args) => withAlpha(args, (c) => c)) as string
+    })
+
+/**
+ * Khối `:root,:host{...}` khai báo các biến theme mà `css` đọc qua `var(--x)` (kể cả biến theme mà giá trị của
+ * chúng đọc), theo thứ tự của theme — như `@layer theme` của Tailwind chỉ phát biến được dùng. Rỗng nếu không có.
+ */
+const usedThemeCss = (css: string, values: Record<string, string>): string => {
+    const used = new Set<string>()
+    const visit = (text: string) => {
+        for (const m of text.matchAll(/var\(\s*(--(?:[\w-]|\\.)+)/g)) {
+            // `--spacing-0\.5` -> tên theme `--spacing-0.5`.
+            const name = m[1].replace(/\\/g, '')
+            if (values[name] === undefined || used.has(name)) continue
+            used.add(name)
+            visit(values[name])
+        }
+    }
+    visit(css)
+    const decls = Object.keys(values).filter((name) => used.has(name)).map((name) => `${name.replace(/\./g, '\\.')}:${values[name]};`).join('')
+    return decls && `:root,:host{${decls}}`
+}
 
 export interface TailwindStylesheet {
     theme: Record<string, string>
@@ -1386,6 +1945,14 @@ export interface TailwindStylesheet {
     variants: Record<string, string>
     /** `@import`/`@plugin` không giải được (ngoài `tailwindcss`). */
     unresolved: string[]
+    /** Tiền tố (`@import "tailwindcss" prefix(tw)` hoặc `prefix` của `@config`): truyền vào `tailwindV4Dialect({ prefix })`. */
+    prefix?: string
+    /**
+     * `true`: `@import "tailwindcss" important` / `important: true` của `@config`. Chuỗi: selector bọc utility
+     * (`#app { @tailwind utilities; }` — cách Tailwind v4 áp `important: '#app'` của `@config`). Truyền vào
+     * `tailwindV4Dialect({ important })`.
+     */
+    important?: boolean | string
 }
 
 export interface ParseTailwindOptions {
@@ -1403,20 +1970,43 @@ export interface ParseTailwindOptions {
  *   - `@theme { --color-brand: #0a64e8; @keyframes wiggle {...} }` -> theme + keyframes,
  *   - `@utility name {...}`, `@utility name-* { x: --value(...) }` -> utilities,
  *   - `@custom-variant name (&:is(.dark *));` hoặc dạng khối có `@slot` -> variants,
- *   - CSS còn lại giữ nguyên (`@apply` được dialect mở rộng); `@import "tailwindcss"`, `@source`, `@config` bị bỏ qua.
+ *   - `@import "tailwindcss" prefix(tw) important` -> `prefix`, `important`; `#app { @tailwind utilities; }` -> `important: '#app'`,
+ *   - CSS còn lại giữ nguyên (`@apply` được dialect mở rộng); `@import "tailwindcss"`, `@source`, `@config` bị bỏ qua,
+ *   - `--alpha()`/`--spacing()`/`--theme()`/`theme()` trong CSS và trong giá trị `@theme` được khai triển; biến của
+ *     `@theme static` thành khối `@layer theme{:root,:host{...}}` đầu `css` (biến theme mà CSS đọc do dialect phát).
+ * Truyền kết quả cho dialect: `tailwindV4Dialect({ theme, css, utilities, variants, prefix, important })`.
  */
 export const parseTailwindStylesheet = (source: string, options: ParseTailwindOptions = {}): TailwindStylesheet => {
     const sheet: TailwindStylesheet = { theme: {}, css: '', utilities: {}, variants: {}, unresolved: [] }
     const seen = new Set<string>()
     const KEYFRAMES = /@keyframes\s+[\w-]+\s*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g
-    const read = (text: string) => {
+    // Như Tailwind v4: tiền tố của CSS thắng tiền tố của `@config`; `important` của hai nơi cộng dồn.
+    let cssPrefix: string | undefined
+    let configPrefix: string | undefined
+    let importantAll = false
+    let importantSelector = ''
+    // `@theme inline`: `--theme(--x)` thay bằng giá trị; `@theme static`: biến luôn được khai báo ở `:root`.
+    const inlineKeys = new Set<string>()
+    const staticKeys = new Set<string>()
+    const read = (text: string, fromConfig = false) => {
         for (const item of parseCssItems(text.replace(/\/\*[\s\S]*?\*\//g, ''))) {
             if ('decl' in item) continue
             if ('at' in item) {
-                const load = item.at.match(/^@(import|plugin)\s+(?:url\()?["']([^"']+)["']/)
+                const load = item.at.match(/^@(import|plugin)\s+(?:url\()?["']([^"']+)["']\)?/)
                 if (load) {
                     const id = load[2]
-                    if (id === 'tailwindcss' || id.startsWith('tailwindcss/') || seen.has(id)) continue
+                    if (id === 'tailwindcss' || id.startsWith('tailwindcss/')) {
+                        // Tuỳ chọn của import: `prefix(tw)`, `important` (bỏ qua `layer(...)`, `source(...)`, `theme(...)`).
+                        const params = item.at.slice(load[0].length).replace(/\b(layer|source|theme)\([^)]*\)/g, '')
+                        const ownPrefix = params.match(/\bprefix\(\s*([^)\s]*)\s*\)/)?.[1]
+                        if (ownPrefix !== undefined) {
+                            if (fromConfig) configPrefix ??= ownPrefix
+                            else cssPrefix ??= ownPrefix
+                        }
+                        if (/(^|\s)important(\s|$)/.test(params)) importantAll = true
+                        continue
+                    }
+                    if (seen.has(id)) continue
                     seen.add(id)
                     const content = options.resolve?.(id)
                     if (content) read(content)
@@ -1426,7 +2016,7 @@ export const parseTailwindStylesheet = (source: string, options: ParseTailwindOp
                 const configFile = item.at.match(/^@config\s+["']([^"']+)["']/)
                 if (configFile) {
                     const converted = options.loadConfig?.(configFile[1])
-                    if (converted !== null && converted !== undefined) read(converted)
+                    if (converted !== null && converted !== undefined) read(converted, true)
                     else sheet.unresolved.push(configFile[1])
                     continue
                 }
@@ -1435,7 +2025,8 @@ export const parseTailwindStylesheet = (source: string, options: ParseTailwindOp
                 else if (!/^@(source|config|reference|tailwind|import|plugin)\b/.test(item.at)) sheet.css += item.at + ';\n'
                 continue
             }
-            const utility = item.head.match(/^@utility\s+(-?[\w-]+(?:-\*)?)$/)
+            // Tên có `.`/`/` (`slide-in-from-bottom-0.5`, `-1/2`): chỉ có trong plugin đóng gói sẵn, Tailwind không cho viết trong CSS.
+            const utility = item.head.match(/^@utility\s+(-?[\w./-]+?(?:-\*)?)$/)
             if (utility) {
                 sheet.utilities[utility[1]] = item.body.trim()
                 continue
@@ -1446,17 +2037,48 @@ export const parseTailwindStylesheet = (source: string, options: ParseTailwindOp
                 continue
             }
             if (/^@theme\b/.test(item.head)) {
+                const isInline = /\binline\b/.test(item.head)
+                const isStatic = /\bstatic\b/.test(item.head)
                 for (const kf of item.body.match(KEYFRAMES) || []) sheet.css += kf + '\n'
                 for (const decl of item.body.replace(KEYFRAMES, '').matchAll(/(--[\w.-]*(?:\\.[\w-]+)*\*?)\s*:\s*([^;]+);/g)) {
-                    sheet.theme[decl[1].replace(/\\\./g, '.')] = decl[2].trim()
+                    const name = decl[1].replace(/\\\./g, '.')
+                    sheet.theme[name] = decl[2].trim()
+                    if (isInline) inlineKeys.add(name)
+                    else inlineKeys.delete(name)
+                    if (isStatic) staticKeys.add(name)
                 }
                 continue
             }
             if (/^@plugin\b/.test(item.head)) continue
+            // `#app { @tailwind utilities; }`: utility chỉ áp trong `#app` (Tailwind v4 đổi `important: '#app'` thành vậy).
+            if (!item.head.startsWith('@') && /^@tailwind\s+utilities\b[^;{}]*;?$/.test(item.body.trim())) {
+                importantSelector ||= item.head.trim()
+                continue
+            }
             sheet.css += `${item.head}{${item.body}}\n`
         }
     }
     read(source)
-    sheet.css = sheet.css.trim()
+    // Hàm theme trong giá trị theme (`--spacing-x: --spacing(3)`) và trong CSS của dự án, như Tailwind.
+    // `--theme()` tra theme mặc định cộng theme của dự án.
+    const values = { ...defaultTheme, ...sheet.theme }
+    for (const [name, value] of Object.entries(sheet.theme)) sheet.theme[name] = expandThemeFunctions(value, values, inlineKeys)
+    sheet.css = expandThemeFunctions(sheet.css.trim(), { ...defaultTheme, ...sheet.theme }, inlineKeys)
+    const statics = [...staticKeys].filter((name) => sheet.theme[name] !== undefined && sheet.theme[name] !== 'initial')
+    if (statics.length) {
+        sheet.css = `@layer theme{:root,:host{${statics.map((name) => `${name.replace(/\./g, '\\.')}:${sheet.theme[name]};`).join('')}}}\n${sheet.css}`
+    }
+    const prefix = cssPrefix ?? configPrefix
+    if (prefix !== undefined) {
+        try {
+            sheet.prefix = normalizeTailwindPrefix(prefix)
+        } catch (_error) {
+            // Tailwind v4 báo lỗi với tiền tố không phải chữ thường a-z: ghi lại để công cụ cảnh báo.
+            sheet.unresolved.push(`prefix(${prefix})`)
+        }
+    }
+    // Có cả hai (`important` của CSS và `important: '#app'` của @config): giữ selector (giới hạn đã biết).
+    if (importantSelector) sheet.important = importantSelector
+    else if (importantAll) sheet.important = true
     return sheet
 }

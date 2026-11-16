@@ -1,5 +1,31 @@
 # Lịch Sử Thay Đổi
 
+## 1.0.0
+
+Bản phát hành đầu tiên dùng thay Tailwind cho dự án thật: đo trên 4 dự án mã nguồn mở, 8 cấu hình v3, 9 gói plugin JS và một ứng dụng Next.js thật (xem `docs/strategy/danh-gia-1.0.md`).
+
+**Đóng gói**
+- Gói npm 6,8 MB → 1,37 MB giải nén (0,38 MB nén): entry trình duyệt tự chứa, entry Node dùng chung chunk; bỏ file không đọc lúc chạy. Bước `package` trong `check:all` kiểm mọi `exports` bằng `require` và `import`.
+- Bản CDN `tailwind-auto.mjs` 62,9 → 44,1 KB gzip: dữ liệu Tailwind mã hoá gọn (32,8 → 20,7 KB) giải mã lúc nạp; bỏ từ điển x-css, cache và phần chỉ dùng cho editor khỏi bản này (class viết tắt x-css không chạy trên `tailwind-auto`; dùng `index-auto` cho x-css).
+
+**Hiệu năng runtime**
+- Rule chèn vào khối `@layer` có sẵn thay vì tạo khối mới mỗi lần (mỗi khối mới làm Chromium tính lại style cả trang): chèn 2.000 phần tử nhanh hơn `@tailwindcss/browser`, 10 lượt × 200 phần tử nhanh hơn ~6 lần. Bộ đo `eval/runtime-bench.mjs`.
+
+**Thêm mới**
+- Plugin JS Tailwind bất kỳ (`@plugin "x"`, `plugins: [require('x')]`) chạy qua API giả lập (`addUtilities`, `matchUtilities`, `addVariant`, `matchVariant`, `addBase`, `theme()`...) mà không cần cài `tailwindcss`. Đóng gói sẵn thêm `tailwindcss-animate` (bỏ bí danh sai sang `tw-animate-css`).
+- Cấu hình v3: `prefix`, `important` (`true` và selector), `corePlugins`/`separator`/`safelist` như Tailwind v4 (bỏ qua), `tailwind.config.ts`; CSS v4 `@import "tailwindcss" prefix(tw) important`.
+- Bộ đo dự án thật ép `:hover`/`:focus`/`:focus-visible`/`:active`, 4 độ rộng, dừng animation/transition để kết quả ổn định; thêm HyperUI, Magic UI, coss ui. Bước `projects` trong `check:all` (không được tụt dưới mốc).
+
+**Sửa lỗi (phương ngữ Tailwind v4)**
+- Class phương ngữ không nhận không còn rơi xuống cú pháp x-css (`z-1` từng ra `z-index:-1`): `XCSSDialect.owns()`.
+- Giá trị trần ngoài danh sách (`z-1`, `opacity-64`, `scale-84`, `duration-450`, `delay-0`), `start-*`/`end-*`, `--spacing()`/`--theme()`/`--alpha()` trong giá trị tuỳ ý, modifier line-height (`/none`, `/tight`, `text-[10px]/6`), màu và độ mờ của bóng (`shadow-[4px_4px_0_0] shadow-black`, `shadow-sm/5`), nền theo gợi ý kiểu (`bg-[length:200%]`, gradient nhiều lớp), `(kiểu:--x)`, `filter-[…]`, `@apply` trong `@utility`.
+- Biến theme mà CSS của dự án đọc (`:root { --border: --alpha(var(--color-black) / 8%) }`) được khai báo ở `:root,:host` trong layer thấp nhất như `@layer theme` của Tailwind; `@theme static` luôn phát. `--alpha()`, `--spacing()`, `--theme()`, `theme()` được khai triển trong mọi CSS của dự án và giá trị `@theme`. coss ui: 0 → 1289/1331 class khớp.
+- Biến thể ghép như Tailwind: `has-`/`in-`/`not-` thay `&` bằng `*` (`has-prose-headings:` → `:has(* :is(...))`); `group-`/`peer-`/`in-`/`has-`/`not-` với biến thể tự định nghĩa nhiều bước (`@media` + selector) giữ at-rule; biến thể tên `...-hover` không còn bị thêm `@media (hover: hover)`; `not-[&:hover]:`, `has-[.x_&]:`, `has-[>img]:`, `not-[@media…]:`; `not-dark` dùng `@custom-variant dark` của dự án. Plugin JS: typography 169 → 198/198, react-aria-components 307 → 312/312 biến thể.
+
+**Thay đổi cần biết**
+- `tailwind-auto.mjs` không chạy class viết tắt x-css và không có cache localStorage.
+- `@plugin "tailwindcss-animate"` dùng bản đóng gói thật của gói này (trước là bí danh sang `tw-animate-css`, khác giá trị).
+
 ## 0.10.0
 
 Thay Tailwind và các công cụ quanh nó bằng một dòng cấu hình, có số đo cho từng phần (`npm run check:tailwind`).

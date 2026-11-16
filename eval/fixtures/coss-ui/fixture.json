@@ -1,0 +1,8 @@
+{
+  "label": "coss ui",
+  "source": "[coss ui](https://github.com/origin-space/originui) (Origin UI nay là coss.com/ui, dựng trên Base UI) `packages/ui/src/components` + `packages/ui/src/styles/globals.css` (commit 0da83f8)",
+  "license": "MIT, © coss.com và Origin UI",
+  "css": "app.css",
+  "src": "components",
+  "imports": {}
+}

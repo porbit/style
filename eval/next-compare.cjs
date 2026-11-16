@@ -1,7 +1,9 @@
 const { chromium } = require('playwright')
 ;(async () => {
   for (let i = 0; i < 30; i++) { try { await fetch('http://localhost:3123'); await fetch('http://localhost:3124'); break } catch { await new Promise(r => setTimeout(r, 500)) } }
-  const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined })
+  const fs = require('fs')
+  const executablePath = process.env.CHROMIUM_PATH || (fs.existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined)
+  const b = await chromium.launch(executablePath ? { executablePath } : {})
   const result = {}
   for (const [name, port] of [['ours', 3123], ['tw', 3124]]) {
     for (const width of [600, 1300]) {

@@ -1,0 +1,96 @@
+{
+  "label": "v3-css-flags",
+  "candidates": 23,
+  "summary": {
+    "không build (parseTailwindStylesheet)": {
+      "converted": 23,
+      "total": 23,
+      "matched": {
+        "mặc định": 23,
+        "mở": 23,
+        "đóng": 23,
+        ".dark": 23,
+        ":hover": 23,
+        ":focus": 23,
+        ":focus-visible": 23,
+        ":active": 23,
+        "375px": 23,
+        "768px": 23,
+        "1600px": 23
+      },
+      "exercised": {
+        "mở": 2,
+        "đóng": 0,
+        ".dark": 2,
+        ":hover": 1,
+        ":focus": 0,
+        ":focus-visible": 0,
+        ":active": 1,
+        "375px": 1,
+        "768px": 0,
+        "1600px": 0
+      },
+      "combos": {
+        "total": 3,
+        "matched": {
+          "mặc định": 3,
+          "mở": 3,
+          "đóng": 3,
+          ".dark": 3,
+          ":hover": 3,
+          ":focus": 3,
+          ":focus-visible": 3,
+          ":active": 3,
+          "375px": 3,
+          "768px": 3,
+          "1600px": 3
+        }
+      }
+    },
+    "plugin PostCSS (@porbit/style/postcss)": {
+      "converted": 23,
+      "total": 23,
+      "matched": {
+        "mặc định": 23,
+        "mở": 23,
+        "đóng": 23,
+        ".dark": 23,
+        ":hover": 23,
+        ":focus": 23,
+        ":focus-visible": 23,
+        ":active": 23,
+        "375px": 23,
+        "768px": 23,
+        "1600px": 23
+      },
+      "exercised": {
+        "mở": 2,
+        "đóng": 0,
+        ".dark": 2,
+        ":hover": 1,
+        ":focus": 0,
+        ":focus-visible": 0,
+        ":active": 1,
+        "375px": 1,
+        "768px": 0,
+        "1600px": 0
+      },
+      "combos": {
+        "total": 3,
+        "matched": {
+          "mặc định": 3,
+          "mở": 3,
+          "đóng": 3,
+          ".dark": 3,
+          ":hover": 3,
+          ":focus": 3,
+          ":focus-visible": 3,
+          ":active": 3,
+          "375px": 3,
+          "768px": 3,
+          "1600px": 3
+        }
+      }
+    }
+  }
+}

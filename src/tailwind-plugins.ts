@@ -9,8 +9,8 @@
  */
 import { TAILWIND_PLUGIN_CSS } from './tailwind-plugins-generated'
 
-// `tailwindcss-animate` (plugin JS của v3) có cùng tên class với `tw-animate-css`.
-const ALIASES: Record<string, string> = { 'tailwindcss-animate': 'tw-animate-css' }
+// Không có bí danh: `tailwindcss-animate` và `tw-animate-css` cùng tên class nhưng khác giá trị, mỗi gói đóng gói riêng.
+const ALIASES: Record<string, string> = {}
 
 /** Danh sách plugin có sẵn. */
 export const TAILWIND_PLUGINS = [...Object.keys(TAILWIND_PLUGIN_CSS), ...Object.keys(ALIASES)]

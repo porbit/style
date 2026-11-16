@@ -1,0 +1,269 @@
+{
+  "tailwindcss-animate": {
+    "version": "1.0.7",
+    "classes": {
+      "cases": 456,
+      "matched": 456,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [
+      "-slide-in-from-left-2"
+    ],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwind-scrollbar": {
+    "version": "4.0.2",
+    "classes": {
+      "cases": 294,
+      "matched": 294,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 5,
+      "matched": 5,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwind-scrollbar (nocompatible)": {
+    "version": "4.0.2",
+    "classes": {
+      "cases": 456,
+      "matched": 456,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 5,
+      "matched": 5,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwind-scrollbar-hide": {
+    "version": "4.0.0",
+    "classes": {
+      "cases": 2,
+      "matched": 2,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwindcss-animated": {
+    "version": "2.1.0",
+    "classes": {
+      "cases": 66,
+      "matched": 66,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwindcss-motion": {
+    "version": "1.1.1",
+    "classes": {
+      "cases": 2228,
+      "matched": 2228,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [
+      "motion-preset-flomoji-👀",
+      "motion-preset-flomoji-👉",
+      "motion-preset-flomoji-👍",
+      "motion-preset-flomoji-🚀"
+    ],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwindcss-react-aria-components": {
+    "version": "2.2.0",
+    "classes": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 312,
+      "matched": 312,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwindcss-react-aria-components (prefix: rac)": {
+    "version": "2.2.0",
+    "classes": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 312,
+      "matched": 312,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "@tailwindcss/forms": {
+    "version": "0.5.11",
+    "classes": {
+      "cases": 7,
+      "matched": 7,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "@tailwindcss/typography": {
+    "version": "0.5.20",
+    "classes": {
+      "cases": 35,
+      "matched": 35,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 198,
+      "matched": 198,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "tailwindcss-animate (bản đóng gói)": {
+    "version": "1.0.7",
+    "classes": {
+      "cases": 447,
+      "matched": 445,
+      "percent": 99.55
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [
+      {
+        "class": "animate-in",
+        "diff": [
+          "#0 transform: tw=matrix(1, 0, 0, 1, 0, 0) | ours=none"
+        ]
+      },
+      {
+        "class": "animate-out",
+        "diff": [
+          "#0 transform: tw=matrix(1, 0, 0, 1, 0, 0) | ours=none"
+        ]
+      }
+    ],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "@tailwindcss/forms (bản đóng gói)": {
+    "version": "0.5.11",
+    "classes": {
+      "cases": 7,
+      "matched": 7,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 0,
+      "matched": 0,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  },
+  "@tailwindcss/typography (bản đóng gói)": {
+    "version": "0.5.20",
+    "classes": {
+      "cases": 35,
+      "matched": 35,
+      "percent": 100
+    },
+    "variants": {
+      "cases": 198,
+      "matched": 198,
+      "percent": 100
+    },
+    "unsupported": [],
+    "tailwindRejected": [],
+    "notes": [],
+    "failedClasses": [],
+    "failedVariants": [],
+    "failedVariantDetails": []
+  }
+}

@@ -29,6 +29,7 @@ const DOCS = [
     ['docs/guides/static-first.md', 'Static-first và plugin Vite'],
     ['docs/guides/tailwind.md', 'Dùng thay Tailwind v4: độ khớp đo được, hiệu năng, cấu hình nâng cao, plugin'],
     ['docs/guides/mcp.md', 'MCP server: cài cho từng agent, danh sách tool'],
+    ['docs/strategy/danh-gia-1.0.md', 'Đánh giá 1.0 so với Tailwind: độ khớp, hiệu năng, hệ sinh thái, chỗ còn thua'],
     ['docs/guides/editors.md', 'Language server (presence-style lsp): Neovim, Helix, Zed, Sublime, Emacs, VS Code'],
     ['DICTIONARY.md', 'Toàn bộ alias property và value'],
     ['spec/SPEC.md', 'Đặc tả cú pháp chuẩn'],

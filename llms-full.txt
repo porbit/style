@@ -1,6 +1,6 @@
 # PresenceStyle (@porbit/style)
 
-> Utility CSS engine mở: class viết tắt (x-css) được đổi thành CSS lúc chạy (không cần build) hoặc lúc build. Mọi property CSS viết được thành class; ưu tiên tường minh bằng layer số. Có phương ngữ Tailwind ở runtime, bộ component mẫu, plugin Vite và MCP server. Phiên bản 0.10.0.
+> Utility CSS engine mở: class viết tắt (x-css) được đổi thành CSS lúc chạy (không cần build) hoặc lúc build. Mọi property CSS viết được thành class; ưu tiên tường minh bằng layer số. Có phương ngữ Tailwind ở runtime, bộ component mẫu, plugin Vite và MCP server. Phiên bản 1.0.0.
 
 ## Viết class @porbit/style (x-css)
 
@@ -31,6 +31,7 @@ Có MCP server `presence-style`: gọi `fix_classes` cho mọi chuỗi class t�
 - [docs/guides/static-first.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/static-first.md): Static-first và plugin Vite
 - [docs/guides/tailwind.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/tailwind.md): Dùng thay Tailwind v4: độ khớp đo được, hiệu năng, cấu hình nâng cao, plugin
 - [docs/guides/mcp.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/mcp.md): MCP server: cài cho từng agent, danh sách tool
+- [docs/strategy/danh-gia-1.0.md](https://raw.githubusercontent.com/porbit/style/main/docs/strategy/danh-gia-1.0.md): Đánh giá 1.0 so với Tailwind: độ khớp, hiệu năng, hệ sinh thái, chỗ còn thua
 - [docs/guides/editors.md](https://raw.githubusercontent.com/porbit/style/main/docs/guides/editors.md): Language server (presence-style lsp): Neovim, Helix, Zed, Sublime, Emacs, VS Code
 - [DICTIONARY.md](https://raw.githubusercontent.com/porbit/style/main/DICTIONARY.md): Toàn bộ alias property và value
 - [spec/SPEC.md](https://raw.githubusercontent.com/porbit/style/main/spec/SPEC.md): Đặc tả cú pháp chuẩn
@@ -90,9 +91,9 @@ Any CSS property works by its full name: `view-transition-name[hero]`, `-webkit-
 
 ## Run Tailwind v4 Classes, Rendered Like Tailwind
 
-The v4 dialect is generated from Tailwind's own compiler. Measured in Chromium against tailwindcss 4.3.5: **23,286/23,286 classes**, **956/956** variant combinations (403/403 variants), the tw-animate-css/forms/typography plugins 528/528, and a real project — **shadcn/ui v4: 769/769 classes** in 4 states — render identically. `@theme`, functional `@utility`, `@custom-variant` and `@apply` with variants are supported.
+The v4 dialect is generated from Tailwind's own compiler. Measured in Chromium against tailwindcss 4.3.5: **23,286/23,286 classes**, **956/956** variant combinations (403/403 variants) and **4 real open-source projects** (shadcn/ui, HyperUI, Magic UI, coss ui: 3,305/3,305 classes and 1,650/1,650 real class strings across 11 state/width passes) render identically; 8 v3 configs and arbitrary JS plugins work without installing `tailwindcss`. Full evaluation (Vietnamese): [docs/strategy/danh-gia-1.0.md](./docs/strategy/danh-gia-1.0.md).
 
-No build step (replaces `@tailwindcss/browser`: 62.9 KB vs 75.3 KB gzip, ~20% faster to first styled frame):
+No build step (replaces `@tailwindcss/browser`: 44.1 KB vs 75.3 KB gzip; inserting elements at runtime up to 5.5× faster):
 
 ```html
 <script type="module" src="https://unpkg.com/@porbit/style/dist/tailwind-auto.mjs"></script>
@@ -110,7 +111,7 @@ With a build step (zero runtime JS, like Tailwind), change one line in `postcss.
 export default { plugins: { '@porbit/style/postcss': {} } }   // instead of '@tailwindcss/postcss'
 ```
 
-A real Next.js 15 app renders with 0 differences versus `@tailwindcss/postcss` and ships 3.67 KB instead of 3.97 KB of CSS (gzip). v3 projects using `@config "./tailwind.config.js"` keep working.
+A real Next.js 15 app renders with 0 differences versus `@tailwindcss/postcss` and ships 3.62 KB instead of 3.88 KB of CSS (gzip), with a 1.6 MB install instead of ~25 MB. v3 projects using `@config "./tailwind.config.js"` keep working.
 
 The tools around Tailwind are covered too:
 
@@ -119,7 +120,7 @@ The tools around Tailwind are covered too:
 | `tailwind-merge` | `@porbit/style/merge` (`cn`) | 100% correct; with project theme/`@utility` 38/38 vs 25/38 for tailwind-merge; lite build 1.5 KB + table |
 | `prettier-plugin-tailwindcss` | `@porbit/style/prettier` | 46/46 shadcn/ui files byte-identical |
 | Tailwind IntelliSense | `presence-style lsp` | class completion (project theme included), color swatches, hover CSS |
-| Safelisting dynamic classes | `tailwind-auto.mjs data-hybrid` | 300/300 runtime-only classes styled after 2.4 ms (Tailwind build: 9/300) |
+| Safelisting dynamic classes | `tailwind-auto.mjs data-hybrid` | 300/300 runtime-only classes styled after 2.3 ms (Tailwind build: 9/300) |
 
 Details and measurements: [docs/guides/tailwind.md](./docs/guides/tailwind.md) (Vietnamese).
 
@@ -680,7 +681,7 @@ export default { plugins: { '@porbit/style/postcss': {} } }   // thay '@tailwind
 
 File CSS giữ nguyên như dự án Tailwind v4 (`@import "tailwindcss"`, `@theme`, `@utility`, `@custom-variant`, `@apply`, `@plugin`, `@config`). Plugin tự quét mã nguồn (bỏ `node_modules` và thư mục trong `.gitignore`), hiểu `@source "../x"`, `@source not`, `@source inline("{hover:,}bg-red-{100..900..100}")`, `source(none)`, và báo dependency cho chế độ watch. Tuỳ chọn: `base`, `optimize` (mặc định bật), `mergeTable` (mục 6).
 
-Đo trên Next.js 15 (build production, cùng một ứng dụng build bằng hai plugin): **0 khác biệt hiển thị** so với `@tailwindcss/postcss` (chỉ lệch dưới 0,02 px do Tailwind làm tròn số), CSS **3,67 KB** so với 3,97 KB gzip. Chạy lại: `bash eval/next-parity.sh`.
+Đo trên Next.js 15 (build production, cùng một ứng dụng build bằng hai plugin): **0 khác biệt hiển thị** so với `@tailwindcss/postcss` (chỉ lệch dưới 0,02 px do Tailwind làm tròn số), CSS **3,62 KB** so với 3,88 KB gzip. Chạy lại: `bash eval/next-parity.sh`.
 
 ### Vite (module ảo)
 
@@ -723,12 +724,14 @@ So **toàn bộ computed style** của phần tử và phần tử con giữa CS
 | Theme tuỳ chỉnh, `@utility`, `@apply` | 28 / 28 |
 | Thứ tự rule (cascade) như Tailwind: class gốc, một biến thể, hai biến thể, shadcn/ui | 100% mỗi tập (`eval/tailwind-order.mjs`) |
 | Biến thể Tailwind được hỗ trợ | 403 / 403 (100%) |
-| Plugin: tw-animate-css · forms · typography | 486/486 · 7/7 · 35/35 |
-| Dự án thật: shadcn/ui v4 (45 component, `@custom-variant`, `@utility`, `@apply`, tw-animate-css) ở 4 trạng thái (mặc định, mở, đóng, `.dark`), cả qua plugin PostCSS | 769 / 769 mỗi trạng thái |
-| shadcn/ui: 260 chuỗi class thật của component (nhiều class trên một phần tử), kể cả khi đảo thứ tự quét file | 260 / 260 |
-| Dự án nâng cấp từ v3 (`@config "./tailwind.config.js"`): extend và thay hẳn theme | 61/61 · 18/18 mỗi trạng thái |
+| Plugin đóng gói: tw-animate-css · tailwindcss-animate · forms · typography | 486/486 · 445/447 · 7/7 · 35/35 (198/198 biến thể) |
+| Plugin JS bất kỳ, chạy không cần cài `tailwindcss` (tailwindcss-motion, tailwindcss-animate, tailwind-scrollbar, tailwindcss-animated, react-aria-components...) | 100% class và biến thể (`eval/tailwind-js-plugins.mjs`) |
+| Dự án thật (11 lượt: mặc định, `data-*`/`aria-*` mở/đóng, `.dark`, `:hover`/`:focus`/`:focus-visible`/`:active` ép, 375–1600 px; cả không build và PostCSS): shadcn/ui v4 · HyperUI · Magic UI · coss ui | 769/769 · 619/619 · 586/586 · 1331/1331 |
+| Chuỗi class thật của component (nhiều class trên một phần tử) | 260/260 · 766/766 · 245/245 · 379/379 |
+| Dự án nâng cấp từ v3 (`@config`): extend, thay hẳn theme, `prefix`, `important`, `corePlugins`, `.ts`, cờ CSS v4 | 8 cấu hình, 100% |
+| Ứng dụng Next.js 15 thật (`bash eval/next-parity.sh`) | 0 khác biệt |
 
-Chạy lại: `npm run check:tailwind`. Chi tiết: [eval/TAILWIND-PARITY.md](../../eval/TAILWIND-PARITY.md), [eval/REAL-PROJECT.md](../../eval/REAL-PROJECT.md). Đo dự án của bạn:
+Chạy lại: `npm run check:tailwind`. Chi tiết: [eval/TAILWIND-PARITY.md](../../eval/TAILWIND-PARITY.md), [eval/REAL-PROJECTS.md](../../eval/REAL-PROJECTS.md), bản đánh giá [danh-gia-1.0](../strategy/danh-gia-1.0.md). Đo dự án của bạn:
 
 ```bash
 npm run build
@@ -739,13 +742,15 @@ node eval/real-project.mjs --css=src/app.css --src=src --import=tw-animate-css=n
 
 | Tiêu chí | Tailwind 4.3.5 | @porbit/style |
 | :--- | ---: | ---: |
-| Runtime không build (gzip) | 75,3 KB (`@tailwindcss/browser`) | 62,9 KB (+8,3 KB khi dùng plugin) |
-| Runtime: tới khi có style, 973 phần tử | 188–220 ms | 152–180 ms |
-| Runtime: thêm 2.000 phần tử | 70–83 ms | 77–110 ms (chèn rule đúng thứ tự cascade) |
+| Runtime không build (gzip) | 75,3 KB (`@tailwindcss/browser`) | 44,1 KB (+ file plugin khi dùng) |
+| Runtime: tới khi có style, 973 phần tử (trung vị) | 257,8 ms | 231,8 ms |
+| Runtime: thêm 2.000 phần tử | 95,9 ms | 66,9 ms |
+| Runtime: thêm 200 phần tử × 10 lần | 1.148,9 ms | 207,0 ms |
+| Cài đặt cho đường PostCSS | ~25 MB (Oxide, Lightning CSS) | 1,6 MB |
 | Build tĩnh 248 file | 189–242 ms (CLI, Oxide) | 154–208 ms |
 | Build tĩnh 6.200 file (25 MB) | 315–358 ms | 327–399 ms |
 | CSS tĩnh cùng trang (gzip) | 4,81 KB | 4,70 KB |
-| Next.js 15, cùng ứng dụng (CSS gzip) | 3,97 KB (`@tailwindcss/postcss`) | 3,67 KB |
+| Next.js 15, cùng ứng dụng (CSS gzip) | 3,88 KB (`@tailwindcss/postcss`) | 3,62 KB |
 
 ## 5. Hỗ Trợ Cấu Hình Nâng Cao
 
@@ -755,9 +760,9 @@ node eval/real-project.mjs --css=src/app.css --src=src --import=tw-animate-css=n
 | `@utility name {}` và `@utility name-* { x: --value(...) }` (`number`, `integer`, `ratio`, `percentage`, `--ns-*`, `[type]`, `"literal"`, `--modifier()`, `--spacing()`, `--alpha()`, selector lồng `&`, `@media` lồng) | Có |
 | `@custom-variant x (&:...)`, `(@media ...)`, dạng khối có `@slot`, danh sách selector, dùng sau `group-`/`peer-`/`not-`/`has-` | Có |
 | `@apply` kèm biến thể, độ mờ, `!important`; `@layer base/components` | Có |
-| `@config "./tailwind.config.js"` (v3): theme/extend, màu lồng `DEFAULT`, `fontSize` dạng mảng, `screens`, `darkMode`, plugin quen thuộc | Có (Node). Chưa: `prefix`, `important`, `corePlugins` |
-| Plugin `tw-animate-css`/`tailwindcss-animate`, `@tailwindcss/forms`, `@tailwindcss/typography` | Đóng gói sẵn |
-| Plugin JS khác (`@plugin "x"` bất kỳ) | Chưa: thêm vào `scripts/gen-tailwind-plugins.mjs` để sinh sẵn |
+| `@config "./tailwind.config.js"`/`.ts` (v3): theme/extend, màu lồng `DEFAULT`, `fontSize` dạng mảng, `screens`, `darkMode`, `prefix`, `important`, `corePlugins`, plugin | Có (Node). Chưa: `presets`, `blocklist`, `theme.container` |
+| Plugin `tw-animate-css`, `tailwindcss-animate`, `@tailwindcss/forms`, `@tailwindcss/typography` | Đóng gói sẵn (dùng được cả trên CDN) |
+| Plugin JS khác (`@plugin "x"` bất kỳ, `plugins: [require('x')]`) | Có (Node: PostCSS, CLI, LSP), không cần cài `tailwindcss`. Chưa: `matchVariant` giá trị tuỳ ý, `@apply` trong plugin |
 | Class v3 cũ còn hợp lệ ở v4 (`flex-shrink-0`, `bg-gradient-to-r`, `rounded`...) | Có |
 | IntelliSense | `presence-style lsp`: gợi ý class Tailwind (cả theme của dự án), ô màu, hover CSS ([editors](./editors.md)) |
 | prettier-plugin-tailwindcss | `@porbit/style/prettier` (mục 6) |
@@ -806,8 +811,8 @@ Tailwind build chỉ có CSS cho class viết sẵn trong mã nguồn; class gh�
 | 300 phần tử chèn lúc chạy, 411 class không có trong mã nguồn (`eval/dynamic-classes.mjs`) | Hiển thị đúng | Có style sau | JS (gzip) |
 | :--- | ---: | ---: | ---: |
 | Tailwind build (CSS tĩnh) | 9 / 300 | — | 0 KB |
-| `@tailwindcss/browser` | 300 / 300 | 29,9 ms | 73,9 KB |
-| CSS tĩnh + `tailwind-auto data-hybrid` | 300 / 300 | 2,4 ms | 62,9 KB |
+| `@tailwindcss/browser` | 300 / 300 | 38,2 ms | 73,9 KB |
+| CSS tĩnh + `tailwind-auto data-hybrid` | 300 / 300 | 2,3 ms | 44,1 KB |
 
 Giới hạn: rule sinh lúc chạy nằm sau CSS tĩnh, nên khi một class động và một class tĩnh cùng phần tử đụng nhau (`p-2` tĩnh, `px-4` động) thứ tự có thể khác Tailwind.
 
@@ -975,6 +980,113 @@ Ngoài ra server cung cấp resource (đặc tả cú pháp, hướng dẫn thi�
 1. `extract_css` chỉ đọc file nằm trong thư mục gốc (thư mục chạy server). Đổi bằng `--root <thư-mục>` hoặc biến môi trường `PRESENCE_STYLE_MCP_ROOT`.
 2. Server không ghi file, không gọi mạng; tuỳ chọn `dictionaryImport` dạng URL và `cache` bị bỏ qua khi truyền qua MCP.
 3. Kiểm tra ở Node không có `CSS.supports`, nên giá trị sai ngữ nghĩa CSS (ví dụ `w100p`) chỉ bị phát hiện trên trình duyệt.
+
+
+---
+
+<!-- docs/strategy/danh-gia-1.0.md -->
+
+# @porbit/style 1.0 So Với Tailwind CSS 4.3.5
+
+Bản đánh giá này chỉ ghi số đo được. Mỗi con số có script trong `eval/` và file kết quả JSON để chạy lại; chuẩn so sánh luôn là **chính Tailwind 4.3.5** (compiler thật, `@tailwindcss/postcss`, `@tailwindcss/browser`), đo computed style trên Chromium 153. Ngày đo: 16/11/2026.
+
+## 1. Tóm Tắt
+
+| Trục | Kết quả | So với Tailwind |
+| :--- | :--- | :--- |
+| Hiển thị mọi class Tailwind | 23.286/23.286 class, 956/956 tổ hợp biến thể, 403/403 biến thể | **Ngang** |
+| Dự án mã nguồn mở thật (4 dự án, 11 lượt trạng thái/độ rộng) | 3.305/3.305 class, 1.650/1.650 chuỗi class thật | **Ngang** |
+| Ứng dụng Next.js 15 thật | 0 khác biệt hiển thị | **Ngang** |
+| Nâng cấp từ v3 (`@config`) | 8 cấu hình, 100% | **Ngang** |
+| Plugin JS (không cần cài `tailwindcss`) | 9 gói, 100% class và biến thể | **Ngang** |
+| CSS build ra (Next.js) | 3,62 KB so với 3,88 KB gzip | **Vượt** (−6,6%) |
+| Dung lượng cài đặt (PostCSS) | 1,6 MB so với ~25 MB | **Vượt** (−94%) |
+| Bản không build (CDN) | 44,1 KB so với 75,3 KB gzip | **Vượt** (−41%) |
+| Runtime: tải / chèn 2.000 / 10 × 200 phần tử | 232 / 67 / 207 ms so với 258 / 96 / 1.149 ms | **Vượt** (tới 5,5 lần) |
+| Gộp class (thay tailwind-merge) | 100% mặc định; **38/38 so với 25/38** với cấu hình dự án | **Vượt** |
+| Sắp class (thay prettier-plugin-tailwindcss) | 46/46 file giống hệt | **Ngang** |
+| Class sinh lúc chạy (CMS, ghép chuỗi, UI do AI sinh) | 300/300 sau 2,3 ms; Tailwind build 9/300 | **Vượt** |
+| Cộng đồng, tài liệu, thời gian có mặt | Mới | **Thua** |
+
+## 2. Độ Khớp Hiển Thị
+
+| Phần | Khớp | Script |
+| :--- | ---: | :--- |
+| Mọi class trong `getClassList()` | 23.286 / 23.286 | `eval/tailwind-parity.mjs` |
+| Tổ hợp biến thể (26 kịch bản: responsive, dark, hover/focus ép, group/peer lồng, has/not/in, container, ba điều kiện...) | 956 / 956 | như trên |
+| Đường runtime trong trình duyệt | 3.327 / 3.327 | như trên |
+| Theme, `@utility`, `@apply` | 28 / 28 | như trên |
+| Biến thể Tailwind hỗ trợ | 403 / 403 | `eval/tailwind-variants.mjs` |
+| Thứ tự rule (cascade) như `getClassOrder` | 100% (class gốc, một và hai biến thể, shadcn/ui) | `eval/tailwind-order.mjs` |
+
+**Dự án thật** (`eval/real-project.mjs --all`): mỗi class hợp lệ và mỗi chuỗi class thật của component được đo ở 11 lượt — mặc định, `data-state`/`aria-*` mở và đóng (trên phần tử, cha `.group`, anh `.peer`), `.dark`, `:hover`, `:focus`, `:focus-visible`, `:active` ép qua DevTools, độ rộng 375/768/1280/1600 px — ở cả chế độ không build lẫn plugin PostCSS; animation dừng ở khung đầu để kết quả lặp lại được.
+
+| Dự án (giấy phép MIT) | Class | Chuỗi class thật |
+| :--- | ---: | ---: |
+| shadcn/ui v4 (45 component, tw-animate-css, `@custom-variant`) | 769 / 769 | 260 / 260 |
+| HyperUI (HTML, `@plugin` forms/typography) | 619 / 619 | 766 / 766 |
+| Magic UI (`@utility container`, theme riêng) | 586 / 586 | 245 / 245 |
+| coss ui (Base UI, `--alpha()`, biến theme trong CSS) | 1.331 / 1.331 | 379 / 379 |
+
+**Next.js 15** (`bash eval/next-parity.sh`): cùng một ứng dụng build production bằng `@tailwindcss/postcss` và bằng `@porbit/style/postcss`, so computed style mọi phần tử ở hai độ rộng, có hover: **0 khác biệt** (chỉ lệch dưới 0,02 px do Tailwind làm tròn số qua Lightning CSS).
+
+**Cấu hình v3** (`@config "./tailwind.config.js"`): extend, thay hẳn theme, `prefix`, `important` (cả dạng selector), `corePlugins`, `tailwind.config.ts`, cờ CSS v4 `prefix(tw) important` — 8 fixture, 100% ở mọi trạng thái.
+
+**Plugin JS** (`eval/tailwind-js-plugins.mjs`, plugin chạy qua API giả lập, không cài `tailwindcss`):
+
+| Gói | Class | Biến thể |
+| :--- | ---: | ---: |
+| tailwindcss-motion | 2.228 / 2.228 | — |
+| tailwindcss-animate | 456 / 456 | — |
+| tailwind-scrollbar (cả `nocompatible`) | 294 / 294 · 456 / 456 | 5 / 5 |
+| tailwindcss-animated, tailwind-scrollbar-hide | 100% | — |
+| tailwindcss-react-aria-components (cả prefix) | — | 312 / 312 |
+| @tailwindcss/forms, @tailwindcss/typography | 100% | 198 / 198 |
+
+## 3. Hiệu Năng Và Dung Lượng
+
+| Tiêu chí | Tailwind 4.3.5 | @porbit/style 1.0 | Script |
+| :--- | ---: | ---: | :--- |
+| Bản không build (gzip) | 75,3 KB (`@tailwindcss/browser`) | **44,1 KB** | `check:all` bước `size` |
+| Tải ban đầu tới khi có style, 973 phần tử | 257,8 ms | **231,8 ms** | `eval/runtime-bench.mjs` |
+| Chèn 2.000 phần tử | 95,9 ms | **66,9 ms** | như trên |
+| Chèn 200 phần tử × 10 lần | 1.148,9 ms | **207,0 ms** | như trên |
+| Cài đặt cho đường PostCSS | ~25 MB (Oxide, Lightning CSS, WASM dự phòng) | **1,6 MB** | đo `du` trên ứng dụng Next.js |
+| CSS ứng dụng Next.js (gzip) | 3,88 KB | **3,62 KB** | `eval/next-parity.sh` |
+| tailwind-merge so với gộp class | 8,3 KB gzip, 1,05 MB cài | 1,5 KB + bảng 3,2 KB | `eval/merge-accuracy.mjs` |
+
+Số runtime là trung vị của 9 lượt trên Chromium headless; máy chia sẻ nên số tuyệt đối dao động, chênh lệch tương đối ổn định giữa các lượt.
+
+## 4. Hệ Sinh Thái: Thay Từng Công Cụ
+
+| Thay | Bằng | Kết quả đo |
+| :--- | :--- | :--- |
+| `@tailwindcss/postcss` | `@porbit/style/postcss` (đổi một dòng) | Next.js 0 khác biệt; mọi dự án ở mục 2 đo qua cả đường PostCSS |
+| `@tailwindcss/browser` | `tailwind-auto.mjs` | 3.327/3.327 runtime; dùng được cho production |
+| `tailwind-merge` | `@porbit/style/merge` | 1.326/1.326 cặp mặc định (bằng tailwind-merge); 38/38 với theme/`@utility`/`@custom-variant` của dự án (tailwind-merge 25/38, bằng không gộp) |
+| `prettier-plugin-tailwindcss` | `@porbit/style/prettier` | 46/46 file giống hệt, không cần cài `tailwindcss` |
+| Tailwind IntelliSense | `presence-style lsp` | Gợi ý class (cả theme dự án), ô màu, hover CSS; mọi editor LSP |
+| Safelist cho class động | `tailwind-auto.mjs data-hybrid` | 300/300 class sinh lúc chạy có style sau 2,3 ms (`@tailwindcss/browser` 38,2 ms; Tailwind build 9/300) |
+
+## 5. Chỗ Còn Thua Hoặc Chưa Có
+
+- **Hiếm gặp:** bóng nhiều lớp có từ hai phần không phải màu, `border-[10%]`, `shadow-(--x)/50`, modifier trên utility tĩnh.
+- **Cấu hình v3 chưa có:** `presets`, `blocklist`, `theme.container`; khi vừa có `important` của CSS vừa có `important: '#app'` của `@config` thì mất `!important`.
+- **Plugin JS:** `matchVariant` với giá trị tuỳ ý, `@apply` trong CSS-in-JS của plugin, at-rule ngoài `@media` trong utility của plugin. daisyUI chưa đo.
+- **`tailwind-auto.mjs`** không chạy class viết tắt x-css (dùng `index-auto.mjs` cho x-css).
+- **Class động trong chế độ lai:** rule sinh lúc chạy nằm sau CSS tĩnh nên thứ tự với class tĩnh cùng phần tử có thể khác Tailwind.
+- **Chưa đo lại ở 1.0:** tốc độ build tĩnh hàng nghìn file (0.9: ngang Tailwind CLI).
+- **Cộng đồng:** Tailwind có hệ sinh thái, tài liệu và câu trả lời sẵn có rất lớn.
+
+## 6. Chạy Lại Toàn Bộ
+
+```bash
+npm ci
+npm run check:all                       # 11 bước: typecheck, unit, build, size, package, generated, rust, browser, tailwind, projects, eval
+node eval/real-project.mjs --all        # bảng eval/REAL-PROJECTS.md
+node eval/runtime-bench.mjs             # eval/runtime-bench.json
+bash eval/next-parity.sh                # cần mạng: cài next/react vào thư mục tạm
+```
 
 
 ---
