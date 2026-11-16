@@ -18,6 +18,7 @@ import { explainClass, findClassAttributes, findClassTokens, isXcssLike, sortCla
 import { findClassConflicts } from './class-tools'
 import { buildMergeTable } from './merge'
 import { MCP_CLIENTS, renderMcpConfig } from './mcp-config'
+import { createShortClassNames } from './shorten'
 
 const HELP = `presence-style — trích xuất CSS tĩnh cho @porbit/style
 
@@ -37,6 +38,10 @@ Cách dùng:
   presence-style merge-table <đường-dẫn...> [--out <file>]
                                             Bảng gộp class của dự án cho cn() nhẹ
                                             (@porbit/style/merge/lite)
+  presence-style shorten <đường-dẫn...> --css <file.css> --out-css <file> (--out-dir <thư-mục> | --write)
+                     [--map <file>] [--exclude a,b,/re/] [--prefix x-] [--functions cn,clsx]
+                                            Rút gọn tên class (bước build): CSS đã sinh (hoặc file
+                                            Tailwind có @import "tailwindcss") và mã nguồn đã quét
   presence-style lsp [--stdio]              Chạy language server (LSP) qua stdio cho editor
                                             (VS Code, Neovim, Zed, Helix...)
                                             (claude, claude-desktop, codex, cursor, vscode,
@@ -117,6 +122,77 @@ const parseArgs = (argv: string[]): CliOptions => {
     }
 
     return options
+}
+
+/**
+ * `shorten`: rút gọn tên class trong CSS và mã nguồn (bước build trước bundler). Mã đã đổi ghi vào `--out-dir`
+ * (giữ đường dẫn tương đối với thư mục hiện tại) hoặc ghi đè với `--write`.
+ */
+const runShortenCommand = async (argv: string[]): Promise<number> => {
+    const inputs: string[] = []
+    const values: Record<string, string> = {}
+    let write = false
+    let silent = false
+    let extensions = DEFAULT_EXTENSIONS
+    for (let i = 0; i < argv.length; i++) {
+        const arg = argv[i]
+        if (arg === '--write') write = true
+        else if (arg === '--silent') silent = true
+        else if (['--css', '--out-css', '--out-dir', '--map', '--exclude', '--prefix', '--functions', '--ext'].includes(arg)) {
+            const value = argv[++i]
+            if (!value) {
+                process.stderr.write(`Thiếu giá trị cho tham số ${arg}\n`)
+                return 1
+            }
+            if (arg === '--ext') extensions = value.split(',').map((x) => x.trim().replace(/^\./, '')).filter(Boolean)
+            else values[arg.slice(2)] = value
+        } else if (arg.startsWith('-')) {
+            process.stderr.write(`Tham số không hợp lệ: ${arg}\n\n${HELP}`)
+            return 1
+        } else inputs.push(arg)
+    }
+    if (!inputs.length || !values.css || !values['out-css'] || (!values['out-dir'] && !write)) {
+        process.stderr.write(`Cần <đường-dẫn...>, --css, --out-css và --out-dir hoặc --write.\n\n${HELP}`)
+        return 1
+    }
+    const cssPath = resolve(values.css)
+    let css = await readFile(cssPath, 'utf8')
+    // File Tailwind chưa biên dịch: sinh CSS như plugin PostCSS (quét chính các đường dẫn nguồn).
+    if (/@import\s+["']tailwindcss|@tailwind\s+(?:base|components|utilities)\b|@config\s+["']/.test(css)) {
+        const { compileTailwindCss } = await import('./postcss')
+        css = (await compileTailwindCss(css, { from: cssPath })).css
+    }
+    const files: string[] = []
+    for (const input of inputs) files.push(...(await collectFiles(input, extensions)))
+    const sources = Object.fromEntries(files.map((file) => [file, readTextSync(file)]))
+    const exclude = (values.exclude || '').split(',').map((x) => x.trim()).filter(Boolean).map((x) => {
+        const re = /^\/(.+)\/([a-z]*)$/.exec(x)
+        return re ? new RegExp(re[1], re[2]) : x
+    })
+    const functions = values.functions ? values.functions.split(',').map((x) => x.trim()).filter(Boolean) : undefined
+    const short = createShortClassNames({ css, sources, exclude, prefix: values.prefix, functions })
+    const outCss = short.rewriteCss(css)
+    await mkdir(dirname(resolve(values['out-css'])), { recursive: true })
+    await writeFile(resolve(values['out-css']), outCss, 'utf8')
+    let changed = 0
+    for (const [file, code] of Object.entries(sources)) {
+        const next = short.rewriteSource(code)
+        if (next !== code) changed++
+        const target = write ? file : resolve(values['out-dir'], relative(process.cwd(), file))
+        if (write && next === code) continue
+        await mkdir(dirname(target), { recursive: true })
+        await writeFile(target, next, 'utf8')
+    }
+    if (values.map) {
+        await mkdir(dirname(resolve(values.map)), { recursive: true })
+        await writeFile(resolve(values.map), JSON.stringify({ map: Object.fromEntries(short.map), skipped: Object.fromEntries(short.skipped) }, null, 2) + '\n', 'utf8')
+    }
+    if (!silent) {
+        process.stderr.write(
+            `presence-style shorten: ${files.length} file (${changed} đổi), ${short.map.size}/${short.map.size + short.skipped.size} class đổi tên, CSS ${css.length} -> ${outCss.length} byte.\n`,
+        )
+    }
+    return 0
 }
 
 const lineColumn = (source: string, offset: number): string => {
@@ -272,6 +348,8 @@ export const runCli = async (argv: string[]): Promise<number> => {
         show('giữ nguyên', result.skipped)
         return 0
     }
+
+    if (command === 'shorten') return runShortenCommand(argv.slice(1))
 
     if (command === 'sort' || command === 'check') {
         return runSourceCommand(command, argv.slice(1))

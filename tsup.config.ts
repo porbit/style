@@ -43,8 +43,9 @@ const NODE = {
     postcss: 'src/postcss.ts',
     prettier: 'src/prettier.ts',
     vite: 'src/vite.ts',
+    shorten: 'src/shorten.ts',
 }
-const ESM_WRAPPED = ['mcp', 'lsp', 'postcss', 'prettier', 'vite']
+const ESM_WRAPPED = ['mcp', 'lsp', 'postcss', 'prettier', 'vite', 'shorten']
 
 const common: Options = {
     sourcemap: true,

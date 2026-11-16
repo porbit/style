@@ -88,6 +88,12 @@
       "require": "./dist/vite.js",
       "default": "./dist/vite.mjs"
     },
+    "./shorten": {
+      "types": "./dist/shorten.d.ts",
+      "import": "./dist/shorten.mjs",
+      "require": "./dist/shorten.js",
+      "default": "./dist/shorten.mjs"
+    },
     "./analyze": {
       "types": "./dist/analyze.d.ts",
       "import": "./dist/analyze.mjs",
@@ -187,7 +193,9 @@
     "gen:tailwind": "node scripts/gen-tailwind-map.mjs",
     "gen:tailwind-plugins": "node scripts/gen-tailwind-plugins.mjs",
     "check:tailwind": "npm run build && node eval/tailwind-parity.mjs && node eval/tailwind-variants.mjs && node eval/tailwind-plugins.mjs && node eval/real-project.mjs",
-    "eval:real": "node eval/real-project.mjs"
+    "eval:real": "node eval/real-project.mjs",
+    "check:short-classnames": "npm run build && node eval/short-classnames.mjs",
+    "short-classnames": "node eval/short-classnames.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
