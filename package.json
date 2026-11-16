@@ -198,6 +198,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "apca-w3": "^0.1.9",
     "clsx": "^2.1.1",
+    "daisyui": "5.8.1",
     "postcss": "^8.5.33",
     "prettier": "^3.10.1",
     "prettier-plugin-tailwindcss": "^0.8.1",

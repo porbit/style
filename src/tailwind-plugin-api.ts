@@ -812,8 +812,22 @@ export const runTailwindPlugin = (plugin: unknown, options: RunTailwindPluginOpt
             return true
         })
         nodes = dropNested(nodes)
+        // `@scope (&) { :where(:scope > x) {...} }` (join của daisyUI): rule con với `:scope` là chính phần tử — cùng
+        // phần tử khớp, cùng độ ưu tiên (chỉ bỏ "độ gần scope", vốn chỉ quyết khi hai rule cùng độ ưu tiên).
+        const rescope = (list: CssNode[]): CssNode[] => list.map((node) => {
+            if (node.kind === 'rule') return { ...node, selector: node.selector.replace(/:scope\b/g, '&') }
+            return node.kind === 'at' && node.nodes ? { ...node, nodes: rescope(node.nodes) } : node
+        })
+        const unscope = (list: CssNode[]): CssNode[] => list.flatMap((node) => {
+            if (node.kind === 'at' && /^@scope\s*\(\s*&\s*\)$/.test(node.name) && node.nodes) return rescope(node.nodes)
+            if (node.kind !== 'decl' && node.nodes) node.nodes = unscope(node.nodes)
+            return [node]
+        })
+        nodes = unscope(nodes)
+        // At-rule lồng trong utility mà dialect hiểu: `@media`, `@layer` (daisyUI xếp component vào layer con
+        // `daisyui.l1.l2...` của layer utility), `@supports`, `@container`, `@starting-style`.
         walkNodes(nodes, (node) => {
-            if (node.kind === 'at' && node.name !== '@slot' && !/^@media\b/.test(node.name)) unsupported.add(`${name}: ${node.name.split(/[\s(]/)[0]} trong utility`)
+            if (node.kind === 'at' && node.name !== '@slot' && !/^@(media|layer|supports|container|starting-style)\b/.test(node.name)) unsupported.add(`${name}: ${node.name.split(/[\s(]/)[0]} trong utility`)
         })
         const selfToken = new RegExp(`\\.${escapeRegExp(escapeClassName(self))}(?![\\w\\\\-])`, 'g')
         const rewrite = (list: CssNode[]): CssNode[] => list.map((node) => {

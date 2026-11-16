@@ -210,4 +210,4 @@ export default presenceStylePostcss
 
 export { createConfigLoader, createStylesheetReader } from './files'
 export { tailwindConfigToCss } from './tailwind-config'
-export { applyTailwindPluginOutput, createTailwindPluginLoader, requireWithTailwindShims, runTailwindPlugin } from './tailwind-plugin-api'
+export { applyTailwindPluginOutput, createTailwindPluginLoader, parsePluginOptions, requireWithTailwindShims, runTailwindPlugin } from './tailwind-plugin-api'

@@ -7,6 +7,7 @@
  *   node eval/real-project.mjs --css=<entry.css> --src=<thư mục nguồn> [--import=name=path ...]
  *   node eval/real-project.mjs --all                 # chạy mọi dự án rồi tổng hợp eval/REAL-PROJECTS.md
  *   node eval/real-project.mjs --summary             # chỉ tổng hợp lại eval/REAL-PROJECTS.md từ các file JSON
+ *   node eval/real-project.mjs ... --browser=firefox # đo trên firefox/webkit (mặc định chromium; cần `npx playwright install`)
  *
  * - Ứng viên: class quét từ mã nguồn, chỉ giữ class mà Tailwind (với CSS của dự án) sinh được CSS.
  * - Phía Tailwind: compile(entry.css) — gồm plugin, @theme, @utility, @custom-variant của dự án.
@@ -19,7 +20,7 @@
  * Kết quả in ra và ghi eval/REAL-PROJECT.md (dự án khác: eval/REAL-PROJECT-<nhãn>.md + .json).
  */
 import { __unstable__loadDesignSystem, compile } from 'tailwindcss'
-import { chromium } from 'playwright'
+import playwright from 'playwright'
 import fs from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
@@ -33,6 +34,23 @@ const arg = (name) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slic
 const args = (name) => process.argv.filter((a) => a.startsWith(`--${name}=`)).map((a) => a.slice(name.length + 3))
 const flag = (name) => process.argv.includes(`--${name}`)
 const fixturesDir = path.join(root, 'eval/fixtures')
+// Trình duyệt đo: chromium (mặc định), firefox, webkit. Lượt ép `:hover`/`:focus`... dùng CDP nên chỉ có trên Chromium;
+// kết quả trình duyệt khác ghi file riêng (`real-project-<tên>.firefox.json`, `REAL-PROJECTS.firefox.md`).
+const browserName = arg('browser') || 'chromium'
+const BROWSER_LABELS = { chromium: 'Chromium', firefox: 'Firefox', webkit: 'WebKit' }
+if (!BROWSER_LABELS[browserName]) {
+    console.error(`--browser=${browserName} không hợp lệ: chọn chromium, firefox hoặc webkit.`)
+    process.exit(2)
+}
+const browserLabel = BROWSER_LABELS[browserName]
+const browserSuffix = browserName === 'chromium' ? '' : '.' + browserName
+if (browserName !== 'chromium' && !flag('summary')) {
+    const executable = playwright[browserName].executablePath()
+    if (!executable || !fs.existsSync(executable)) {
+        console.error(`Chưa có ${browserLabel} cho Playwright (${executable || 'không rõ đường dẫn'}).\nCài bằng \`npx playwright install ${browserName}\` rồi chạy lại.`)
+        process.exit(2)
+    }
+}
 
 // Các dự án của bảng tổng hợp: fixture mặc định (shadcn/ui), mọi eval/fixtures/<tên>/fixture.json, hai fixture v3.
 const PROJECTS = [
@@ -50,14 +68,14 @@ const PROJECTS = [
 ]
 // Bảng tổng hợp eval/REAL-PROJECTS.md từ các file JSON đã có.
 const writeSummary = () => {
-    const rows = PROJECTS.filter((p) => fs.existsSync(path.join(root, p.file))).map((p) => ({ ...p, data: JSON.parse(fs.readFileSync(path.join(root, p.file), 'utf8')) }))
+    const rows = PROJECTS.map((p) => ({ ...p, file: p.file.replace(/\.json$/, browserSuffix + '.json') })).filter((p) => fs.existsSync(path.join(root, p.file))).map((p) => ({ ...p, data: JSON.parse(fs.readFileSync(path.join(root, p.file), 'utf8')) }))
     const runNames = [...new Set(rows.flatMap((r) => Object.values(r.data.summary).flatMap((m) => Object.keys(m.matched))))]
     const cell = (n, total) => (n === undefined ? '—' : n === total ? `${n}` : `**${n}**`)
     const short = (mode) => (mode.startsWith('plugin') ? 'PostCSS' : 'không build')
     const out = [
         '# Đo Trên Nhiều Dự Án Thật',
         '',
-        `Sinh bởi \`npm run build && node eval/real-project.mjs --all\` (tailwindcss@${twVersion}, Chromium). Mỗi class hợp lệ của dự án (quét từ mã nguồn, chỉ giữ class mà Tailwind sinh được CSS với chính file CSS của dự án: \`@theme\`, \`@utility\`, \`@custom-variant\`, \`@plugin\`) được render hai lần — với CSS do Tailwind thật sinh và với CSS do @porbit/style sinh — rồi so TOÀN BỘ computed style của phần tử và hai phần tử con.`,
+        `Sinh bởi \`npm run build && node eval/real-project.mjs --all${browserSuffix ? ' --browser=' + browserName : ''}\` (tailwindcss@${twVersion}, ${browserLabel}). Mỗi class hợp lệ của dự án (quét từ mã nguồn, chỉ giữ class mà Tailwind sinh được CSS với chính file CSS của dự án: \`@theme\`, \`@utility\`, \`@custom-variant\`, \`@plugin\`) được render hai lần — với CSS do Tailwind thật sinh và với CSS do @porbit/style sinh — rồi so TOÀN BỘ computed style của phần tử và hai phần tử con.`,
         '',
         'Lượt đo: **mặc định** (1280 px) · **mở**/**đóng** (`data-state`, `data-open`, `aria-*`... đặt trên phần tử, cha `.group`, anh `.peer`) · **.dark** · **:hover**, **:focus** (kèm `:focus-within`), **:focus-visible** (kèm `:focus`), **:active** (kèm `:hover`) ép bằng CDP `CSS.forcePseudoState` trên phần tử, cha `.group`, anh `.peer` · **375/768/1600px** (độ rộng khung nhìn). Hai chế độ: "không build" (`parseTailwindStylesheet` + `tailwindV4Dialect`) và plugin PostCSS. Ô **in đậm** là lượt có lệch.',
         '',
@@ -76,7 +94,7 @@ const writeSummary = () => {
     }
     out.push('', '## Nguồn', '', ...rows.map((r) => `- **${r.data.label}** — ${r.source}. Chi tiết lệch: \`${r.file.replace('real-project', 'REAL-PROJECT').replace('.json', '.md')}\`.`), '', 'Nguồn, giấy phép và phần đã chỉnh của từng fixture: README trong `eval/fixtures/<tên>/`.', '')
     // Phần phân tích viết tay (từ "## Phân Tích Lệch" trở đi) được giữ nguyên khi dựng lại bảng.
-    const file = path.join(root, 'eval/REAL-PROJECTS.md')
+    const file = path.join(root, `eval/REAL-PROJECTS${browserSuffix}.md`)
     const old = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : ''
     const keep = old.indexOf('## Phân Tích Lệch')
     fs.writeFileSync(file, out.join('\n') + (keep >= 0 ? '\n' + old.slice(keep) : ''))
@@ -86,7 +104,7 @@ if (flag('summary') || flag('all')) {
     if (flag('all')) {
         for (const p of PROJECTS) {
             console.log(`\n== ${p.name}`)
-            const r = spawnSync(process.execPath, [new URL(import.meta.url).pathname, ...p.argv], { cwd: root, stdio: 'inherit' })
+            const r = spawnSync(process.execPath, [new URL(import.meta.url).pathname, ...p.argv, ...(browserSuffix ? [`--browser=${browserName}`] : [])], { cwd: root, stdio: 'inherit' })
             if (r.status !== 0) process.exitCode = 1
         }
     }
@@ -100,6 +118,9 @@ const fixtureName = arg('fixture')
 const fixture = path.join(fixturesDir, fixtureName || 'shadcn-v4')
 const meta = fixtureName ? JSON.parse(fs.readFileSync(path.join(fixture, 'fixture.json'), 'utf8')) : null
 const useFixture = !arg('css') && !fixtureName
+// Lượt tối: `class="dark"` trên <html>, hoặc thuộc tính riêng của fixture (`"dark": "data-theme=\"dark\""` cho daisyUI).
+const darkAttr = meta?.dark || 'class="dark"'
+const darkLabel = meta?.dark ? `[${meta.dark.replace(/"/g, '')}]` : '.dark'
 const entryPath = path.resolve(arg('css') || path.join(fixture, meta?.css || 'app.css'))
 const srcDir = path.resolve(arg('src') || path.join(fixture, meta?.src || 'ui'))
 const label = arg('label') || meta?.label || (useFixture ? 'shadcn/ui v4' : path.basename(srcDir))
@@ -112,16 +133,28 @@ for (const [id, file] of Object.entries(meta?.imports || {})) imports[id] = path
 
 const entry = fs.readFileSync(entryPath, 'utf8')
 // Plugin JS và `@config` (cấu hình kiểu v3) của dự án.
-const loadModule = async (id, base) => ({ base, path: id, module: require(id.startsWith('.') ? path.resolve(base, id) : require.resolve(id, { paths: [base, root] })) })
+// Plugin ESM (daisyUI 5): `require(esm)` trả namespace, Tailwind cần `default` như @tailwindcss/node.
+const loadModule = async (id, base) => {
+    const mod = require(id.startsWith('.') ? path.resolve(base, id) : require.resolve(id, { paths: [base, root] }))
+    return { base, path: id, module: mod?.[Symbol.toStringTag] === 'Module' && 'default' in mod ? mod.default : mod }
+}
 const loadStylesheet = async (id, base) => {
     if (imports[id]) return { base, path: imports[id], content: fs.readFileSync(imports[id], 'utf8') }
     const file = id === 'tailwindcss' ? 'index.css' : id.replace(/^tailwindcss\//, '')
     return { base, path: file, content: fs.readFileSync(path.join(twDir, file), 'utf8') }
 }
 
-// Phía "không build": import của dự án đọc từ đĩa, còn lại dùng plugin đóng gói sẵn.
+// Phía "không build": import của dự án đọc từ đĩa, rồi plugin đóng gói sẵn; plugin JS chưa đóng gói (daisyUI)
+// chạy qua API giả lập (`createTailwindPluginLoader`, như ở Node), kể cả dạng có tuỳ chọn `@plugin "x" { ... }`.
 const plugins = await import(path.join(root, 'dist/tailwind-plugins.mjs')).catch(() => null)
-const resolve = (id) => (imports[id] ? fs.readFileSync(imports[id], 'utf8') : plugins?.resolveTailwindPlugin(id) ?? null)
+const { createTailwindPluginLoader, parsePluginOptions } = await import(path.join(root, 'dist/postcss.mjs'))
+const pluginOptions = new Map()
+const runtimeEntry = entry.replace(/@plugin\s+(["'])([^"']+)\1\s*\{([^{}]*)\}/g, (_m, _q, id, body) => {
+    pluginOptions.set(id, parsePluginOptions(body))
+    return `@plugin "${id}";`
+})
+const jsPlugins = createTailwindPluginLoader(path.dirname(entryPath))
+const resolve = (id) => (imports[id] ? fs.readFileSync(imports[id], 'utf8') : (!pluginOptions.has(id) && plugins?.resolveTailwindPlugin(id)) || jsPlugins.resolve(id, pluginOptions.get(id)))
 
 const { extractCandidates, extractFromClasses } = await import(path.join(root, 'dist/index.mjs'))
 const tw = await import(path.join(root, 'dist/tailwind.mjs'))
@@ -181,7 +214,7 @@ const variantsOf = (c) => {
 
 const modes = []
 const { createConfigLoader } = await import(path.join(root, 'dist/postcss.mjs'))
-const sheet = tw.parseTailwindStylesheet(entry, { resolve, loadConfig: createConfigLoader(path.dirname(entryPath)) })
+const sheet = jsPlugins.apply(tw.parseTailwindStylesheet(runtimeEntry, { resolve, loadConfig: createConfigLoader(path.dirname(entryPath)) }))
 if (sheet.unresolved.length) console.warn('chưa giải được:', sheet.unresolved)
 modes.push({ name: 'không build (parseTailwindStylesheet)', dialect: tw.tailwindV4Dialect({ preflight: true, darkMode: arg('dark') === 'media' ? 'media' : 'class', theme: sheet.theme, css: sheet.css, utilities: sheet.utilities, variants: sheet.variants, prefix: sheet.prefix, important: sheet.important }) })
 // Plugin PostCSS (thay @tailwindcss/postcss): chạy postcss thật trên file CSS của dự án, tự quét mã nguồn.
@@ -193,9 +226,17 @@ modes.push({ name: 'không build (parseTailwindStylesheet)', dialect: tw.tailwin
 }
 
 const launch = async () => {
+    if (browserName !== 'chromium') {
+        try {
+            return await playwright[browserName].launch()
+        } catch (error) {
+            console.error(`Không mở được ${browserLabel}: ${String(error.message).split('\n')[0]}\nCài trình duyệt bằng \`npx playwright install ${browserName}\` rồi chạy lại.`)
+            process.exit(2)
+        }
+    }
     for (const executablePath of [process.env.CHROMIUM_PATH, undefined, '/opt/pw-browsers/chromium']) {
         try {
-            return await chromium.launch(executablePath ? { executablePath } : {})
+            return await playwright.chromium.launch(executablePath ? { executablePath } : {})
         } catch (error) {
             if (executablePath === '/opt/pw-browsers/chromium') throw error
         }
@@ -205,7 +246,15 @@ const browser = await launch()
 const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
 const signatures = async (css, html, run = {}) => {
     const page = await browser.newPage({ viewport: { width: run.width || 1280, height: 800 } })
-    await page.setContent(`<!doctype html><html${run.dark ? ' class="dark"' : ''}><head><style>${css}</style></head><body>${html}</body></html>`)
+    // Chromium: đóng băng dòng thời gian animation trước khi nạp trang. Animation ngắn (`toast`/`rating` 0,25 s của
+    // daisyUI) nếu không sẽ có lúc đã chạy xong trước khi đo (máy bận, lượt ép trạng thái chậm) và biến khỏi
+    // `getAnimations()` — hai phía lệch ngẫu nhiên. Trình duyệt khác: chỉ dừng animation lúc đo như dưới.
+    if (browserName === 'chromium') {
+        const cdp = await page.context().newCDPSession(page)
+        await cdp.send('Animation.enable')
+        await cdp.send('Animation.setPlaybackRate', { playbackRate: 0 })
+    }
+    await page.setContent(`<!doctype html><html${run.dark ? ' ' + darkAttr : ''}><head><style>${css}</style></head><body>${html}</body></html>`)
     // Ép trạng thái giả (:hover/:focus...) như DevTools, trên phần tử đo, cha `.group` và anh `.peer`.
     if (run.force) {
         const cdp = await page.context().newCDPSession(page)
@@ -273,7 +322,7 @@ const WIDTHS = [375, 768, 1600]
 const runs = [
     ...Object.entries(STATES).map(([name, attrs]) => ({ name, attrs })),
     { name: '.dark', attrs: '', dark: true },
-    ...Object.entries(FORCED).map(([name, force]) => ({ name, attrs: '', force })),
+    ...(browserName === 'chromium' ? Object.entries(FORCED).map(([name, force]) => ({ name, attrs: '', force })) : []),
     ...WIDTHS.map((width) => ({ name: `${width}px`, attrs: '', width })),
 ]
 // Phía Tailwind giống nhau giữa hai chế độ: nhớ chữ ký theo (lượt, danh sách).
@@ -300,7 +349,7 @@ const exercisedCount = (base, sig) => {
     const ref = changedProps(base.at(-1), sig.at(-1))
     return sig.slice(0, -1).filter((s, i) => [...changedProps(base[i], s)].some((p) => !ref.has(p))).length
 }
-const lines = [`# Đo Trên Dự Án Thật: ${label}`, '', `${sources.length} file nguồn, ${found.size} ứng viên, **${candidates.length} class Tailwind hợp lệ** (Tailwind ${twVersion}, Chromium, so computed style ở trạng thái mặc định (1280 px), mở, đóng, trong \`.dark\`, khi ép \`:hover\`/\`:focus\`/\`:focus-visible\`/\`:active\` trên phần tử, cha \`.group\` và anh \`.peer\`, và ở độ rộng ${WIDTHS.join('/')} px).`, '', `| Chế độ | Chuyển được | ${runs.map((r) => `Khớp (${r.name})`).join(' | ')} |`, `| :--- | ---: | ${runs.map(() => '---:').join(' | ')} |`]
+const lines = [`# Đo Trên Dự Án Thật: ${label}`, '', `${sources.length} file nguồn, ${found.size} ứng viên, **${candidates.length} class Tailwind hợp lệ** (Tailwind ${twVersion}, ${browserLabel}, so computed style ở trạng thái mặc định (1280 px), mở, đóng, trong \`${darkLabel}\`, khi ép \`:hover\`/\`:focus\`/\`:focus-visible\`/\`:active\` trên phần tử, cha \`.group\` và anh \`.peer\`, và ở độ rộng ${WIDTHS.join('/')} px).`, '', `| Chế độ | Chuyển được | ${runs.map((r) => `Khớp (${r.name})`).join(' | ')} |`, `| :--- | ---: | ${runs.map(() => '---:').join(' | ')} |`]
 const details = []
 const summary = {}
 for (const mode of modes) {
@@ -348,6 +397,6 @@ await browser.close()
 lines.push('', ...details)
 // Fixture mặc định: eval/REAL-PROJECT.md; dự án khác: eval/REAL-PROJECT-<nhãn>.md.
 const suffix = useFixture ? '' : '-' + (fixtureName || label.replace(/[^\w-]+/g, '-'))
-fs.writeFileSync(path.join(root, `eval/REAL-PROJECT${suffix}.md`), lines.join('\n'))
-fs.writeFileSync(path.join(root, `eval/real-project${suffix}.json`), JSON.stringify({ label, candidates: candidates.length, summary }, null, 2) + '\n')
+fs.writeFileSync(path.join(root, `eval/REAL-PROJECT${suffix}${browserSuffix}.md`), lines.join('\n'))
+fs.writeFileSync(path.join(root, `eval/real-project${suffix}${browserSuffix}.json`), JSON.stringify({ label, candidates: candidates.length, summary }, null, 2) + '\n')
 console.log(lines.filter((l) => l.startsWith('|') || l.startsWith('Tổ hợp')).join('\n'))
