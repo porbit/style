@@ -1,0 +1,9 @@
+# Chỉ đóng gói: dist/extension.js, server/, images/, package.json, README, CHANGELOG, LICENSE.
+**
+!dist/extension.js
+!server/presence-style-lsp.js
+!images/icon.png
+!package.json
+!README.md
+!CHANGELOG.md
+!LICENSE

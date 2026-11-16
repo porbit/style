@@ -3,7 +3,7 @@
  * Kiểm tra gói xuất bản như người dùng cài: `npm pack` -> giải nén vào node_modules/@porbit/style của
  * thư mục tạm -> với mỗi khoá trong "exports" thử `require()` và `import()` qua tên gói (mỗi khoá một
  * tiến trình riêng), so tên export hai bản, kèm vài kiểm tra chức năng (PostCSS kiểu Next.js, tài liệu
- * MCP đọc từ gói, CLI trong "bin").
+ * MCP đọc từ gói, CLI trong "bin": `extract` và language server `lsp` qua scripts/lsp-smoke.cjs).
  *
  *   npm run build && node scripts/smoke-exports.cjs [--json]
  *
@@ -97,6 +97,21 @@ for (const key of Object.keys(pkg.exports)) {
     const r = spawnSync(process.execPath, [bin, 'extract', 'smoke.html', '--silent'], { cwd: work, encoding: 'utf8' })
     const ok = r.status === 0 && /padding/.test(r.stdout) && fs.readFileSync(bin, 'utf8').startsWith('#!')
     results.bin = { ok, check: ok ? 'extract sinh CSS' : (r.stderr || r.stdout).trim().split('\n')[0], errors: ok ? [] : ['CLI lỗi'] }
+
+    // `presence-style lsp` của gói đã cài, như extension VS Code/Zed khởi chạy: initialize, completion, hover, màu...
+    const lsp = spawnSync(process.execPath, [path.join(__dirname, 'lsp-smoke.cjs'), '--server', bin, '--json'], { encoding: 'utf8', timeout: 60000 })
+    let report
+    try {
+        report = JSON.parse(lsp.stdout.trim().split('\n').pop())
+    } catch (_error) {
+        report = { ok: false, checks: [{ name: 'lsp', ok: false, detail: (lsp.stderr || lsp.stdout || 'không có output').trim().split('\n')[0] }] }
+    }
+    const failedChecks = report.checks.filter((c) => !c.ok)
+    results['bin lsp'] = {
+        ok: report.ok,
+        check: `${report.checks.length - failedChecks.length}/${report.checks.length} kiểm tra LSP`,
+        errors: failedChecks.map((c) => `${c.name}: ${c.detail}`),
+    }
 }
 
 fs.rmSync(work, { recursive: true, force: true })

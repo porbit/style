@@ -1,0 +1,6 @@
+node_modules/
+dist/
+server/
+*.vsix
+# Chép từ gốc repo khi đóng gói (scripts/bundle.cjs).
+LICENSE

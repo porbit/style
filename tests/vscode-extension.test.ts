@@ -1,36 +1,60 @@
 import Module, { createRequire } from 'node:module'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import * as analyze from '../src/analyze'
-import * as tailwind from '../src/tailwind'
 
 const require = createRequire(import.meta.url)
-const { createLanguageService } = require('../editors/vscode/lib.js')
+const lib = require('../editors/vscode/lib.js')
 
-describe('extension VS Code: logic thuần', () => {
-    const service = createLanguageService(analyze)
-    const text = '<div className="dF fz14px btn p1px p2px">x</div>'
+/** Thư mục dự án giả có `node_modules/@porbit/style` (exports "./lsp" + bin). */
+const fakeProject = (pkg: Record<string, unknown>) => {
+    const dir = mkdtempSync(join(tmpdir(), 'ps-vscode-'))
+    const pkgDir = join(dir, 'node_modules', '@porbit', 'style')
+    mkdirSync(join(pkgDir, 'dist'), { recursive: true })
+    writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({ name: '@porbit/style', ...pkg }))
+    writeFileSync(join(pkgDir, 'dist', 'cli-bin.js'), '')
+    return { dir, pkgDir }
+}
+const withLsp = { version: '1.0.0', exports: { './lsp': './dist/lsp.js', './package.json': './package.json' }, bin: { 'presence-style': './dist/cli-bin.js' } }
 
-    it('diagnose báo class lỗi kèm bản sửa và xung đột, bỏ qua class lạ', () => {
-        const items = service.diagnose(text, {})
-        const invalid = items.filter((i: any) => i.code === 'invalid-class')
-        expect(invalid).toHaveLength(1)
-        expect(text.slice(invalid[0].start, invalid[0].end)).toBe('fz14px')
-        expect(invalid[0].suggestion).toBe('fns14px')
-        const conflict = items.find((i: any) => i.code === 'conflict')
-        expect(text.slice(conflict.start, conflict.end)).toBe('p1px')
+describe('extension VS Code: logic thuần (lib.js)', () => {
+    const settings = (over: Record<string, unknown> = {}) => lib.readSettings((key: string, fallback: unknown) => (key in over ? over[key] : fallback))
+
+    it('readSettings chuẩn hoá giá trị sai kiểu', () => {
+        expect(settings()).toMatchObject({ enable: true, languages: lib.DEFAULT_LANGUAGES, tailwindFunctions: [], configFile: 'presence-style.config.json', server: 'auto' })
+        expect(settings({ languages: [], tailwindFunctions: ['tv', 3, ' '], server: 'x', tailwindStylesheet: ' src/app.css ' })).toMatchObject({
+            languages: lib.DEFAULT_LANGUAGES,
+            tailwindFunctions: ['tv'],
+            server: 'auto',
+            tailwindStylesheet: 'src/app.css',
+        })
+        expect(lib.serverSettings(settings({ tailwindFunctions: ['tv'], tailwindStylesheet: 'src/app.css' }))).toEqual({
+            presenceStyle: { configFile: 'presence-style.config.json', tailwindFunctions: ['tv'], tailwindStylesheet: 'src/app.css' },
+        })
     })
 
-    it('hover hiện CSS và tuple', () => {
-        const info = service.hover(text, text.indexOf('dF') + 1, {})
-        expect(info.markdown).toContain('display:flex')
-        expect(info.markdown).toContain('property `display`')
-        expect(service.hover(text, 2, {})).toBeNull()
+    it('resolveServer: dự án có @porbit/style -> server của dự án; không có -> bản kèm extension', () => {
+        const { dir, pkgDir } = fakeProject(withLsp)
+        const bundled = __filename
+        expect(lib.resolveServer({ folder: dir, settings: settings(), bundled })).toEqual({ module: join(pkgDir, 'dist', 'cli-bin.js'), args: ['lsp'], source: 'workspace', version: '1.0.0' })
+        expect(lib.resolveServer({ folder: dir, settings: settings({ server: 'bundled' }), bundled })).toEqual({ module: bundled, args: [], source: 'bundled' })
+        // Gói cũ chưa có language server.
+        const old = fakeProject({ version: '0.5.0', bin: { 'presence-style': './dist/cli-bin.js' } })
+        expect(lib.resolveServer({ folder: old.dir, settings: settings(), bundled }).source).toBe('bundled')
+        expect(lib.resolveServer({ folder: old.dir, settings: settings({ server: 'workspace' }), bundled }).error).toContain('Không tìm thấy @porbit/style')
+        expect(lib.resolveServer({ folder: null, settings: settings(), bundled }).source).toBe('bundled')
+        expect(lib.resolveServer({ folder: dir, settings: settings({ serverPath: 'node_modules/@porbit/style/dist/cli-bin.js' }), bundled })).toMatchObject({ source: 'custom', args: ['lsp'] })
+        expect(lib.resolveServer({ folder: dir, settings: settings({ serverPath: 'khong-co.js' }), bundled }).error).toContain('serverPath')
+        expect(lib.resolveServer({ folder: null, settings: settings(), bundled: '/khong/co.js' }).error).toContain('Thiếu server')
     })
 
-    it('chỉ gợi ý trong thuộc tính class', () => {
-        expect(service.inClassAttribute(text, text.indexOf('btn'))).toBe(true)
-        expect(service.inClassAttribute(text, 1)).toBe(false)
-        expect(service.completions().some((c: any) => c.label === 'fns' && c.detail === 'font-size')).toBe(true)
+    it('documentSelector và needsRestart', () => {
+        expect(lib.documentSelector(['html'], 'P')).toEqual([{ scheme: 'file', language: 'html', pattern: 'P' }])
+        expect(lib.documentSelector(['html'])).toEqual([{ scheme: 'untitled', language: 'html' }])
+        expect(lib.documentSelector(['html'], undefined, { files: true })).toEqual([{ scheme: 'file', language: 'html' }, { scheme: 'untitled', language: 'html' }])
+        expect(lib.needsRestart((key: string) => key === 'presenceStyle.languages')).toBe(true)
+        expect(lib.needsRestart((key: string) => key === 'presenceStyle.tailwindFunctions')).toBe(false)
     })
 })
 
@@ -40,67 +64,96 @@ describe('extension VS Code: kích hoạt với API giả lập', () => {
         ;(Module as any)._load = originalLoad
     })
 
-    it('đăng ký provider, đặt diagnostic và quick fix', () => {
-        const registered: Record<string, any> = {}
-        const sets: Array<[any, any[]]> = []
-        class Range { constructor(public start: number, public end: number) {} }
-        class Diagnostic { source = ''; code: any; constructor(public range: any, public message: string, public severity: number) {} }
-        class WorkspaceEdit { edits: any[] = []; replace(uri: any, range: any, text: string) { this.edits.push({ uri, range, text }) } }
-        class CodeAction { edit: any; diagnostics: any; isPreferred = false; constructor(public title: string, public kind: string) {} }
+    it('khởi chạy client LSP với server của dự án, lệnh sắp xếp áp dụng code action `source`', async () => {
+        const { dir, pkgDir } = fakeProject(withLsp)
+        const commands: Record<string, (...args: any[]) => any> = {}
+        const created: any[] = []
+        const applied: any[] = []
+        let onConfig: (event: any) => void = () => {}
+        const folder = { uri: { fsPath: dir, toString: () => 'file://' + dir }, name: 'app', index: 0 }
         const doc = {
-            uri: { toString: () => 'file:///a.jsx', fsPath: '/a.jsx' },
-            languageId: 'javascriptreact',
-            getText: () => '<i className="df p1px" />',
-            positionAt: (offset: number) => offset,
-            offsetAt: (pos: number) => pos,
+            uri: { scheme: 'file', fsPath: join(dir, 'a.tsx'), toString: () => 'file://' + join(dir, 'a.tsx') },
+            languageId: 'typescriptreact',
+            lineCount: 1,
+            lineAt: () => ({ range: { end: { line: 0, character: 10 } } }),
         }
+        const other = { ...doc, languageId: 'python', uri: { ...doc.uri, fsPath: join(dir, 'a.py') } }
+        class RelativePattern { constructor(public base: any, public pattern: string) {} }
         const fake = {
-            Range, Diagnostic, WorkspaceEdit, CodeAction,
-            DiagnosticSeverity: { Warning: 1, Information: 2 },
-            CodeActionKind: { QuickFix: 'quickfix' },
-            CompletionItemKind: { Property: 9, Value: 11 },
-            CompletionItem: class { detail = ''; constructor(public label: string, public kind: number) {} },
-            Hover: class { constructor(public contents: any, public range: any) {} },
-            MarkdownString: class { constructor(public value: string) {} },
-            languages: {
-                createDiagnosticCollection: () => ({ set: (uri: any, d: any[]) => sets.push([uri, d]), delete: () => {}, dispose: () => {} }),
-                registerCodeActionsProvider: (_l: any, p: any) => (registered.codeActions = p),
-                registerHoverProvider: (_l: any, p: any) => (registered.hover = p),
-                registerCompletionItemProvider: (_l: any, p: any) => (registered.completion = p),
+            RelativePattern,
+            window: {
+                createOutputChannel: () => ({ appendLine: () => {}, show: () => {}, dispose: () => {} }),
+                activeTextEditor: { document: doc },
+                showWarningMessage: () => {},
+                showInformationMessage: () => {},
+                setStatusBarMessage: () => {},
             },
             workspace: {
-                getConfiguration: () => ({ get: (_k: string, d?: any) => d }),
-                getWorkspaceFolder: () => undefined,
-                onDidOpenTextDocument: () => ({}),
-                onDidChangeTextDocument: () => ({}),
-                onDidCloseTextDocument: () => ({}),
-                textDocuments: [doc],
+                workspaceFolders: [folder],
+                textDocuments: [doc, other],
+                getWorkspaceFolder: () => folder,
+                getConfiguration: () => ({ get: (key: string, fallback: unknown) => (key === 'tailwindFunctions' ? ['tv'] : fallback) }),
+                createFileSystemWatcher: (pattern: any) => ({ pattern, dispose: () => {} }),
+                onDidOpenTextDocument: () => ({ dispose: () => {} }),
+                onDidChangeWorkspaceFolders: () => ({ dispose: () => {} }),
+                onDidChangeConfiguration: (fn: any) => ((onConfig = fn), { dispose: () => {} }),
+                applyEdit: async (edit: any) => applied.push(edit),
             },
-            window: { activeTextEditor: undefined },
-            commands: { registerCommand: (name: string, fn: any) => (registered[name] = fn) },
+            commands: { registerCommand: (name: string, fn: any) => ((commands[name] = fn), { dispose: () => {} }) },
+        }
+        class LanguageClient {
+            started = false
+            requests: any[] = []
+            code2ProtocolConverter = { asUri: (uri: any) => uri.toString() }
+            protocol2CodeConverter = { asWorkspaceEdit: async (edit: any) => ({ converted: edit }) }
+            constructor(public id: string, public name: string, public serverOptions: any, public clientOptions: any) {
+                created.push(this)
+            }
+            async start() {
+                this.started = true
+            }
+            async stop() {
+                this.started = false
+            }
+            notifications: any[] = []
+            sendNotification(method: string, params: any) {
+                this.notifications.push([method, params])
+            }
+            async sendRequest(method: string, params: any) {
+                this.requests.push([method, params])
+                return [{ kind: 'quickfix', title: 'x' }, { kind: 'source', title: 'sắp xếp', edit: { changes: {} } }]
+            }
         }
         ;(Module as any)._load = function (request: string, ...rest: any[]) {
             if (request === 'vscode') return fake
-            if (request === '@porbit/style/analyze') return analyze
-            if (request === '@porbit/style/tailwind') return tailwind
+            if (request === 'vscode-languageclient/node') return { LanguageClient, TransportKind: { stdio: 0, ipc: 1 } }
             return originalLoad.call(this, request, ...rest)
         }
         const ext = require('../editors/vscode/extension.js')
-        const context = { subscriptions: [] as any[] }
-        ext.activate(context)
+        const context = { subscriptions: [] as any[], extensionPath: '/ext' }
+        await ext.activate(context)
 
-        expect(sets).toHaveLength(1)
-        const diags = sets[0][1]
-        const invalid = diags.find((d: any) => String(d.code).startsWith('invalid-class'))
-        expect(invalid.code).toBe('invalid-class:dF')
-        expect(diags.some((d: any) => d.code === 'conflict')).toBe(false)
+        // Một client cho thư mục workspace (file .py không thuộc ngôn ngữ đã chọn).
+        expect(created).toHaveLength(1)
+        const client = created[0]
+        expect(client.started).toBe(true)
+        expect(client.serverOptions.run).toMatchObject({ module: join(pkgDir, 'dist', 'cli-bin.js'), args: ['lsp'], transport: 0, options: { cwd: dir } })
+        expect(client.clientOptions.initializationOptions).toEqual({ presenceStyle: { configFile: 'presence-style.config.json', tailwindFunctions: ['tv'] } })
+        expect(client.clientOptions.synchronize.fileEvents.pattern).toMatchObject({ base: folder })
+        expect(client.clientOptions.documentSelector).toContainEqual({ scheme: 'file', language: 'typescriptreact', pattern: expect.any(RelativePattern) })
+        expect(Object.keys(commands).sort()).toEqual(['presenceStyle.restartServer', 'presenceStyle.showOutput', 'presenceStyle.sortClasses'])
 
-        const actions = registered.codeActions.provideCodeActions(doc, null, { diagnostics: diags })
-        expect(actions[0].title).toBe('Sửa thành dF')
-        expect(actions[0].edit.edits[0].text).toBe('dF')
+        await commands['presenceStyle.sortClasses']()
+        expect(client.requests[0][0]).toBe('textDocument/codeAction')
+        expect(client.requests[0][1].context.only).toEqual(['source'])
+        expect(applied).toEqual([{ converted: { changes: {} } }])
 
-        const hover = registered.hover.provideHover(doc, doc.getText().indexOf('p1px') + 1)
-        expect(hover.contents.value).toContain('padding:1px')
-        expect(typeof registered['presenceStyle.sortClasses']).toBe('function')
+        // Đổi tailwindFunctions: gửi didChangeConfiguration, không khởi động lại.
+        onConfig({ affectsConfiguration: (key: string) => key === 'presenceStyle' || key === 'presenceStyle.tailwindFunctions' })
+        expect(client.notifications).toEqual([['workspace/didChangeConfiguration', { settings: { presenceStyle: { configFile: 'presence-style.config.json', tailwindFunctions: ['tv'] } } }]])
+        expect(created).toHaveLength(1)
+
+        await ext.deactivate()
+        expect(client.started).toBe(false)
     })
 })
