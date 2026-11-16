@@ -2041,7 +2041,10 @@ export const xcss = (
                 if (appliedClassKeys.has(appliedKey)) continue
                 appliedClassKeys.add(appliedKey)
                 const item = classToProp(sourceClassName)
-                if (item) updateRules(sourceClassName, item)
+                if (item) {
+                    updateRules(sourceClassName, item)
+                    if (item.extra) for (let k = 0; k < item.extra.length; k++) updateRules(sourceClassName, item.extra[k])
+                }
             }
         }
 
@@ -2484,46 +2487,56 @@ export const xcss = (
         return result
     }
 
-    // Gộp nhiều token x-css (cùng media/layer/selector) thành một rule cho một class nguồn.
+    // Gộp nhiều token x-css thành rule cho một class nguồn. Token liền kề cùng media/layer/selector chung một rule;
+    // nhóm khác (`not-hover:`, `container`, `prose`, biến thể nhiều selector) thành rule kèm theo (`extra`),
+    // giữ thứ tự xuất hiện. Một token không hợp lệ thì cả class bị bỏ (không sinh CSS dở dang).
     function resolveTokenGroup(tokens: string[], className: string, trusted = false) {
-        let media = ''
-        let layer = ''
-        let selector = ''
-        const declarations: string[] = []
+        const groups: Array<{ key: string; media: string; layer: string; selector: string; declarations: string[] }> = []
         for (let index = 0; index < tokens.length; index++) {
             const parsed = parseClassName(tokens[index])
             if (!parsed) return null
             if (!isValidMediaKey(parsed.mq)) return null
             if (!parsed.prop.startsWith('[') && !isKnownPropertyKey(parsed.prop)) return null
             if (parsed.prop.startsWith('--') && !parsed.val.startsWith('[')) return null
-            if (index === 0) {
-                media = parsed.mq || ''
-                layer = parsed.layer || ''
-                selector = parsed.selector || ''
-            } else if ((parsed.mq || '') !== media || (parsed.layer || '') !== layer || (parsed.selector || '') !== selector) {
-                return null
+            const media = parsed.mq || ''
+            const layer = parsed.layer || ''
+            const selector = parsed.selector || ''
+            const key = media + '\n' + layer + '\n' + selector
+            // Chỉ gộp token liền kề: gộp rule cách xa nhau sẽ đổi thứ tự cascade (prose: `figure` rồi `> :last-child`).
+            let group = groups[groups.length - 1]
+            if (!group || group.key !== key) {
+                group = { key, media, layer, selector, declarations: [] }
+                groups.push(group)
             }
             const value = propToValue(parsed.prop, parsed.val, trusted)
             if (!value) return null
-            declarations.push(value)
+            group.declarations.push(value)
         }
-        if (declarations.length === 0) return null
-        const selectorStr = selector.replace(/(';|;)/g, (v: string) => (v == "';" ? ';' : ' '))
-        if (selectorStr) {
-            if (typeof CSS !== 'undefined') {
-                if (!cssSupports(`selector(${composeSelector('.' + className, selectorStr)})`)) return null
-            } else if (!isLikelyValidSelectorFallback(selectorStr)) {
-                return null
+        if (groups.length === 0) return null
+        const rules: any[] = []
+        for (const group of groups) {
+            const selectorStr = group.selector.replace(/(';|;)/g, (v: string) => (v == "';" ? ';' : ' '))
+            if (selectorStr) {
+                const valid = typeof CSS !== 'undefined'
+                    ? cssSupports(`selector(${composeSelector('.' + className, selectorStr)})`)
+                    : isLikelyValidSelectorFallback(selectorStr)
+                // Như trình duyệt: rule có selector không hỗ trợ (`ol[type="A" s]` của prose) bị bỏ riêng,
+                // các rule khác của class vẫn giữ.
+                if (!valid) continue
             }
+            rules.push({
+                media: group.media || 'default',
+                layer: group.layer || '0',
+                className,
+                property: group.declarations.join(';'),
+                selector: selectorStr,
+                cssRules: `.${className}${selectorStr}{${group.declarations.join(';')}}`,
+            })
         }
-        return {
-            media: media || 'default',
-            layer: layer || '0',
-            className,
-            property: declarations.join(';'),
-            selector: selectorStr,
-            cssRules: `.${className}${selectorStr}{${declarations.join(';')}}`,
-        }
+        if (rules.length === 0) return null
+        const [first, ...extra] = rules
+        if (extra.length) first.extra = extra
+        return first
     }
 
     function computeClassToProp(txtClass: string) {

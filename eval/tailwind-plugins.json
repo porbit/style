@@ -1,0 +1,20 @@
+{
+  "tw-animate-css": {
+    "cases": 486,
+    "matched": 486,
+    "unsupported": [],
+    "failed": []
+  },
+  "@tailwindcss/forms": {
+    "cases": 7,
+    "matched": 7,
+    "unsupported": [],
+    "failed": []
+  },
+  "@tailwindcss/typography": {
+    "cases": 35,
+    "matched": 35,
+    "unsupported": [],
+    "failed": []
+  }
+}

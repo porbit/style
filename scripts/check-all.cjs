@@ -25,7 +25,7 @@ const BUDGET = {
     'dist/index-auto.mjs': 23 * 1024, // bản CDN
     'dist/index.mjs': 36 * 1024,
     'dist/components.mjs': 8 * 1024,
-    'dist/tailwind-auto.mjs': 57 * 1024, // thay @tailwindcss/browser (75 KB)
+    'dist/tailwind-auto.mjs': 59 * 1024, // thay @tailwindcss/browser (75 KB); +@utility hàm, @custom-variant, @apply biến thể
 }
 const EVAL_MIN = { xcssValidAfterFix: 99, tailwindValid: 98, holdout: 85 }
 
@@ -81,7 +81,7 @@ const steps = [
                 },
             })
             if (!r.ok) return r
-            const files = ['spec', 'presence_style/x-core/tests/conformance.core.json', 'presence_style/x-core/src/dictionary_generated.rs', 'src/tailwind-generated.ts', 'llms.txt', 'llms-full.txt']
+            const files = ['spec', 'presence_style/x-core/tests/conformance.core.json', 'presence_style/x-core/src/dictionary_generated.rs', 'src/tailwind-generated.ts', 'src/tailwind-plugins-generated.ts', 'llms.txt', 'llms-full.txt']
             const diff = run('git', ['status', '--porcelain', '--', ...files])
             const changed = diff.out.trim()
             return changed
@@ -119,7 +119,8 @@ const steps = [
     },
     {
         name: 'tailwind',
-        // Khớp Tailwind thật (mẫu 4.000 class + biến thể + runtime + theme) và độ phủ biến thể.
+        // Khớp Tailwind thật (mẫu 4.000 class + biến thể + runtime + theme), độ phủ biến thể, plugin đóng gói sẵn
+        // và dự án thật (shadcn/ui v4: 4 trạng thái).
         run: () => {
             const parity = run('node', ['eval/tailwind-parity.mjs', '--limit=4000'])
             if (!parity.ok) {
@@ -127,13 +128,21 @@ const steps = [
                 return parity
             }
             const variants = run('node', ['eval/tailwind-variants.mjs'])
+            const plugins = run('node', ['eval/tailwind-plugins.mjs'])
+            const real = run('node', ['eval/real-project.mjs'])
             const report = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-parity.sample.json'), 'utf8'))
             const coverage = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-variants.json'), 'utf8'))
-            const ok = variants.ok && report.base.percent >= 99.9 && report.variants.percent === 100 && report.runtime.percent === 100 &&
-                report.theme.matched === report.theme.checked && coverage.percent >= 95
+            const pluginReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-plugins.json'), 'utf8'))
+            const realReport = Object.values(JSON.parse(fs.readFileSync(path.join(root, 'eval/real-project.json'), 'utf8')).summary)[0]
+            const pluginsOk = Object.values(pluginReport).every((p) => p.matched === p.cases)
+            const realMin = Math.min(realReport.converted, ...Object.values(realReport.matched))
+            const ok = variants.ok && plugins.ok && real.ok && pluginsOk && report.base.percent >= 99.9 && report.variants.percent === 100 &&
+                report.runtime.percent === 100 && report.theme.matched === report.theme.checked && coverage.percent >= 95 &&
+                realMin / realReport.total >= 0.995
             return {
                 ok,
-                detail: `class ${report.base.percent}% · biến thể ${report.variants.percent}% · runtime ${report.runtime.percent}% · theme ${report.theme.matched}/${report.theme.checked} · độ phủ biến thể ${coverage.percent}%`,
+                detail: `class ${report.base.percent}% · biến thể ${report.variants.percent}% · runtime ${report.runtime.percent}% · theme ${report.theme.matched}/${report.theme.checked} · độ phủ biến thể ${coverage.percent}%\n` +
+                    `plugin ${Object.entries(pluginReport).map(([id, p]) => `${id} ${p.matched}/${p.cases}`).join(', ')} · shadcn/ui ${realMin}/${realReport.total}`,
             }
         },
     },

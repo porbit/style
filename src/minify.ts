@@ -95,15 +95,20 @@ const serialize = (blocks: Block[], prune: (head: string) => boolean): string =>
 export const minifyCss = (css: string): string => {
     const blocks = splitBlocks(css)
     // Nội dung không tính các khối @property/@keyframes: dùng để biết biến/animation nào còn được dùng.
-    const usage = blocks
+    const baseUsage = blocks
         .filter((b) => !('head' in b) || !/^@(property|keyframes)\b/.test(b.head))
         .map((b) => ('head' in b ? b.head + '{' + b.body + '}' : b.text))
+        .join('')
+    const usedKeyframes = (name: string) => new RegExp(`(animation(-name)?\\s*:[^;}]*\\b${name}\\b)|var\\(--animate-${name}\\b`).test(baseUsage)
+    // Biến đọc trong @keyframes còn dùng (`--tw-enter-opacity` của `@keyframes enter`) cũng là đang dùng.
+    const usage = baseUsage + blocks
+        .filter((b): b is { head: string; body: string } => 'head' in b && /^@keyframes\s+[\w-]+$/.test(b.head) && usedKeyframes(b.head.split(/\s+/)[1]))
+        .map((b) => b.body)
         .join('')
     const isFallbackDecl = (decl: string) => /^--[\w-]+:/.test(decl.trim())
     // Biến được dùng nếu xuất hiện ngoài khai báo dự phòng của chính nó.
     const usageWithoutFallback = usage.replace(/\*,\s*::before,\s*::after,\s*::backdrop\{[^}]*\}/g, '')
     const usedVar = (name: string) => new RegExp(name.replace(/[-]/g, '\\-') + '(?![\\w-])').test(usageWithoutFallback)
-    const usedKeyframes = (name: string) => new RegExp(`(animation(-name)?\\s*:[^;}]*\\b${name}\\b)|var\\(--animate-${name}\\b`).test(usage)
 
     const prunedVars = new Set<string>()
     const prune = (head: string): boolean => {

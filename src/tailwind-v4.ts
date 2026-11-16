@@ -9,7 +9,8 @@
 import type { XCSSDialect } from './core'
 import { TW_DATA, TW_PREFLIGHT_CSS, TW_PROPERTIES_CSS } from './tailwind-generated'
 
-type Rule = { sel: string; decls: Array<[string, string]> }
+/** Một rule: selector (`&` là phần tử), khai báo; `query` là điều kiện media riêng (`container`); `more` là rule kèm theo. */
+type Rule = { sel: string; decls: Array<[string, string]>; query?: string; more?: Rule[] }
 
 export interface TailwindV4DialectOptions {
     /**
@@ -21,6 +22,11 @@ export interface TailwindV4DialectOptions {
     css?: string
     /** Utility tự định nghĩa như `@utility tab-4 { tab-size: 4 }`: `{ 'tab-4': 'tab-size: 4' }`. */
     utilities?: Record<string, string>
+    /**
+     * Biến thể tự định nghĩa như `@custom-variant`: `{ dark: '&:is(.dark *)', 'pointer-coarse': '@media (pointer: coarse)' }`
+     * hoặc dạng khối `{ 'data-open': '{ &:where([data-state="open"]) { @slot; } }' }`.
+     */
+    variants?: Record<string, string>
     /** Thêm preflight (reset) của Tailwind vào base CSS. Mặc định false. */
     preflight?: boolean
     /** `media` (mặc định, như Tailwind v4): theo hệ điều hành. `class`: theo `.dark` ở tổ tiên. */
@@ -192,21 +198,6 @@ const SHADOW_FAMILIES: Record<string, { ns: string; target: string; color: strin
     'drop-shadow': { ns: '--drop-shadow-', target: '--tw-drop-shadow-size', color: '--tw-drop-shadow-color' },
 }
 const COLOR_TOKEN = /(?:rgba?|hsla?|hwb|oklch|oklab|lab|lch|color)\([^()]*\)|#[0-9a-fA-F]{3,8}\b|\b(?:black|white|transparent|currentcolor)\b/gi
-const splitTopLevel = (value: string) => {
-    const parts: string[] = []
-    let depth = 0
-    let start = 0
-    for (let i = 0; i < value.length; i++) {
-        if (value[i] === '(') depth++
-        else if (value[i] === ')') depth--
-        else if (value[i] === ',' && depth === 0) {
-            parts.push(value.slice(start, i).trim())
-            start = i + 1
-        }
-    }
-    parts.push(value.slice(start).trim())
-    return parts
-}
 const themeShadow = (name: string): Rule | null => {
     const match = name.match(/^(shadow|inset-shadow|text-shadow|drop-shadow)-(.+)$/)
     if (!match) return null
@@ -308,6 +299,10 @@ const mediaKeyOf = (variant: string) => (variant.startsWith('min-') && RESPONSIV
 // Media key đăng ký trước với engine theo thứ tự cascade của Tailwind (max-* giảm dần, rồi sm..2xl),
 // cộng container query (@sm..@7xl) và tổ hợp hay dùng. Một class x-css chỉ mang một media key.
 const registeredKeys = new Set<string>()
+/** Điều kiện của từng media key (`md` -> `(width >= 48rem)`), dùng khi gộp ≥3 điều kiện hoặc cho `@apply`. */
+const MEDIA_QUERY = new Map<string, string>()
+/** Biến thể tự định nghĩa của dialect đang hoạt động. */
+let CUSTOM_VARIANTS: Record<string, string[][]> = {}
 const buildBreakpoints = (darkMode: 'media' | 'class') => {
     const singles: Array<[string, string]> = []
     for (const key of [...RESPONSIVE].reverse()) singles.push([`max-${key}`, `(width < ${breakpointValue(key)})`])
@@ -326,7 +321,10 @@ const buildBreakpoints = (darkMode: 'media' | 'class') => {
     // Tên key không chứa `@` (x-css dùng `@` cuối cùng làm điểm bắt đầu selector): `c-md`, `c-max-md`.
     for (const size of [...CONTAINER_SIZES].reverse()) all.push([`c-max-${size}`, `@container (width < ${theme[`--container-${size}`]})`])
     for (const size of CONTAINER_SIZES) all.push([`c-${size}`, `@container (width >= ${theme[`--container-${size}`]})`])
-    all.forEach(([key]) => registeredKeys.add(key))
+    all.forEach(([key, query]) => {
+        registeredKeys.add(key)
+        MEDIA_QUERY.set(key, query)
+    })
     return all.map(([key, query]) => ({ [`tw-${key}`]: query }))
 }
 
@@ -337,6 +335,7 @@ const arbitraryInner = (raw: string) => raw.replace(/\\_/g, '\u0000').replace(/_
  * `hover` -> `:hover`, `[.x]` -> `:is(.x)`, `nth-3` -> `:nth-child(3)`, `has-checked` -> `:has(:checked)`.
  */
 const stateFragment = (state: string): string | null => {
+    if (CUSTOM_VARIANTS[state]) return customFragment(CUSTOM_VARIANTS[state])
     if (PSEUDO_CLASSES[state]) return PSEUDO_CLASSES[state]
     const arbitrary = state.match(/^\[(.+)\]$/)
     if (arbitrary) {
@@ -382,9 +381,11 @@ const inlineAtRule = (variant: string): string | null => {
  * Áp các biến thể lên selector `&...`. Trả null khi có biến thể chưa hỗ trợ.
  * Media: gom thành một key (`tw-md+hover`) vì mỗi class x-css chỉ mang một media/at-rule.
  */
-const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 'class'): { media: string; sel: string } | null => {
+const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 'class', extraQuery?: string): { media: string; sel: string } | null => {
     let sel = baseSel.includes('&') ? baseSel : '&' + baseSel
     const media: string[] = []
+    // Điều kiện media không có key đăng ký (`[@media_...]`, media riêng của rule): gộp bằng `and`.
+    const queries: string[] = extraQuery ? [extraQuery] : []
     let inline = ''
     let pseudoElement = ''
     const atContainer = (v: string) => {
@@ -457,6 +458,11 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
             sel = sel.replace('&', arbitraryInner(arbitrary[1]))
             continue
         }
+        const arbitraryMedia = arbitrary && arbitraryInner(arbitrary[1]).match(/^@media\s+(.+)$/)
+        if (arbitraryMedia && !/^not\b/.test(arbitraryMedia[1])) {
+            queries.push(arbitraryMedia[1])
+            continue
+        }
         if (arbitrary && arbitrary[1].startsWith('@')) {
             if (inline) return null
             inline = `[${arbitrary[1]}]`
@@ -472,16 +478,20 @@ const applyVariants = (variants: string[], baseSel: string, darkMode: 'media' | 
     if (pseudoElement) sel = sel.replace('&', '&' + pseudoElement)
 
     const unique = [...new Set(media)]
-    if (inline) return unique.length ? null : { media: inline, sel }
-    let mediaKey = ''
-    if (unique.length === 1) mediaKey = unique[0]
-    else if (unique.length === 2) {
-        // Khớp tên key đã đăng ký: `md+max-lg`, `md+hover`, `max-sm+dark`, `dark+hover`.
-        const [a, b] = unique
-        mediaKey = registeredKeys.has(`${a}+${b}`) ? `${a}+${b}` : registeredKeys.has(`${b}+${a}`) ? `${b}+${a}` : ''
-        if (!mediaKey) return null
-    } else if (unique.length > 2) return null
-    return { media: mediaKey ? `tw-${mediaKey}` : '', sel }
+    if (inline) return unique.length || queries.length ? null : { media: inline, sel }
+    if (!queries.length) {
+        if (unique.length <= 1) return { media: unique.length ? `tw-${unique[0]}` : '', sel }
+        if (unique.length === 2) {
+            // Khớp tên key đã đăng ký: `md+max-lg`, `md+hover`, `max-sm+dark`, `dark+hover`.
+            const [a, b] = unique
+            const key = registeredKeys.has(`${a}+${b}`) ? `${a}+${b}` : registeredKeys.has(`${b}+${a}`) ? `${b}+${a}` : ''
+            if (key) return { media: `tw-${key}`, sel }
+        }
+    }
+    // ≥3 điều kiện (`md:dark:hover:`) hoặc tổ hợp chưa đăng ký: at-rule nội tuyến `@media a and b and c`.
+    const all = [...unique.map((key) => MEDIA_QUERY.get(key)), ...queries]
+    if (all.some((query) => query === undefined || query.startsWith('@'))) return null
+    return { media: encodeArbitrary(`@media ${[...new Set(all)].join(' and ')}`), sel }
 }
 
 // ---------------------------------------------------------------------------
@@ -496,6 +506,47 @@ const withThemeFallback = (value: string, depth = 0): string =>
         if (fallback === undefined || depth > 2) return match
         return `var(${name}, ${withThemeFallback(fallback, depth + 1)})`
     })
+
+/**
+ * Giá trị theme của `name` đã thay hết `var(--theme-khác)` bằng giá trị (như Tailwind đặt biến ở
+ * `:root`). `null` khi biến không có trong theme hoặc chuỗi tham chiếu vòng (`--font-sans: var(--font-sans)`
+ * của shadcn) — trình duyệt coi biến đó không hợp lệ và dùng giá trị dự phòng.
+ */
+const resolveThemeValue = (name: string, seen: string[] = []): string | null => {
+    const value = theme[name]
+    if (value === undefined || seen.includes(name)) return null
+    let broken = false
+    const resolved = value.replace(/var\((--[\w.-]+)\)/g, (match, ref: string) => {
+        if (theme[ref] === undefined) return match
+        const inner = resolveThemeValue(ref, [...seen, name])
+        if (inner === null) broken = true
+        return inner === null ? match : `var(${ref}, ${inner})`
+    })
+    return broken ? null : resolved
+}
+
+// Preflight đọc `var(--default-font-family, ...)`: thay dự phòng bằng giá trị theme hiện tại.
+const themedPreflight = (): string => {
+    const css = TW_PREFLIGHT_CSS
+    let out = ''
+    let i = 0
+    const pattern = /var\((--[\w.-]+),/g
+    for (let m = pattern.exec(css); m; m = pattern.exec(css)) {
+        let depth = 1
+        let k = m.index + 4
+        while (k < css.length && depth > 0) {
+            if (css[k] === '(') depth++
+            else if (css[k] === ')') depth--
+            k++
+        }
+        const value = resolveThemeValue(m[1])
+        if (value === null) continue
+        out += css.slice(i, m.index) + `var(${m[1]}, ${value})`
+        i = k
+        pattern.lastIndex = k
+    }
+    return out + css.slice(i)
+}
 
 // Token x-css không chứa khoảng trắng: ngoài chuỗi dùng `_`; trong chuỗi có nháy (`"Segoe UI"`) dùng
 // escape CSS `\000020` vì bộ giải mã giữ nguyên nội dung trong nháy.
@@ -522,34 +573,341 @@ const splitVariants = (name: string): string[] => {
     return parts
 }
 
+// ---------------------------------------------------------------------------
+// CSS của người dùng: @utility, @custom-variant, @apply
+// ---------------------------------------------------------------------------
+
+type CssItem = { decl: [string, string] } | { head: string; body: string } | { at: string }
+
+/** Tách thân một khối CSS thành khai báo, khối con (`head { body }`) và câu lệnh `@x ...;`. */
+const parseCssItems = (text: string): CssItem[] => {
+    const items: CssItem[] = []
+    let i = 0
+    while (i < text.length) {
+        while (i < text.length && /[\s;]/.test(text[i])) i++
+        if (i >= text.length) break
+        let j = i
+        let quote = ''
+        let parens = 0
+        while (j < text.length) {
+            const ch = text[j]
+            if (quote) {
+                if (ch === '\\') j++
+                else if (ch === quote) quote = ''
+            } else if (ch === '"' || ch === "'") quote = ch
+            else if (ch === '(') parens++
+            else if (ch === ')') parens--
+            else if (parens === 0 && (ch === '{' || ch === ';' || ch === '}')) break
+            j++
+        }
+        const head = text.slice(i, j).trim()
+        if (text[j] === '{') {
+            let depth = 1
+            let k = j + 1
+            quote = ''
+            while (k < text.length && depth > 0) {
+                const ch = text[k]
+                if (quote) {
+                    if (ch === '\\') k++
+                    else if (ch === quote) quote = ''
+                } else if (ch === '"' || ch === "'") quote = ch
+                else if (ch === '{') depth++
+                else if (ch === '}') depth--
+                k++
+            }
+            items.push({ head, body: text.slice(j + 1, k - 1) })
+            i = k
+            continue
+        }
+        if (head.startsWith('@')) items.push({ at: head })
+        else if (head) {
+            const colon = head.indexOf(':')
+            if (colon > 0) items.push({ decl: [head.slice(0, colon).trim(), head.slice(colon + 1).trim()] })
+        }
+        i = j + 1
+    }
+    return items
+}
+
+/** Tách theo dấu phẩy ở cấp ngoài cùng (không tách trong ngoặc/nháy). */
+const splitTopLevel = (text: string, separator = ','): string[] => {
+    const parts: string[] = []
+    let depth = 0
+    let quote = ''
+    let start = 0
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i]
+        if (quote) {
+            if (ch === '\\') i++
+            else if (ch === quote) quote = ''
+        } else if (ch === '"' || ch === "'") quote = ch
+        else if (ch === '(' || ch === '[') depth++
+        else if (ch === ')' || ch === ']') depth--
+        else if (ch === separator && depth === 0) {
+            parts.push(text.slice(start, i))
+            start = i + 1
+        }
+    }
+    parts.push(text.slice(start))
+    return parts.map((p) => p.trim()).filter(Boolean)
+}
+
+/** Selector lồng (`&:hover`, `.a &`, `::x`) ghép với selector cha có `&`. */
+const nestSelector = (parent: string, child: string) => {
+    const own = child.includes('&') ? child : `& ${child}`
+    return parent === '&' ? own : own.replace(/&/g, parent)
+}
+
+/** Cây khối của một `@utility` -> danh sách rule (rule đầu là khai báo cấp ngoài). */
+const utilityRules = (body: string): Rule[] => {
+    const rules: Rule[] = []
+    const walk = (text: string, sel: string, query: string | undefined) => {
+        const rule: Rule = { sel, decls: [], query }
+        rules.push(rule)
+        for (const item of parseCssItems(text)) {
+            if ('decl' in item) rule.decls.push(item.decl)
+            else if ('head' in item) {
+                const media = item.head.match(/^@media\s+(.+)$/)
+                if (media) walk(item.body, sel, query ? `${query} and ${media[1]}` : media[1])
+                else if (!item.head.startsWith('@')) {
+                    for (const part of splitTopLevel(item.head)) walk(item.body, nestSelector(sel, part), query)
+                }
+            }
+        }
+    }
+    walk(body, '&', undefined)
+    return rules
+}
+
+const isNumberValue = (v: string) => /^\d*\.?\d+$/.test(v)
+// Kiểu giá trị trong ngoặc vuông (`[length]`, `[color]`...): ước lượng như Tailwind; `var()` hợp mọi kiểu.
+const BRACKET_TYPES: Record<string, RegExp> = {
+    length: /^(-?(\d*\.?\d+)(px|r?em|ch|ex|lh|rlh|vw|vh|vmin|vmax|dvh|dvw|svh|svw|lvh|lvw|cq\w+|cm|mm|in|pt|pc|q)|0)$|^(calc|min|max|clamp)\(/,
+    percentage: /^-?\d*\.?\d+%$|^(calc|min|max|clamp)\(/,
+    number: /^-?\d*\.?\d+$|^(calc|min|max|clamp)\(/,
+    integer: /^-?\d+$|^(calc|min|max|clamp)\(/,
+    duration: /^-?\d*\.?\d+m?s$|^(calc|min|max|clamp)\(/,
+    angle: /^-?\d*\.?\d+(deg|rad|grad|turn)$|^(calc|min|max|clamp)\(/,
+    color: /^(#[\da-f]{3,8}|(rgb|hsl|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)a?\(|transparent$|currentcolor$|[a-z]+$)/i,
+    url: /^url\(/,
+    image: /^(url|(repeating-)?(linear|radial|conic)-gradient|image-set|cross-fade)\(/,
+}
+
+/** `--value(...)`/`--modifier(...)`: thử lần lượt từng tham số như Tailwind, null nếu không khớp. */
+const resolveFunctionalArg = (args: string, raw: string): string | null => {
+    const bracket = raw.match(/^\[(.+)\]$/)
+    const shorthand = raw.match(/^\((--[\w-]+)\)$/)
+    const inner = bracket ? arbitraryInner(bracket[1]) : shorthand ? `var(${shorthand[1]})` : null
+    for (const arg of splitTopLevel(args)) {
+        if (/^--[\w-]+-\*$/.test(arg)) {
+            const key = arg.slice(0, -1) + raw
+            if (inner === null && theme[key] !== undefined) return `var(${key})`
+            continue
+        }
+        const literal = arg.match(/^["'](.*)["']$/)
+        if (literal) {
+            if (inner === null && raw === literal[1]) return raw
+            continue
+        }
+        const typed = arg.match(/^\[([\w*-]+)\]$/)
+        if (typed) {
+            if (inner !== null && (typed[1] === '*' || inner.startsWith('var(') || BRACKET_TYPES[typed[1]]?.test(inner))) return inner
+            continue
+        }
+        if (inner !== null) continue
+        if (arg === 'number' && isNumberValue(raw) && (Number(raw) * 4) % 1 === 0) return raw
+        if (arg === 'integer' && /^\d+$/.test(raw)) return raw
+        if (arg === 'percentage' && /^\d*\.?\d+%$/.test(raw)) return raw
+        if (arg === 'ratio') {
+            const ratio = raw.match(/^(\d+)\/(\d+)$/)
+            if (ratio) return `${ratio[1]} / ${ratio[2]}`
+        }
+    }
+    return null
+}
+
+/** Thay mọi `name(...)` trong chuỗi bằng `fn(nội dung)`; null nếu một lần thay thất bại. */
+const replaceCssFunction = (value: string, name: string, fn: (args: string) => string | null): string | null => {
+    let out = ''
+    let i = 0
+    for (let at = value.indexOf(name + '(', i); at !== -1; at = value.indexOf(name + '(', i)) {
+        let depth = 1
+        let k = at + name.length + 1
+        while (k < value.length && depth > 0) {
+            if (value[k] === '(') depth++
+            else if (value[k] === ')') depth--
+            k++
+        }
+        const replaced = fn(value.slice(at + name.length + 1, k - 1))
+        if (replaced === null) return null
+        out += value.slice(i, at) + replaced
+        i = k
+    }
+    return out + value.slice(i)
+}
+
+type UserUtility = { rules: Rule[]; functional: boolean; usesModifier: boolean }
+
+const compileUserUtility = (body: string): UserUtility => ({
+    rules: utilityRules(body),
+    functional: body.includes('--value('),
+    usesModifier: body.includes('--modifier('),
+})
+
+/** Áp giá trị (và modifier) vào `@utility name-*`. */
+const evaluateUtility = (utility: UserUtility, value: string | null, modifier: string | null): Rule[] | null => {
+    let matched = !utility.functional
+    const rules: Rule[] = []
+    for (const rule of utility.rules) {
+        const decls = new Map<string, string>()
+        for (const [prop, raw] of rule.decls) {
+            let next: string | null = raw
+            if (next.includes('--value(')) {
+                next = value === null ? null : replaceCssFunction(next, '--value', (args) => resolveFunctionalArg(args, value))
+                if (next !== null) matched = true
+            }
+            if (next !== null && next.includes('--modifier(')) {
+                next = modifier === null ? null : replaceCssFunction(next, '--modifier', (args) => resolveFunctionalArg(args, modifier))
+            }
+            if (next === null) continue
+            next = replaceCssFunction(next, '--spacing', (args) => `calc(var(--spacing) * ${args.trim()})`) as string
+            next = replaceCssFunction(next, '--alpha', (args) => {
+                const [color, alpha] = args.split('/').map((s) => s.trim())
+                return alpha ? `color-mix(in oklab, ${color} ${alpha}, transparent)` : color
+            }) as string
+            // Cùng thuộc tính khai báo nhiều lần: khai báo sau thắng (như cascade).
+            decls.delete(prop)
+            decls.set(prop, next)
+        }
+        if (decls.size) rules.push({ sel: rule.sel, query: rule.query, decls: [...decls] })
+    }
+    return matched && rules.length ? rules : null
+}
+
+const encodeArbitrary = (text: string) => `[${text.replace(/_/g, '\\_').replace(/\s+/g, '_')}]`
+
+/**
+ * `@custom-variant` -> các phương án, mỗi phương án là chuỗi biến thể tuỳ ý (`[&:where(...)]`,
+ * `[@media_...]`). Danh sách selector (`&:a, &:b`) thành nhiều phương án = nhiều rule như Tailwind.
+ */
+const compileCustomVariant = (body: string): string[][] | null => {
+    const short = body.trim()
+    if (!short.includes('{')) {
+        const text = short.replace(/^\(([\s\S]*)\)$/, '$1').trim()
+        if (text.startsWith('@')) return [[encodeArbitrary(text)]]
+        return splitTopLevel(text).map((sel) => [encodeArbitrary(sel.includes('&') ? sel : `& ${sel}`)])
+    }
+    const walk = (text: string): string[][] => {
+        const items = parseCssItems(text)
+        if (items.some((item) => 'at' in item && item.at === '@slot')) return [[]]
+        const out: string[][] = []
+        for (const item of items) {
+            if (!('head' in item)) continue
+            const inner = walk(item.body)
+            if (!inner.length) continue
+            const heads = item.head.startsWith('@') ? [encodeArbitrary(item.head)] : splitTopLevel(item.head).map((sel) => encodeArbitrary(sel.includes('&') ? sel : `& ${sel}`))
+            for (const head of heads) for (const rest of inner) out.push([head, ...rest])
+        }
+        return out
+    }
+    const result = walk(short.replace(/^\{([\s\S]*)\}$/, '$1'))
+    return result.length ? result : null
+}
+
+/** Mảnh selector của biến thể tự định nghĩa khi dùng sau `group-`, `peer-`, `not-`, `has-`, `in-`. */
+const customFragment = (alternatives: string[][]): string | null => {
+    const fragments: string[] = []
+    for (const steps of alternatives) {
+        if (steps.length !== 1) return null
+        const sel = arbitraryInner(steps[0].slice(1, -1))
+        if (!sel.startsWith('&') || sel.indexOf('&', 1) !== -1) return null
+        fragments.push(sel.slice(1))
+    }
+    return fragments.length === 1 ? fragments[0] : `:is(${fragments.map((f) => '*' + f).join(', ')})`
+}
+
+/** Media key (`tw-md`) hoặc at-rule nội tuyến (`[@media_...]`) -> phần đầu at-rule CSS. */
+const atRuleOf = (media: string): string | null => {
+    if (media.startsWith('tw-')) {
+        const query = MEDIA_QUERY.get(media.slice(3))
+        return query === undefined ? null : query.startsWith('@') ? query : `@media ${query}`
+    }
+    const inline = media.match(/^\[(.+)\]$/)
+    return inline ? arbitraryInner(inline[1]) : null
+}
+
 export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSDialect => {
     const darkMode = options.darkMode ?? 'media'
     const ownTheme = options.theme && Object.keys(options.theme).length ? { ...defaultTheme, ...options.theme } : defaultTheme
+    const ownVariants: Record<string, string[][]> = {}
+    for (const [name, body] of Object.entries(options.variants || {})) {
+        const compiled = compileCustomVariant(body)
+        if (compiled) ownVariants[name] = compiled
+    }
     const activate = () => {
+        CUSTOM_VARIANTS = ownVariants
         if (theme === ownTheme) return
         theme = ownTheme
         RESPONSIVE = keysByNamespace('--breakpoint-')
         CONTAINER_SIZES = keysByNamespace('--container-')
     }
     activate()
-    // `@utility name { ... }`: rule tường minh của người dùng, ưu tiên hơn dữ liệu Tailwind.
-    const userUtilities = new Map<string, Rule>()
+    const breakpoints = buildBreakpoints(darkMode)
+
+    // `@utility name { ... }` / `@utility name-* { --value(...) }`: utility của người dùng (kể cả plugin CSS
+    // như tw-animate-css). Trùng tên với utility sẵn có thì cả hai cùng áp (như Tailwind).
+    const staticUtilities = new Map<string, UserUtility>()
+    const functionalUtilities: Array<[string, UserUtility]> = []
     for (const [name, body] of Object.entries(options.utilities || {})) {
-        const decls = body.split(';').map((d) => d.trim()).filter(Boolean).map((d): [string, string] => {
-            const colon = d.indexOf(':')
-            return [d.slice(0, colon).trim(), d.slice(colon + 1).trim()]
-        }).filter(([p, v]) => p && v)
-        if (decls.length) userUtilities.set(name, { sel: '', decls })
+        const utility = compileUserUtility(body.includes(':') || body.includes('{') ? body : '')
+        if (name.endsWith('-*')) functionalUtilities.push([name.slice(0, -2), utility])
+        else staticUtilities.set(name, utility)
     }
-    const resolveAny = (name: string) => userUtilities.get(name) ?? resolveBase(name)
-    // `@apply a b c;` trong CSS bổ sung: mở rộng thành khai báo (chỉ class gốc, không biến thể).
-    const expandApply = (text: string) => text.replace(/@apply\s+([^;}]+);?/g, (_m, list: string) => list.trim().split(/\s+/).map((name) => {
-        const important = name.endsWith('!') || name.startsWith('!')
-        const rule = resolveAny(name.replace(/^!|!$/g, ''))
-        if (!rule || rule.sel) return `/* @apply ${name}: chưa hỗ trợ */`
-        return rule.decls.map(([p, v]) => `${p}:${withThemeFallback(v)}${important ? ' !important' : ''};`).join('')
-    }).join(''))
-    const dialect = ((className: string): string[] | null => {
+    functionalUtilities.sort((a, b) => b[0].length - a[0].length)
+    const userRules = (name: string): Rule[] | null => {
+        const own = staticUtilities.get(name)
+        if (own) return evaluateUtility(own, null, null)
+        for (const [prefix, utility] of functionalUtilities) {
+            if (!name.startsWith(prefix + '-')) continue
+            let value = name.slice(prefix.length + 1)
+            let modifier: string | null = null
+            const slash = value.lastIndexOf('/')
+            if (utility.usesModifier && slash > 0 && !value.slice(slash).includes(']')) {
+                modifier = value.slice(slash + 1)
+                value = value.slice(0, slash)
+            }
+            const rules = evaluateUtility(utility, value, modifier)
+            if (rules) return rules
+        }
+        return null
+    }
+    const chain = (rules: Rule[]): Rule => ({ ...rules[0], more: [...(rules[0].more || []), ...rules.slice(1)] })
+    // `container`: width 100% + max-width theo từng breakpoint (một class, nhiều rule có media riêng).
+    const containerRule = (): Rule => ({
+        sel: '',
+        decls: [['width', '100%']],
+        more: RESPONSIVE.map((key) => ({ sel: '', decls: [['max-width', breakpointValue(key)] as [string, string]], query: `(width >= ${breakpointValue(key)})` })),
+    })
+    const resolveAny = (name: string): Rule | null => {
+        const builtin = name === 'container' ? containerRule() : resolveBase(name)
+        const own = userRules(name)
+        if (!own) return builtin
+        return builtin ? chain([builtin, ...own]) : chain(own)
+    }
+
+    /** Mỗi biến thể tự định nghĩa có thể có nhiều phương án; `not-hover` = `:not(:hover)` + `@media not (hover: hover)`. */
+    const expandVariants = (parts: string[]): string[][] => {
+        let lists: string[][] = [[]]
+        for (const variant of parts) {
+            const alternatives = ownVariants[variant] ?? (variant === 'not-hover' ? [['not-hover'], ['[@media_not_(hover:_hover)]']] : [[variant]])
+            lists = lists.flatMap((list) => alternatives.map((steps) => [...list, ...steps]))
+        }
+        return lists
+    }
+
+    type Placed = { media: string; sel: string; decls: Array<[string, string]> }
+    /** Class Tailwind -> các rule đã đặt chỗ (selector có `&`, media key/at-rule nội tuyến, khai báo). */
+    const place = (className: string): { placed: Placed[]; important: boolean } | null => {
         activate()
         const parts = splitVariants(className)
         let base = parts.pop() as string
@@ -572,30 +930,105 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
         }
         if (!rule) return null
 
-        const placed = applyVariants(parts, rule.sel, darkMode)
-        if (!placed) return null
-        let decls = rule.decls
-        // before:/after: cần `content` như Tailwind.
-        if (/::(before|after)/.test(placed.sel) && !decls.some(([p]) => p === 'content')) {
-            decls = [['content', 'var(--tw-content)'], ...decls]
+        const rules = [rule, ...(rule.more || [])]
+        const placed: Placed[] = []
+        for (const variantList of expandVariants(parts)) {
+            for (const each of rules) {
+                if (!each.decls.length) continue
+                const at = applyVariants(variantList, each.sel, darkMode, each.query)
+                if (!at) return null
+                let decls = each.decls
+                // before:/after: cần `content` như Tailwind.
+                if (/::(before|after)/.test(at.sel) && !decls.some(([p]) => p === 'content')) {
+                    decls = [['content', 'var(--tw-content)'], ...decls]
+                }
+                placed.push({ ...at, decls })
+            }
         }
-        const sel = placed.sel === '&' ? '' : placed.sel.startsWith('&') && placed.sel.indexOf('&', 1) === -1 ? placed.sel.slice(1) : placed.sel
-        const suffix = sel ? '@' + sel.replace(/\s+/g, ';') : ''
-        const prefix = placed.media ? placed.media + ':' : ''
-        return decls.map(([prop, value]) => {
-            // `--tw-blur: ;` (rỗng) của Tailwind: dùng `initial`, cùng kết quả khi biến được đọc
-            // bằng `var(--tw-blur,)` vì engine không nhận giá trị rỗng.
-            const finalValue = value.trim() === '' && prop.startsWith('--') ? 'initial' : withThemeFallback(value)
-            return `${prefix}${prop}${important ? '!' : ''}[${encodeValue(finalValue)}]${suffix}`
+        return placed.length ? { placed, important } : null
+    }
+
+    // `@apply a md:b hover:c/50 !d;` trong CSS bổ sung: khai báo gốc đặt tại chỗ, biến thể thành rule riêng.
+    const applyTo = (selector: string, list: string): { inline: string; extra: string } => {
+        let inline = ''
+        let extra = ''
+        const parentSel = splitTopLevel(selector).length > 1 ? `:is(${selector})` : selector
+        for (const name of list.trim().split(/\s+/)) {
+            const result = place(name)
+            if (!result) {
+                inline += `/* @apply ${name}: chưa hỗ trợ */`
+                continue
+            }
+            for (const { media, sel, decls } of result.placed) {
+                const body = decls.map(([p, v]) => `${p}:${v.trim() === '' && p.startsWith('--') ? 'initial' : withThemeFallback(v)}${result.important ? ' !important' : ''};`).join('')
+                if (!media && sel === '&') {
+                    inline += body
+                    continue
+                }
+                const rule = `${sel.replace(/&/g, parentSel)}{${body}}`
+                const wrapper = media ? atRuleOf(media) : ''
+                if (media && !wrapper) {
+                    inline += `/* @apply ${name}: chưa hỗ trợ */`
+                    continue
+                }
+                extra += wrapper ? `${wrapper}{${rule}}` : rule
+            }
+        }
+        return { inline, extra }
+    }
+    const expandApply = (text: string): string => {
+        let out = ''
+        for (const item of parseCssItems(text)) {
+            if ('decl' in item) out += `${item.decl[0]}:${item.decl[1]};`
+            else if ('at' in item) out += item.at + ';'
+            else if (/^@(keyframes|font-face|property|counter-style|page)\b/.test(item.head) || !item.body.includes('@apply')) out += `${item.head}{${item.body}}`
+            else if (item.head.startsWith('@')) {
+                // `@layer base/components` của dự án: đặt cùng layer nền (thấp hơn utility) như Tailwind.
+                const head = /^@layer\s+(base|components|theme|utilities)$/.test(item.head) ? '@layer l0' : item.head
+                out += `${head}{${expandApply(item.body)}}`
+            } else {
+                let body = ''
+                let extra = ''
+                for (const child of parseCssItems(item.body)) {
+                    if ('decl' in child) body += `${child.decl[0]}:${child.decl[1]};`
+                    else if ('at' in child && child.at.startsWith('@apply ')) {
+                        const applied = applyTo(item.head, child.at.slice(7))
+                        body += applied.inline
+                        extra += applied.extra
+                    } else if ('at' in child) body += child.at + ';'
+                    else body += `${child.head}{${child.body}}`
+                }
+                out += `${item.head}{${body}}${extra}`
+            }
+        }
+        return out
+    }
+    const layerBaseCss = (text: string) => text.replace(/@layer\s+(base|components|theme)\s*\{/g, '@layer l0{')
+
+    const dialect = ((className: string): string[] | null => {
+        const result = place(className)
+        if (!result) return null
+        // Utility người dùng trùng utility sẵn có cho cùng khai báo (`tab-4`): bỏ token lặp.
+        const seen = new Set<string>()
+        return result.placed.flatMap(({ media, sel: placedSel, decls }) => {
+            const sel = placedSel === '&' ? '' : placedSel.startsWith('&') && placedSel.indexOf('&', 1) === -1 ? placedSel.slice(1) : placedSel
+            const suffix = sel ? '@' + sel.replace(/\s+/g, ';') : ''
+            const prefix = media ? media + ':' : ''
+            return decls.map(([prop, value]) => {
+                // `--tw-blur: ;` (rỗng) của Tailwind: dùng `initial`, cùng kết quả khi biến được đọc
+                // bằng `var(--tw-blur,)` vì engine không nhận giá trị rỗng.
+                const finalValue = value.trim() === '' && prop.startsWith('--') ? 'initial' : withThemeFallback(value)
+                return `${prefix}${prop}${result.important ? '!' : ''}[${encodeValue(finalValue)}]${suffix}`
+            }).filter((token) => !seen.has(token) && !!seen.add(token))
         })
     }) as XCSSDialect
     // Khai báo lấy nguyên văn từ compiler Tailwind: không cần CSS.supports cho từng khai báo.
     dialect.trusted = true
-    dialect.breakpoints = buildBreakpoints(darkMode)
+    dialect.breakpoints = breakpoints
     dialect.baseCss = [
         TW_PROPERTIES_CSS,
-        options.preflight ? TW_PREFLIGHT_CSS : '',
-        options.css ? expandApply(options.css) : '',
+        options.preflight ? themedPreflight() : '',
+        options.css ? layerBaseCss(options.css.includes('@apply') ? expandApply(options.css) : options.css) : '',
     ].filter(Boolean).join('\n')
     return dialect
 }
@@ -603,60 +1036,72 @@ export const tailwindV4Dialect = (options: TailwindV4DialectOptions = {}): XCSSD
 /** Phiên bản Tailwind mà dữ liệu được sinh từ. */
 export const TAILWIND_DATA_VERSION = TW_DATA.version
 
+export interface TailwindStylesheet {
+    theme: Record<string, string>
+    css: string
+    utilities: Record<string, string>
+    variants: Record<string, string>
+    /** `@import`/`@plugin` không giải được (ngoài `tailwindcss`). */
+    unresolved: string[]
+}
+
+export interface ParseTailwindOptions {
+    /** Trả nội dung CSS cho `@import "x"` / `@plugin "x"` (ví dụ plugin đóng gói sẵn); null nếu không có. */
+    resolve?: (id: string) => string | null
+}
+
 /**
- * Đọc stylesheet viết theo Tailwind v4 (`<style type="text/tailwindcss">`):
+ * Đọc stylesheet viết theo Tailwind v4 (`<style type="text/tailwindcss">`, `app.css`):
  *   - `@theme { --color-brand: #0a64e8; @keyframes wiggle {...} }` -> theme + keyframes,
- *   - CSS thường được giữ nguyên; `@import "tailwindcss"`, `@source`, `@plugin`, `@config` bị bỏ qua.
- * (`@apply`, `@utility`, `@custom-variant` chưa hỗ trợ.)
+ *   - `@utility name {...}`, `@utility name-* { x: --value(...) }` -> utilities,
+ *   - `@custom-variant name (&:is(.dark *));` hoặc dạng khối có `@slot` -> variants,
+ *   - CSS còn lại giữ nguyên (`@apply` được dialect mở rộng); `@import "tailwindcss"`, `@source`, `@config` bị bỏ qua.
  */
-export const parseTailwindStylesheet = (source: string): { theme: Record<string, string>; css: string; utilities: Record<string, string> } => {
-    const theme: Record<string, string> = {}
-    const utilities: Record<string, string> = {}
-    let css = ''
-    const text = source.replace(/\/\*[\s\S]*?\*\//g, '')
-    let i = 0
-    const readBlock = (start: number): number => {
-        let depth = 0
-        for (let k = start; k < text.length; k++) {
-            if (text[k] === '{') depth++
-            else if (text[k] === '}') {
-                depth--
-                if (depth === 0) return k
+export const parseTailwindStylesheet = (source: string, options: ParseTailwindOptions = {}): TailwindStylesheet => {
+    const sheet: TailwindStylesheet = { theme: {}, css: '', utilities: {}, variants: {}, unresolved: [] }
+    const seen = new Set<string>()
+    const KEYFRAMES = /@keyframes\s+[\w-]+\s*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g
+    const read = (text: string) => {
+        for (const item of parseCssItems(text.replace(/\/\*[\s\S]*?\*\//g, ''))) {
+            if ('decl' in item) continue
+            if ('at' in item) {
+                const load = item.at.match(/^@(import|plugin)\s+(?:url\()?["']([^"']+)["']/)
+                if (load) {
+                    const id = load[2]
+                    if (id === 'tailwindcss' || id.startsWith('tailwindcss/') || seen.has(id)) continue
+                    seen.add(id)
+                    const content = options.resolve?.(id)
+                    if (content) read(content)
+                    else sheet.unresolved.push(id)
+                    continue
+                }
+                const variant = item.at.match(/^@custom-variant\s+([\w-]+)\s+([\s\S]+)$/)
+                if (variant) sheet.variants[variant[1]] = variant[2].trim()
+                else if (!/^@(source|config|reference|tailwind|import|plugin)\b/.test(item.at)) sheet.css += item.at + ';\n'
+                continue
             }
-        }
-        return text.length - 1
-    }
-    while (i < text.length) {
-        const rest = text.slice(i)
-        const directive = rest.match(/^\s*@(import|source|plugin|config|reference)\b[^;]*;/)
-        if (directive) {
-            i += directive[0].length
-            continue
-        }
-        const utilityHead = rest.match(/^\s*@utility\s+([\w-]+)\s*\{/)
-        if (utilityHead) {
-            const open = i + utilityHead[0].length - 1
-            const close = readBlock(open)
-            utilities[utilityHead[1]] = text.slice(open + 1, close).trim()
-            i = close + 1
-            continue
-        }
-        const themeHead = rest.match(/^\s*@theme\b[^{]*\{/)
-        if (themeHead) {
-            const open = i + themeHead[0].length - 1
-            const close = readBlock(open)
-            const body = text.slice(open + 1, close)
-            for (const kf of body.match(/@keyframes\s+[\w-]+\s*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g) || []) css += kf + '\n'
-            for (const decl of body.replace(/@keyframes\s+[\w-]+\s*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '').matchAll(/(--[\w.-]+)\s*:\s*([^;]+);/g)) {
-                theme[decl[1]] = decl[2].trim()
+            const utility = item.head.match(/^@utility\s+(-?[\w-]+(?:-\*)?)$/)
+            if (utility) {
+                sheet.utilities[utility[1]] = item.body.trim()
+                continue
             }
-            i = close + 1
-            continue
+            const variant = item.head.match(/^@custom-variant\s+([\w-]+)$/)
+            if (variant) {
+                sheet.variants[variant[1]] = `{${item.body}}`
+                continue
+            }
+            if (/^@theme\b/.test(item.head)) {
+                for (const kf of item.body.match(KEYFRAMES) || []) sheet.css += kf + '\n'
+                for (const decl of item.body.replace(KEYFRAMES, '').matchAll(/(--[\w.-]+(?:\\.[\w-]+)*)\s*:\s*([^;]+);/g)) {
+                    sheet.theme[decl[1].replace(/\\\./g, '.')] = decl[2].trim()
+                }
+                continue
+            }
+            if (/^@plugin\b/.test(item.head)) continue
+            sheet.css += `${item.head}{${item.body}}\n`
         }
-        const nextAt = [text.indexOf('@theme', i + 1), text.indexOf('@utility', i + 1)].filter((n) => n !== -1)
-        const end = nextAt.length ? Math.min(...nextAt) : text.length
-        css += text.slice(i, end)
-        i = end
     }
-    return { theme, css: css.trim(), utilities }
+    read(source)
+    sheet.css = sheet.css.trim()
+    return sheet
 }

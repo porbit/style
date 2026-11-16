@@ -13,6 +13,7 @@ export default defineConfig({
         analyze: 'src/analyze.ts',
         'tailwind-v4': 'src/tailwind-v4-entry.ts',
         'tailwind-auto': 'src/tailwind-auto.ts',
+        'tailwind-plugins': 'src/tailwind-plugins.ts',
     },
     format: ['cjs', 'esm'],
     dts: true,

@@ -24,6 +24,18 @@ const loadStylesheet = async (id, base) => {
 
 const ds = await __unstable__loadDesignSystem('@import "tailwindcss";', { base: twDir, loadStylesheet })
 const classList = ds.getClassList().map(([name]) => name)
+// Class cũ (v3) Tailwind v4 vẫn sinh CSS nhưng không liệt kê trong getClassList: rất hay gặp ở dự án
+// nâng cấp từ v3 (`flex-shrink-0`, `bg-gradient-to-r`, `break-words`...).
+{
+    const legacy = ['break-words', 'overflow-ellipsis', 'decoration-slice', 'decoration-clone', 'order-none', 'filter', 'backdrop-filter', 'blur', 'drop-shadow',
+        'flex-grow', 'flex-grow-0', 'flex-shrink', 'flex-shrink-0', 'transform', 'transform-cpu', 'transform-gpu', 'transform-none']
+    for (const pos of ['left-top', 'left-bottom', 'right-top', 'right-bottom']) legacy.push(`bg-${pos}`, `object-${pos}`)
+    for (const dir of ['t', 'tr', 'r', 'br', 'b', 'bl', 'l', 'tl']) legacy.push(`bg-gradient-to-${dir}`)
+    for (const key of ['sm', 'md', 'lg', 'xl', '2xl']) legacy.push(`max-w-screen-${key}`)
+    const known = new Set(classList)
+    const css = ds.candidatesToCss(legacy)
+    legacy.forEach((name, i) => css[i] && !known.has(name) && classList.push(name))
+}
 
 // ---------------------------------------------------------------------------
 // Phân tích CSS của một class
@@ -256,7 +268,7 @@ probeCandidates.forEach(([rootName, kind, value], index) => {
 
 const themeCss = readTw('theme.css')
 const theme = {}
-for (const m of themeCss.matchAll(/(--[\w.-]+(?:\\.[\w-]+)*)\s*:\s*([^;]+);/g)) theme[m[1].replace(/\\\./g, '.')] = m[2].trim().replace(/\s+/g, ' ')
+for (const m of themeCss.matchAll(/(--[\w.-]+(?:\\.[\w-]+)*)\s*:\s*([^;]+);/g)) theme[m[1].replace(/\\\./g, '.')] = m[2].trim().replace(/\s+/g, ' ').replace(/--theme\((--[\w.-]+), initial\)/g, 'var($1)')
 const keyframes = [...themeCss.matchAll(/@keyframes\s+([\w-]+)\s*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g)].map((m) => m[0].replace(/\s+/g, ' '))
 
 const fallbackDecls = [...propertyBlocks].map(([name, block]) => {
@@ -274,6 +286,8 @@ const preflightCss = readTw('preflight.css')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/@layer base\s*\{([\s\S]*)\}\s*$/, '$1')
     .replace(/\s+/g, ' ')
+    // `--theme(--x, dự phòng)` là hàm lúc build của Tailwind, kết quả là `var(--x, dự phòng)`.
+    .replace(/--theme\(\s*/g, 'var(')
     .trim()
 
 // Nén: mỗi mẫu/rule là [chỉ số selector, ...chỉ số khai báo] trỏ vào bảng dùng chung
