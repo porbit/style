@@ -193,7 +193,8 @@ const steps = [
             const prettierOk = prettier.ok && prettierReport.identical === prettierReport.files
             const mergeReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/merge-accuracy.json'), 'utf8'))
             const jsReport = JSON.parse(fs.readFileSync(path.join(root, 'eval/tailwind-js-plugins.json'), 'utf8'))
-            const jsRows = Object.entries(jsReport.plugins || jsReport).filter(([, r]) => r && typeof r === 'object' && r.classes)
+            // Plugin chỉ có biến thể (0 class, như react-aria) không tính vào tỷ lệ class.
+            const jsRows = Object.entries(jsReport).filter(([, r]) => r && typeof r === 'object' && r.classes && r.classes.cases > 0)
             const jsOk = jsPlugins.ok && jsRows.every(([, r]) => r.classes.matched / r.classes.cases >= 0.99)
             const mergeOk = merge.ok && Object.values(mergeReport).filter((r) => r && r.methods).every((r) => r.methods['@porbit/style/merge'].correct === r.pairs && r.methods['@porbit/style/merge/lite + bảng'].correct === r.pairs)
             const realMin = Math.min(realReport.converted, ...Object.values(realReport.matched))
