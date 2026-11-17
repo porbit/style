@@ -15,10 +15,8 @@
  * (45,0 -> 40,0 KB cho trang chỉ dùng class). `tailwindV4Dialect` export từ file này chỉ dịch `utilities`/
  * `variants`/`css` sau khi phần đó đã nạp; cần dùng trực tiếp thì import từ `@porbit/style/tailwind-v4`.
  */
-// Thứ tự import quyết định thứ tự trong file build: dữ liệu Tailwind trước, rồi phương ngữ, rồi lõi. Đặt vậy gzip
-// nhỏ hơn ~0,9 KB (cửa sổ 32 KB của gzip gặp lại chuỗi giống nhau sớm hơn); không đổi hành vi vì các module này
-// không phụ thuộc nhau lúc nạp.
-import './tailwind-generated'
+// Dữ liệu Tailwind (tailwind-generated) được nạp qua tailwind-v4-core và nằm đầu file build, nên gzip đã gặp
+// chuỗi giống nhau sớm (nhỏ hơn ~0,9 KB). Không import trần ở đây: `sideEffects` của package.json khiến esbuild bỏ qua.
 import { TAILWIND_DEFAULT_THEME, tailwindV4Dialect, useTailwindStylesheet } from './tailwind-v4-core'
 import presenceStyle, { type XCSSPreloadManifest } from './core'
 
