@@ -19,14 +19,21 @@ const check = process.argv.includes('--check')
 
 const build = spawnSync('cargo', ['build', '--release', '-q'], { cwd: crate, stdio: 'inherit' })
 if (build.status !== 0) process.exit(build.status ?? 1)
+const rustc = (spawnSync('rustc', ['--version'], { encoding: 'utf8' }).stdout || '').trim().split(' ').slice(0, 2).join(' ')
 const wasm = fs.readFileSync(path.join(crate, 'target/wasm32-unknown-unknown/release/presence_style_scan_wasm.wasm'))
 const content = [
     '// File sinh tự động bởi scripts/gen-scan-wasm.mjs từ wasm/scan/lib.rs — không sửa tay.',
-    `// Bộ quét class ứng viên theo byte (WASM, ${wasm.length} byte), xem src/scan-wasm.ts.`,
+    `// Bộ quét class ứng viên theo byte (WASM, ${wasm.length} byte), xem src/scan-wasm.ts. Dựng bằng ${rustc}.`,
     `export const SCAN_WASM = '${wasm.toString('base64')}'`,
     '',
 ].join('\n')
 if (check) {
+    // Byte WASM phụ thuộc phiên bản rustc: khác phiên bản thì không so byte (hành vi do tests/scan.test.ts bảo đảm).
+    const recorded = (fs.existsSync(out) && /Dựng bằng (rustc \d+\.\d+\.\d+)/.exec(fs.readFileSync(out, 'utf8'))?.[1]) || ''
+    if (recorded && recorded !== rustc) {
+        console.log(`bỏ qua so byte scan wasm (file sinh dựng bằng ${recorded}, máy này ${rustc})`)
+        process.exit(0)
+    }
     const same = fs.existsSync(out) && fs.readFileSync(out, 'utf8') === content
     console.log(same ? `scan wasm khớp (${wasm.length} byte)` : 'scan wasm KHÁC file sinh (chạy node scripts/gen-scan-wasm.mjs)')
     process.exit(same ? 0 : 1)
