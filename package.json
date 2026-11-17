@@ -217,7 +217,7 @@
     "@playwright/test": "^1.48.0",
     "@tailwindcss/browser": "^4.3.5",
     "@tailwindcss/forms": "0.5.11",
-    "@tailwindcss/typography": "^0.5.4",
+    "@tailwindcss/typography": "0.5.20",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.0.18",
     "apca-w3": "^0.1.9",
@@ -250,5 +250,8 @@
     "prettier": {
       "optional": true
     }
+  },
+  "overrides": {
+    "postcss-selector-parser": "^6.1.5"
   }
 }
