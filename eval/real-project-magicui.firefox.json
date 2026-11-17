@@ -1,0 +1,72 @@
+{
+  "label": "Magic UI",
+  "candidates": 586,
+  "summary": {
+    "không build (parseTailwindStylesheet)": {
+      "converted": 586,
+      "total": 586,
+      "matched": {
+        "mặc định": 586,
+        "mở": 586,
+        "đóng": 586,
+        ".dark": 586,
+        "375px": 586,
+        "768px": 586,
+        "1600px": 586
+      },
+      "exercised": {
+        "mở": 3,
+        "đóng": 1,
+        ".dark": 28,
+        "375px": 25,
+        "768px": 18,
+        "1600px": 11
+      },
+      "combos": {
+        "total": 245,
+        "matched": {
+          "mặc định": 245,
+          "mở": 245,
+          "đóng": 245,
+          ".dark": 245,
+          "375px": 245,
+          "768px": 245,
+          "1600px": 245
+        }
+      }
+    },
+    "plugin PostCSS (@porbit/style/postcss)": {
+      "converted": 586,
+      "total": 586,
+      "matched": {
+        "mặc định": 586,
+        "mở": 586,
+        "đóng": 586,
+        ".dark": 586,
+        "375px": 586,
+        "768px": 586,
+        "1600px": 586
+      },
+      "exercised": {
+        "mở": 3,
+        "đóng": 1,
+        ".dark": 28,
+        "375px": 25,
+        "768px": 18,
+        "1600px": 11
+      },
+      "combos": {
+        "total": 245,
+        "matched": {
+          "mặc định": 245,
+          "mở": 245,
+          "đóng": 245,
+          ".dark": 245,
+          "375px": 245,
+          "768px": 245,
+          "1600px": 245
+        }
+      }
+    }
+  }
+}
