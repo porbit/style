@@ -1,5 +1,5 @@
 import Module, { createRequire } from 'node:module'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -9,7 +9,7 @@ const lib = require('../editors/vscode/lib.js')
 
 /** Thư mục dự án giả có `node_modules/@porbit/style` (exports "./lsp" + bin). */
 const fakeProject = (pkg: Record<string, unknown>) => {
-    const dir = mkdtempSync(join(tmpdir(), 'ps-vscode-'))
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'ps-vscode-')))
     const pkgDir = join(dir, 'node_modules', '@porbit', 'style')
     mkdirSync(join(pkgDir, 'dist'), { recursive: true })
     writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({ name: '@porbit/style', ...pkg }))

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { buildSync } from 'esbuild'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -34,7 +34,7 @@ const APP = {
 
 let root = ''
 beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), 'ps-webpack-'))
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'ps-webpack-')))
     write(root, APP)
     delete process.env[SHORT_CLASS_MAP_ENV]
 })
